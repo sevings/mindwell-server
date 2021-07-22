@@ -27,14 +27,14 @@ func tagsQuery(limit int64) *sqlf.Stmt {
 		Limit(limit)
 }
 
-func myTagsQuery(userID, limit int64) *sqlf.Stmt {
+func myTagsQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 	return tagsQuery(limit).
-		Where("entries.author_id = ?", userID).
+		Where("entries.author_id = ?", userID.ID).
 		OrderBy("max(entries.created_at) DESC").
 		OrderBy("cnt DESC")
 }
 
-func tlogTagsQuery(userID, limit int64, tlog string) *sqlf.Stmt {
+func tlogTagsQuery(userID *models.UserID, limit int64, tlog string) *sqlf.Stmt {
 	q := tagsQuery(limit).
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
 		Where("entries.author_id = (SELECT id FROM users WHERE lower(name) = lower(?))", tlog).
@@ -43,7 +43,7 @@ func tlogTagsQuery(userID, limit int64, tlog string) *sqlf.Stmt {
 	return entriesImpl.AddEntryOpenQuery(q, userID)
 }
 
-func liveTagsQuery(userID, limit int64) *sqlf.Stmt {
+func liveTagsQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 	q := tagsQuery(limit).
 		Join("users", "entries.author_id = users.id").
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
@@ -74,7 +74,7 @@ func loadTags(tx *utils.AutoTx) *models.TagList {
 func newMyTagsLoader(srv *utils.MindwellServer) func(me.GetMeTagsParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeTagsParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			query := myTagsQuery(userID.ID, *params.Limit)
+			query := myTagsQuery(userID, *params.Limit)
 
 			tx.QueryStmt(query)
 			tags := loadTags(tx)
@@ -90,14 +90,14 @@ func newUserTagsLoader(srv *utils.MindwellServer) func(users.GetUsersNameTagsPar
 			var query *sqlf.Stmt
 
 			if userID.Name == params.Name {
-				query = myTagsQuery(userID.ID, *params.Limit)
+				query = myTagsQuery(userID, *params.Limit)
 			} else {
 				if !utils.IsOpenForMe(tx, userID, params.Name) {
 					err := srv.StandardError("no_tlog")
 					return users.NewGetUsersNameTagsNotFound().WithPayload(err)
 				}
 
-				query = tlogTagsQuery(userID.ID, *params.Limit, params.Name)
+				query = tlogTagsQuery(userID, *params.Limit, params.Name)
 			}
 
 			tx.QueryStmt(query)
@@ -111,7 +111,7 @@ func newUserTagsLoader(srv *utils.MindwellServer) func(users.GetUsersNameTagsPar
 func newLiveTagsLoader(srv *utils.MindwellServer) func(entries.GetEntriesTagsParams, *models.UserID) middleware.Responder {
 	return func(params entries.GetEntriesTagsParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			query := liveTagsQuery(userID.ID, *params.Limit)
+			query := liveTagsQuery(userID, *params.Limit)
 
 			tx.QueryStmt(query)
 			tags := loadTags(tx)

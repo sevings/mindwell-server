@@ -35,12 +35,12 @@ func baseCalendarQuery(cal *models.Calendar) *sqlf.Stmt {
 	return q.Limit(cal.Limit)
 }
 
-func myCalendarQuery(userID int64, cal *models.Calendar) *sqlf.Stmt {
+func myCalendarQuery(userID *models.UserID, cal *models.Calendar) *sqlf.Stmt {
 	return baseCalendarQuery(cal).
-		Where("author_id = ?", userID)
+		Where("author_id = ?", userID.ID)
 }
 
-func tlogCalendarQuery(userID int64, tlog string, cal *models.Calendar) *sqlf.Stmt {
+func tlogCalendarQuery(userID *models.UserID, tlog string, cal *models.Calendar) *sqlf.Stmt {
 	q := baseCalendarQuery(cal).
 		Join("users", "author_id = users.id").
 		Where("lower(users.name) = lower(?)", tlog).
@@ -121,7 +121,7 @@ func loadTlogCalendar(tx *utils.AutoTx, userID *models.UserID, tlog string, star
 		return cal
 	}
 
-	q := tlogCalendarQuery(userID.ID, tlog, cal)
+	q := tlogCalendarQuery(userID, tlog, cal)
 	tx.QueryStmt(q)
 	loadCalendar(tx, cal)
 
@@ -153,7 +153,7 @@ func loadMyCalendar(tx *utils.AutoTx, userID *models.UserID, start, end, limit i
 		return cal
 	}
 
-	q := myCalendarQuery(userID.ID, cal)
+	q := myCalendarQuery(userID, cal)
 	tx.QueryStmt(q)
 	loadCalendar(tx, cal)
 

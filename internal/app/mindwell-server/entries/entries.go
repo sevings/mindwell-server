@@ -519,7 +519,7 @@ func LoadEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID int64, userI
 		return &models.Entry{}
 	}
 
-	query := feedQuery(userID.ID, 1).
+	query := feedQuery(userID, 1).
 		Where("entries.id = ?", entryID)
 	tx.QueryStmt(query)
 
