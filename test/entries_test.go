@@ -371,9 +371,9 @@ func TestLoadLive(t *testing.T) {
 	postEntry(userIDs[0], models.EntryPrivacyAll, false)
 	postEntry(userIDs[0], models.EntryPrivacySome, true)
 	postEntry(userIDs[1], models.EntryPrivacyMe, true)
-	e1 := postEntry(userIDs[1], models.EntryPrivacyAll, true)
-	postEntry(userIDs[2], models.EntryPrivacyAll, false)
-	e0 := postEntry(userIDs[2], models.EntryPrivacyAll, true)
+	e1 := postEntry(userIDs[1], models.EntryPrivacyInvited, true)
+	postEntry(userIDs[2], models.EntryPrivacyFollowers, false)
+	e0 := postEntry(userIDs[2], models.EntryPrivacyRegistered, true)
 
 	feed := checkLoadLive(t, userIDs[0], 10, "entries", "", "", 3)
 	compareEntries(t, e0, feed.Entries[0], userIDs[0])
@@ -381,10 +381,8 @@ func TestLoadLive(t *testing.T) {
 	compareEntries(t, e2, feed.Entries[2], userIDs[0])
 
 	noAuthUser, _ := api.NoAPIKeyAuth("no auth")
-	feed = checkLoadLive(t, noAuthUser, 10, "entries", "", "", 3)
-	compareEntries(t, e0, feed.Entries[0], noAuthUser)
-	compareEntries(t, e1, feed.Entries[1], noAuthUser)
-	compareEntries(t, e2, feed.Entries[2], noAuthUser)
+	feed = checkLoadLive(t, noAuthUser, 10, "entries", "", "", 1)
+	compareEntries(t, e2, feed.Entries[0], noAuthUser)
 
 	req := require.New(t)
 	req.False(feed.HasBefore)
@@ -431,21 +429,15 @@ func TestLoadLive(t *testing.T) {
 
 	setUserPrivacy(t, userIDs[0], "invited")
 
-	feed = checkLoadLive(t, userIDs[3], 10, "entries", "", "", 2)
+	feed = checkLoadLive(t, userIDs[3], 10, "entries", "", "", 1)
 	compareEntries(t, e0, feed.Entries[0], userIDs[3])
-	compareEntries(t, e1, feed.Entries[1], userIDs[3])
 
-	feed = checkLoadLive(t, noAuthUser, 10, "entries", "", "", 2)
-	compareEntries(t, e0, feed.Entries[0], noAuthUser)
-	compareEntries(t, e1, feed.Entries[1], noAuthUser)
+	checkLoadLive(t, noAuthUser, 10, "entries", "", "", 0)
 
 	setUserPrivacy(t, userIDs[0], "registered")
 
-	checkLoadLive(t, userIDs[3], 10, "entries", "", "", 3)
-
-	feed = checkLoadLive(t, noAuthUser, 10, "entries", "", "", 2)
-	compareEntries(t, e0, feed.Entries[0], noAuthUser)
-	compareEntries(t, e1, feed.Entries[1], noAuthUser)
+	checkLoadLive(t, userIDs[3], 10, "entries", "", "", 2)
+	checkLoadLive(t, noAuthUser, 10, "entries", "", "", 0)
 
 	setUserPrivacy(t, userIDs[0], "all")
 
@@ -524,13 +516,14 @@ func TestLoadTlog(t *testing.T) {
 	noAuthUser, _ := api.NoAPIKeyAuth("no auth")
 
 	e3 := postEntry(userIDs[0], models.EntryPrivacyAll, true)
-	e2 := postEntry(userIDs[0], models.EntryPrivacySome, true)
+	e2 := postEntry(userIDs[0], models.EntryPrivacyRegistered, true)
 	e1 := postEntry(userIDs[0], models.EntryPrivacyMe, true)
-	e0 := postEntry(userIDs[0], models.EntryPrivacyAll, false)
+	e0 := postEntry(userIDs[0], models.EntryPrivacyInvited, false)
 
-	feed := checkLoadTlog(t, userIDs[0], userIDs[1], true, 10, "", "", 2)
+	feed := checkLoadTlog(t, userIDs[0], userIDs[1], true, 10, "", "", 3)
 	compareEntries(t, e0, feed.Entries[0], userIDs[1])
-	compareEntries(t, e3, feed.Entries[1], userIDs[1])
+	compareEntries(t, e2, feed.Entries[1], userIDs[1])
+	compareEntries(t, e3, feed.Entries[2], userIDs[1])
 
 	req := require.New(t)
 	req.False(feed.HasBefore)
@@ -542,7 +535,8 @@ func TestLoadTlog(t *testing.T) {
 	compareEntries(t, e2, feed.Entries[2], userIDs[0])
 	compareEntries(t, e3, feed.Entries[3], userIDs[0])
 
-	checkLoadTlog(t, userIDs[0], noAuthUser, true, 10, "", "", 2)
+	checkLoadTlog(t, userIDs[0], noAuthUser, true, 10, "", "", 1)
+	checkLoadTlog(t, userIDs[0], userIDs[3], true, 10, "", "", 2)
 	checkLoadTlog(t, userIDs[1], userIDs[0], true, 10, "", "", 0)
 
 	feed = checkLoadTlog(t, userIDs[0], userIDs[0], true, 3, "", "", 3)
@@ -599,10 +593,10 @@ func TestLoadTlog(t *testing.T) {
 	checkFollow(t, userIDs[1], userIDs[0], profiles[0], models.RelationshipRelationRequested, true)
 	checkPermitFollow(t, userIDs[0], userIDs[1], true)
 
-	checkLoadTlog(t, userIDs[0], userIDs[1], true, 3, "", "", 2)
+	checkLoadTlog(t, userIDs[0], userIDs[1], true, 3, "", "", 3)
 
 	setUserPrivacy(t, userIDs[0], "invited")
-	checkLoadTlog(t, userIDs[0], userIDs[1], true, 3, "", "", 2)
+	checkLoadTlog(t, userIDs[0], userIDs[1], true, 3, "", "", 3)
 	checkLoadTlog(t, userIDs[0], userIDs[3], false, 3, "", "", 1)
 	checkLoadTlog(t, userIDs[0], noAuthUser, false, 10, "", "", 2)
 
@@ -610,14 +604,14 @@ func TestLoadTlog(t *testing.T) {
 
 	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationIgnored, true)
 	checkLoadTlog(t, userIDs[0], userIDs[1], false, 3, "", "", 2)
-	checkLoadTlog(t, userIDs[0], userIDs[2], true, 3, "", "", 2)
+	checkLoadTlog(t, userIDs[0], userIDs[2], true, 3, "", "", 3)
 	checkLoadTlog(t, userIDs[0], userIDs[3], false, 3, "", "", 1)
 
 	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationHidden, true)
-	checkLoadTlog(t, userIDs[0], userIDs[1], true, 3, "", "", 2)
+	checkLoadTlog(t, userIDs[0], userIDs[1], true, 3, "", "", 3)
 
 	setUserPrivacy(t, userIDs[0], "registered")
-	checkLoadTlog(t, userIDs[0], userIDs[1], true, 3, "", "", 2)
+	checkLoadTlog(t, userIDs[0], userIDs[1], true, 3, "", "", 3)
 	checkLoadTlog(t, userIDs[0], userIDs[3], true, 3, "", "", 2)
 	checkLoadTlog(t, userIDs[0], noAuthUser, false, 10, "", "", 2)
 
@@ -664,7 +658,7 @@ func TestLoadMyTlog(t *testing.T) {
 	e3 := postEntry(userIDs[0], models.EntryPrivacyAll, true)
 	e2 := postEntry(userIDs[0], models.EntryPrivacySome, true)
 	e1 := postEntry(userIDs[0], models.EntryPrivacyMe, true)
-	e0 := postEntry(userIDs[0], models.EntryPrivacyAll, false)
+	e0 := postEntry(userIDs[0], models.EntryPrivacyInvited, false)
 
 	feed := checkLoadMyTlog(t, userIDs[0], 10, "", "", 4)
 	compareEntries(t, e0, feed.Entries[0], userIDs[0])
@@ -735,10 +729,10 @@ func TestLoadFriendsFeed(t *testing.T) {
 
 	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationFollowed, true)
 
-	ea3 := postEntry(userIDs[0], models.EntryPrivacyAll, true)
+	ea3 := postEntry(userIDs[0], models.EntryPrivacyRegistered, true)
 	es2 := postEntry(userIDs[0], models.EntryPrivacySome, true)
 	postEntry(userIDs[0], models.EntryPrivacyMe, true)
-	ea2 := postEntry(userIDs[0], models.EntryPrivacyAll, false)
+	ea2 := postEntry(userIDs[0], models.EntryPrivacyInvited, false)
 
 	ea1 := postEntry(userIDs[1], models.EntryPrivacyAll, true)
 	es1 := postEntry(userIDs[1], models.EntryPrivacySome, true)
@@ -778,8 +772,9 @@ func TestLoadFriendsFeed(t *testing.T) {
 	checkUnfollow(t, userIDs[0], userIDs[1])
 
 	checkFollow(t, userIDs[3], userIDs[1], profiles[1], models.RelationshipRelationFollowed, true)
+	checkLoadFriendsFeed(t, userIDs[3], 10, "", "", 1)
 	setUserPrivacy(t, userIDs[1], "invited")
-	feed = checkLoadFriendsFeed(t, userIDs[3], 10, "", "", 0)
+	checkLoadFriendsFeed(t, userIDs[3], 10, "", "", 0)
 	setUserPrivacy(t, userIDs[0], "all")
 	checkUnfollow(t, userIDs[3], userIDs[1])
 }
@@ -829,10 +824,10 @@ func TestLoadFavorites(t *testing.T) {
 	userIDs, profiles = registerTestUsers(db)
 	esm.Clear()
 
-	postEntry(userIDs[0], models.EntryPrivacyAll, true)
+	postEntry(userIDs[0], models.EntryPrivacyRegistered, true)
 	postEntry(userIDs[0], models.EntryPrivacySome, true)
 	postEntry(userIDs[0], models.EntryPrivacyMe, true)
-	postEntry(userIDs[0], models.EntryPrivacyAll, false)
+	postEntry(userIDs[0], models.EntryPrivacyInvited, false)
 
 	tlog := checkLoadMyTlog(t, userIDs[0], 10, "", "", 4)
 
@@ -877,7 +872,7 @@ func TestLoadFavorites(t *testing.T) {
 	favoriteEntry(userIDs[0], e4.ID)
 
 	checkLoadFavorites(t, userIDs[0], userIDs[0], 10, "", "", 4)
-	checkLoadFavorites(t, userIDs[3], userIDs[0], 10, "", "", 1)
+	checkLoadFavorites(t, userIDs[3], userIDs[0], 10, "", "", 0)
 
 	setUserPrivacy(t, userIDs[1], "all")
 
@@ -935,10 +930,10 @@ func TestLoadLiveComments(t *testing.T) {
 
 	es := make([]*models.Entry, 6)
 
-	es[0] = postEntry(userIDs[0], models.EntryPrivacyAll, true) // 2
+	es[0] = postEntry(userIDs[0], models.EntryPrivacyRegistered, true) // 2
 	es[1] = postEntry(userIDs[0], models.EntryPrivacyAll, false)
 	es[2] = postEntry(userIDs[0], models.EntryPrivacySome, true)
-	es[3] = postEntry(userIDs[1], models.EntryPrivacyAll, true) // 1
+	es[3] = postEntry(userIDs[1], models.EntryPrivacyInvited, true) // 1
 	es[4] = postEntry(userIDs[1], models.EntryPrivacyAll, true)
 	es[5] = postEntry(userIDs[1], models.EntryPrivacyAll, true) // 3
 
@@ -974,14 +969,18 @@ func TestLoadLiveComments(t *testing.T) {
 	req.False(feed.HasBefore)
 	req.False(feed.HasAfter)
 
+	noAuthUser, _ := api.NoAPIKeyAuth("no auth")
+	feed = checkLoadLive(t, noAuthUser, 10, "comments", "", "", 1)
+	compareEntries(t, es[5], feed.Entries[0], noAuthUser)
+
 	checkDeleteComment(t, comments[0], userIDs[0], true)
 	checkDeleteComment(t, comments[3], userIDs[0], true)
 	checkLoadLive(t, userIDs[2], 10, "comments", "", "", 2)
 
-	checkLoadLive(t, userIDs[3], 10, "comments", "", "", 2)
-	setUserPrivacy(t, userIDs[1], "invited")
 	checkLoadLive(t, userIDs[3], 10, "comments", "", "", 1)
-	setUserPrivacy(t, userIDs[1], "all")
+	setUserPrivacy(t, userIDs[0], "invited")
+	checkLoadLive(t, userIDs[3], 10, "comments", "", "", 0)
+	setUserPrivacy(t, userIDs[0], "all")
 
 	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationIgnored, true)
 	checkLoadLive(t, userIDs[0], 10, "comments", "", "", 1)
@@ -1194,32 +1193,58 @@ func TestCanViewEntry(t *testing.T) {
 	e1 := createTlogEntry(t, userIDs[0], models.EntryPrivacyAll, true, true)
 	e2 := createTlogEntry(t, userIDs[0], models.EntryPrivacyMe, true, true)
 	e3 := createTlogEntry(t, userIDs[0], models.EntryPrivacyAnonymous, true, true)
+	e4 := createTlogEntry(t, userIDs[0], models.EntryPrivacyRegistered, true, true)
+	e5 := createTlogEntry(t, userIDs[0], models.EntryPrivacyInvited, true, true)
 
 	check(userIDs[0].ID, e1.ID, true)
 	check(userIDs[0].ID, e2.ID, true)
 	check(userIDs[0].ID, e3.ID, true)
+	check(userIDs[0].ID, e4.ID, true)
+	check(userIDs[0].ID, e5.ID, true)
 
 	check(userIDs[1].ID, e1.ID, true)
 	check(userIDs[1].ID, e2.ID, false)
 	check(userIDs[1].ID, e3.ID, true)
+	check(userIDs[1].ID, e4.ID, true)
+	check(userIDs[1].ID, e5.ID, true)
+
+	check(userIDs[3].ID, e1.ID, true)
+	check(userIDs[3].ID, e2.ID, false)
+	check(userIDs[3].ID, e3.ID, true)
+	check(userIDs[3].ID, e4.ID, true)
+	check(userIDs[3].ID, e5.ID, false)
 
 	check(noAuthUser.ID, e1.ID, true)
 	check(noAuthUser.ID, e2.ID, false)
 	check(noAuthUser.ID, e3.ID, false)
+	check(noAuthUser.ID, e4.ID, false)
+	check(noAuthUser.ID, e5.ID, false)
 
 	setUserPrivacy(t, userIDs[0], "followers")
 
 	check(userIDs[0].ID, e1.ID, true)
 	check(userIDs[0].ID, e2.ID, true)
 	check(userIDs[0].ID, e3.ID, true)
+	check(userIDs[0].ID, e4.ID, true)
+	check(userIDs[0].ID, e5.ID, true)
 
 	check(userIDs[1].ID, e1.ID, false)
 	check(userIDs[1].ID, e2.ID, false)
 	check(userIDs[1].ID, e3.ID, true)
+	check(userIDs[1].ID, e4.ID, false)
+	check(userIDs[1].ID, e5.ID, false)
+
+	check(userIDs[3].ID, e1.ID, false)
+	check(userIDs[3].ID, e2.ID, false)
+	check(userIDs[3].ID, e3.ID, true)
+	check(userIDs[3].ID, e4.ID, false)
+	check(userIDs[3].ID, e5.ID, false)
 
 	check(noAuthUser.ID, e1.ID, false)
 	check(noAuthUser.ID, e2.ID, false)
 	check(noAuthUser.ID, e3.ID, false)
+	check(noAuthUser.ID, e4.ID, false)
+	check(noAuthUser.ID, e5.ID, false)
 
 	checkFollow(t, userIDs[1], userIDs[0], profiles[0], models.RelationshipRelationRequested, true)
 	checkPermitFollow(t, userIDs[0], userIDs[1], true)

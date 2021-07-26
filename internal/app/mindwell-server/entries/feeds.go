@@ -123,12 +123,23 @@ func addLiveQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt {
 	addTagQuery(q, tag)
 
 	return q.
-		Where("entry_privacy.type = 'all'").
 		Where("entries.in_live").
 		Where(`
-(user_privacy.type = 'all' 
-OR (user_privacy.type = 'registered' AND ? > 0) 
-OR (user_privacy.type = 'invited' AND ?))`, userID.ID, userID.IsInvited).
+CASE entry_privacy.type
+WHEN 'all' THEN TRUE
+WHEN 'registered' THEN ?
+WHEN 'invited' THEN ?
+ELSE FALSE
+END
+`, userID.ID > 0, userID.IsInvited).
+		Where(`
+CASE user_privacy.type
+WHEN 'all' THEN TRUE
+WHEN 'registered' THEN ?
+WHEN 'invited' THEN ?
+ELSE FALSE
+END
+`, userID.ID > 0, userID.IsInvited).
 		Where("(relations_to_me.type IS NULL OR relations_to_me.type <> 'ignored')").
 		Where("(relations_from_me.type IS NULL OR relations_from_me.type NOT IN ('ignored', 'hidden'))")
 }
@@ -160,21 +171,37 @@ func liveCommentsQuery(userID *models.UserID, limit int64, tag string) *sqlf.Stm
 	return addLiveCommentsQuery(q, userID, tag)
 }
 
-const isEntryOpenQueryWhere = `
-(entry_privacy.type = 'all' 
-	OR (entry_privacy.type = 'some' 
-		AND (entries.author_id = ?
-			OR EXISTS(SELECT 1 from entries_privacy WHERE user_id = ? AND entry_id = entries.id))))
-`
+func AddEntryOpenQuery(q *sqlf.Stmt, userID *models.UserID, showMe bool) *sqlf.Stmt {
+	return q.Where(`
+CASE entry_privacy.type
+WHEN 'all' THEN TRUE
+WHEN 'registered' THEN ?
+WHEN 'invited' THEN ?
+WHEN 'followers' THEN entries.author_id = ? OR relations_from_me.type = 'followed'
+WHEN 'some' THEN entries.author_id = ?
+	OR EXISTS(SELECT 1 from entries_privacy WHERE user_id = ? AND entry_id = entries.id)
+WHEN 'me' THEN ? AND entries.author_id = ?
+ELSE FALSE
+END
+`, userID.ID > 0, userID.IsInvited, userID.ID, userID.ID, userID.ID, showMe, userID.ID)
+}
 
-func AddEntryOpenQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
-	return q.Where(isEntryOpenQueryWhere, userID.ID, userID.ID)
+func AddRelationToTlogQuery(q *sqlf.Stmt, userID *models.UserID, tlog string) *sqlf.Stmt {
+	return q.With("relations_from_me",
+		sqlf.Select("relation.type").
+			From("relations").
+			Join("relation", "relations.type = relation.id").
+			Join("users", "relations.to_id = users.id").
+			Where("relations.from_id = ?", userID.ID).
+			Where("lower(users.name) = lower(?)", tlog)).
+		LeftJoin("relations_from_me", "TRUE")
 }
 
 func addTlogQuery(q *sqlf.Stmt, userID *models.UserID, tlog, tag string) *sqlf.Stmt {
 	q.Where("lower(users.name) = lower(?)", tlog)
 	addTagQuery(q, tag)
-	return AddEntryOpenQuery(q, userID)
+	AddRelationToTlogQuery(q, userID, tlog)
+	return AddEntryOpenQuery(q, userID, false)
 }
 
 func tlogQuery(userID *models.UserID, limit int64, tlog, tag string) *sqlf.Stmt {
@@ -184,7 +211,7 @@ func tlogQuery(userID *models.UserID, limit int64, tlog, tag string) *sqlf.Stmt 
 
 func addFriendsQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt {
 	addRelationsFromMeQuery(q, userID)
-	AddEntryOpenQuery(q, userID)
+	AddEntryOpenQuery(q, userID, false)
 	addTagQuery(q, tag)
 	return q.
 		Where("(users.id = ? OR relations_from_me.type = 'followed')", userID.ID).
@@ -196,22 +223,22 @@ func friendsQuery(userID *models.UserID, limit int64, tag string) *sqlf.Stmt {
 	return addFriendsQuery(q, userID, tag)
 }
 
-const canViewEntryQueryWhere = `
-(users.id = ?
-	OR (` + isEntryOpenQueryWhere + `
-		AND (user_privacy.type = 'all' 
-			OR (user_privacy.type = 'registered' AND ? > 0) 
-			OR (user_privacy.type = 'followers' AND relations_from_me.type = 'followed')
-			OR (user_privacy.type = 'invited' AND ?)
-	)))`
-
 func addCanViewEntryQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
 	addRelationsFromMeQuery(q, userID)
 	addRelationsToMeQuery(q, userID)
+	AddEntryOpenQuery(q, userID, true)
+
 	return q.
 		Where("(relations_to_me.type IS NULL OR relations_to_me.type <> 'ignored')").
 		Where("(relations_from_me.type IS NULL OR relations_from_me.type <> 'ignored')").
-		Where(canViewEntryQueryWhere, userID.ID, userID.ID, userID.ID, userID.ID, userID.IsInvited)
+		Where(`
+CASE user_privacy.type
+WHEN 'all' THEN TRUE
+WHEN 'registered' THEN ?
+WHEN 'invited' THEN ?
+WHEN 'followers' THEN entries.author_id = ? OR relations_from_me.type = 'followed'
+ELSE FALSE
+END`, userID.ID > 0, userID.IsInvited, userID.ID)
 }
 
 func watchingQuery(userID *models.UserID, limit int64) *sqlf.Stmt {

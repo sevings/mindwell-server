@@ -45,7 +45,8 @@ func tlogCalendarQuery(userID *models.UserID, tlog string, cal *models.Calendar)
 		Join("users", "author_id = users.id").
 		Where("lower(users.name) = lower(?)", tlog).
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id")
-	return AddEntryOpenQuery(q, userID)
+	AddRelationToTlogQuery(q, userID, tlog)
+	return AddEntryOpenQuery(q, userID, false)
 }
 
 func loadEmptyCalendar(tx *utils.AutoTx, q *sqlf.Stmt, start, end, limit int64) *models.Calendar {

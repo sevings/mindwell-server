@@ -40,7 +40,8 @@ func tlogTagsQuery(userID *models.UserID, limit int64, tlog string) *sqlf.Stmt {
 		Where("entries.author_id = (SELECT id FROM users WHERE lower(name) = lower(?))", tlog).
 		OrderBy("max(entries.created_at) DESC").
 		OrderBy("cnt DESC")
-	return entriesImpl.AddEntryOpenQuery(q, userID)
+	entriesImpl.AddRelationToTlogQuery(q, userID, tlog)
+	return entriesImpl.AddEntryOpenQuery(q, userID, false)
 }
 
 func liveTagsQuery(userID *models.UserID, limit int64) *sqlf.Stmt {

@@ -66,7 +66,7 @@ type Entry struct {
 	IsWatching bool `json:"isWatching,omitempty"`
 
 	// privacy
-	// Enum: [all some me anonymous]
+	// Enum: [all registered invited followers some me anonymous]
 	Privacy string `json:"privacy,omitempty"`
 
 	// rating
@@ -204,7 +204,7 @@ var entryTypePrivacyPropEnum []interface{}
 
 func init() {
 	var res []string
-	if err := json.Unmarshal([]byte(`["all","some","me","anonymous"]`), &res); err != nil {
+	if err := json.Unmarshal([]byte(`["all","registered","invited","followers","some","me","anonymous"]`), &res); err != nil {
 		panic(err)
 	}
 	for _, v := range res {
@@ -216,6 +216,15 @@ const (
 
 	// EntryPrivacyAll captures enum value "all"
 	EntryPrivacyAll string = "all"
+
+	// EntryPrivacyRegistered captures enum value "registered"
+	EntryPrivacyRegistered string = "registered"
+
+	// EntryPrivacyInvited captures enum value "invited"
+	EntryPrivacyInvited string = "invited"
+
+	// EntryPrivacyFollowers captures enum value "followers"
+	EntryPrivacyFollowers string = "followers"
 
 	// EntryPrivacySome captures enum value "some"
 	EntryPrivacySome string = "some"

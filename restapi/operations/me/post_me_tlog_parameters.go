@@ -335,7 +335,7 @@ func (o *PostMeTlogParams) bindPrivacy(rawData []string, hasKey bool, formats st
 // validatePrivacy carries on validations for parameter Privacy
 func (o *PostMeTlogParams) validatePrivacy(formats strfmt.Registry) error {
 
-	if err := validate.EnumCase("privacy", "formData", o.Privacy, []interface{}{"all", "followers", "some", "me"}, true); err != nil {
+	if err := validate.EnumCase("privacy", "formData", o.Privacy, []interface{}{"all", "registered", "invited", "followers", "some", "me"}, true); err != nil {
 		return err
 	}
 

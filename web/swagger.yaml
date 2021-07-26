@@ -408,7 +408,7 @@ definitions:
         type: integer
       privacy:
         type: string
-        enum: [all, some, me, anonymous]
+        enum: [all, registered, invited, followers, some, me, anonymous]
       visibleFor:
         type: array
         items:
@@ -2098,7 +2098,7 @@ paths:
         - in: formData
           name: privacy
           type: string
-          enum: [all, followers, some, me]
+          enum: [all, registered, invited, followers, some, me]
           required: true
         - in: formData
           name: visibleFor
@@ -2658,7 +2658,7 @@ paths:
         - in: formData
           name: privacy
           type: string
-          enum: [all, followers, some, me, anonymous]
+          enum: [all, registered, invited, followers, some, me, anonymous]
           required: true
         - in: formData
           name: visibleFor

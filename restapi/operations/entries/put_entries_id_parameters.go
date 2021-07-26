@@ -416,7 +416,7 @@ func (o *PutEntriesIDParams) bindPrivacy(rawData []string, hasKey bool, formats 
 // validatePrivacy carries on validations for parameter Privacy
 func (o *PutEntriesIDParams) validatePrivacy(formats strfmt.Registry) error {
 
-	if err := validate.EnumCase("privacy", "formData", o.Privacy, []interface{}{"all", "followers", "some", "me", "anonymous"}, true); err != nil {
+	if err := validate.EnumCase("privacy", "formData", o.Privacy, []interface{}{"all", "registered", "invited", "followers", "some", "me", "anonymous"}, true); err != nil {
 		return err
 	}
 

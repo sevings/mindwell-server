@@ -2378,6 +2378,8 @@ func init() {
           {
             "enum": [
               "all",
+              "registered",
+              "invited",
               "followers",
               "some",
               "me",
@@ -3850,6 +3852,8 @@ func init() {
           {
             "enum": [
               "all",
+              "registered",
+              "invited",
               "followers",
               "some",
               "me"
@@ -5694,6 +5698,9 @@ func init() {
           "type": "string",
           "enum": [
             "all",
+            "registered",
+            "invited",
+            "followers",
             "some",
             "me",
             "anonymous"
@@ -9140,6 +9147,8 @@ func init() {
           {
             "enum": [
               "all",
+              "registered",
+              "invited",
               "followers",
               "some",
               "me",
@@ -10795,6 +10804,8 @@ func init() {
           {
             "enum": [
               "all",
+              "registered",
+              "invited",
               "followers",
               "some",
               "me"
@@ -12908,6 +12919,9 @@ func init() {
           "type": "string",
           "enum": [
             "all",
+            "registered",
+            "invited",
+            "followers",
             "some",
             "me",
             "anonymous"

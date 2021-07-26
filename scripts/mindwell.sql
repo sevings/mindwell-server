@@ -1158,6 +1158,9 @@ INSERT INTO "mindwell"."entry_privacy" VALUES(0, 'all');
 INSERT INTO "mindwell"."entry_privacy" VALUES(1, 'some');
 INSERT INTO "mindwell"."entry_privacy" VALUES(2, 'me');
 INSERT INTO "mindwell"."entry_privacy" VALUES(3, 'anonymous');
+INSERT INTO "mindwell"."entry_privacy" VALUES(4, 'registered');
+INSERT INTO "mindwell"."entry_privacy" VALUES(5, 'invited');
+INSERT INTO "mindwell"."entry_privacy" VALUES(6, 'followers');
 -- -------------------------------------------------------------
 
 
@@ -1259,26 +1262,26 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER cnt_tlog_entries_ins
     AFTER INSERT ON mindwell.entries
-    FOR EACH ROW 
-    WHEN (NEW.visible_for = 0) -- visible_for = all
+    FOR EACH ROW
+    WHEN (NEW.visible_for IN (0, 4, 5)) -- visible_for = all, registered, invited
     EXECUTE PROCEDURE mindwell.inc_tlog_entries();
 
 CREATE TRIGGER cnt_tlog_entries_upd_inc
     AFTER UPDATE ON mindwell.entries
-    FOR EACH ROW 
-    WHEN (OLD.visible_for <> 0 AND NEW.visible_for = 0)
+    FOR EACH ROW
+    WHEN (OLD.visible_for NOT IN (0, 4, 5) AND NEW.visible_for IN(0, 4, 5))
     EXECUTE PROCEDURE mindwell.inc_tlog_entries();
 
 CREATE TRIGGER cnt_tlog_entries_upd_dec
     AFTER UPDATE ON mindwell.entries
-    FOR EACH ROW 
-    WHEN (OLD.visible_for = 0 AND NEW.visible_for <> 0)
+    FOR EACH ROW
+    WHEN (OLD.visible_for IN (0, 4, 5) AND NEW.visible_for NOT IN (0, 4, 5))
     EXECUTE PROCEDURE mindwell.dec_tlog_entries();
 
 CREATE TRIGGER cnt_tlog_entries_del
     AFTER DELETE ON mindwell.entries
-    FOR EACH ROW 
-    WHEN (OLD.visible_for = 0)
+    FOR EACH ROW
+    WHEN (OLD.visible_for IN (0, 4, 5))
     EXECUTE PROCEDURE mindwell.dec_tlog_entries();
 
 
@@ -2577,6 +2580,27 @@ CREATE OR REPLACE FUNCTION mindwell.can_view_entry(user_id INTEGER, entry_id INT
         CASE entry_privacy
         WHEN 'all' THEN
             RETURN TRUE;
+        WHEN 'registered' THEN
+            RETURN user_id > 0;
+        WHEN 'invited' THEN
+            IF user_id > 0 THEN
+                RETURN (
+                    SELECT invited_by IS NOT NULL
+                    FROM users
+                    WHERE users.id = user_id);
+            ELSE
+                RETURN FALSE;
+            END IF;
+        WHEN 'followers' THEN
+            IF user_id > 0 THEN
+                RETURN COALESCE((
+                    SELECT relation.type = 'followed'
+                    FROM relations
+                    INNER JOIN relation ON relation.id = relations.type
+                    WHERE from_id = user_id AND to_id = author_id), FALSE);
+            ELSE
+                RETURN FALSE;
+            END IF;
         WHEN 'some' THEN
             IF user_id > 0 THEN
                 SELECT TRUE
