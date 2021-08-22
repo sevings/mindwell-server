@@ -46,21 +46,15 @@ func entryRating(tx *utils.AutoTx, userID, entryID int64) *models.Rating {
 }
 
 func newEntryVoteLoader(srv *utils.MindwellServer) func(votes.GetEntriesIDVoteParams, *models.UserID) middleware.Responder {
-	return func(params votes.GetEntriesIDVoteParams, uID *models.UserID) middleware.Responder {
+	return func(params votes.GetEntriesIDVoteParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			userID := uID.ID
 			canView := utils.CanViewEntry(tx, userID, params.ID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return votes.NewGetEntriesIDVoteNotFound().WithPayload(err)
 			}
 
-			status := entryRating(tx, userID, params.ID)
-			if tx.Error() != nil {
-				err := srv.StandardError("no_entry")
-				return votes.NewGetEntriesIDVoteNotFound().WithPayload(err)
-			}
-
+			status := entryRating(tx, userID.ID, params.ID)
 			return votes.NewGetEntriesIDVoteOK().WithPayload(status)
 		})
 	}
@@ -87,7 +81,7 @@ func canVoteForEntry(tx *utils.AutoTx, userID *models.UserID, entryID int64) boo
 		return false
 	}
 
-	return utils.CanViewEntry(tx, userID.ID, entryID)
+	return utils.CanViewEntry(tx, userID, entryID)
 }
 
 func loadEntryRating(tx *utils.AutoTx, entryID int64) *models.Rating {
@@ -139,22 +133,12 @@ func newEntryVoter(srv *utils.MindwellServer) func(votes.PutEntriesIDVoteParams,
 	return func(params votes.PutEntriesIDVoteParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			canVote := canVoteForEntry(tx, userID, params.ID)
-			if tx.Error() != nil {
-				err := srv.StandardError("no_entry")
-				return votes.NewPutEntriesIDVoteNotFound().WithPayload(err)
-			}
-
 			if !canVote {
 				err := srv.NewError(&i18n.Message{ID: "cant_vote", Other: "You are not allowed to vote for this entry."})
 				return votes.NewPutEntriesIDVoteForbidden().WithPayload(err)
 			}
 
 			status := voteForEntry(tx, userID.ID, params.ID, *params.Positive)
-			if tx.Error() != nil {
-				err := srv.NewError(nil)
-				return votes.NewPutEntriesIDVoteNotFound().WithPayload(err)
-			}
-
 			return votes.NewPutEntriesIDVoteOK().WithPayload(status)
 		})
 	}
@@ -180,18 +164,13 @@ func newEntryUnvoter(srv *utils.MindwellServer) func(votes.DeleteEntriesIDVotePa
 	return func(params votes.DeleteEntriesIDVoteParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			canVote := canVoteForEntry(tx, userID, params.ID)
-			if tx.Error() != nil {
-				err := srv.StandardError("no_entry")
-				return votes.NewDeleteEntriesIDVoteNotFound().WithPayload(err)
-			}
-
 			if !canVote {
 				err := srv.NewError(&i18n.Message{ID: "cant_vote", Other: "You are not allowed to vote for this entry."})
 				return votes.NewDeleteEntriesIDVoteForbidden().WithPayload(err)
 			}
 
 			status, ok := unvoteEntry(tx, userID.ID, params.ID)
-			if !ok || tx.Error() != nil {
+			if !ok {
 				err := srv.NewError(nil)
 				return votes.NewDeleteEntriesIDVoteNotFound().WithPayload(err)
 			}

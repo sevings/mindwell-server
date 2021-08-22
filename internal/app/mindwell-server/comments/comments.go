@@ -144,7 +144,7 @@ func newCommentLoader(srv *utils.MindwellServer) func(comments.GetCommentsIDPara
 				return comments.NewGetCommentsIDNotFound().WithPayload(err)
 			}
 
-			canView := utils.CanViewEntry(tx, userID.ID, comment.EntryID)
+			canView := utils.CanViewEntry(tx, userID, comment.EntryID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return comments.NewGetCommentsIDNotFound().WithPayload(err)
@@ -345,7 +345,7 @@ func LoadEntryComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *mode
 func newEntryCommentsLoader(srv *utils.MindwellServer) func(comments.GetEntriesIDCommentsParams, *models.UserID) middleware.Responder {
 	return func(params comments.GetEntriesIDCommentsParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.CanViewEntry(tx, userID.ID, params.ID)
+			canView := utils.CanViewEntry(tx, userID, params.ID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return comments.NewGetEntriesIDCommentsNotFound().WithPayload(err)
@@ -379,7 +379,7 @@ func canPostComment(tx *utils.AutoTx, userID *models.UserID, entryID int64) bool
 		return false
 	}
 
-	return utils.CanViewEntry(tx, userID.ID, entryID)
+	return utils.CanViewEntry(tx, userID, entryID)
 }
 
 func postComment(tx *utils.AutoTx, author *models.User, entryID int64, content string) *models.Comment {

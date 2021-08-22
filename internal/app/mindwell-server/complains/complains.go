@@ -41,7 +41,7 @@ const createQuery = `
 func newEntryComplainer(srv *utils.MindwellServer) func(entries.PostEntriesIDComplainParams, *models.UserID) middleware.Responder {
 	return func(params entries.PostEntriesIDComplainParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			allowed := utils.CanViewEntry(tx, userID.ID, params.ID)
+			allowed := utils.CanViewEntry(tx, userID, params.ID)
 			if !allowed {
 				err := srv.StandardError("no_entry")
 				return entries.NewPostEntriesIDComplainNotFound().WithPayload(err)
@@ -77,7 +77,7 @@ func newCommentComplainer(srv *utils.MindwellServer) func(comments.PostCommentsI
 			tx.Query("SELECT entry_id, author_id FROM comments WHERE id = $1", params.ID)
 			tx.Scan(&entryID, &authorID)
 
-			allowed := utils.CanViewEntry(tx, userID.ID, entryID)
+			allowed := utils.CanViewEntry(tx, userID, entryID)
 			if !allowed {
 				err := srv.StandardError("no_comment")
 				return comments.NewPostCommentsIDComplainNotFound().WithPayload(err)

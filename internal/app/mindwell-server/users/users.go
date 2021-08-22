@@ -245,12 +245,7 @@ func loadUserList(srv *utils.MindwellServer, tx *utils.AutoTx, reverse bool) ([]
 func loadRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, queryWhere, related, name,
 	relation, afterS, beforeS string, limit int64) middleware.Responder {
 	return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-		open := utils.IsOpenForMe(tx, userID, name)
-		if tx.Error() != nil {
-			err := srv.NewError(nil)
-			return users.NewGetUsersNameFollowersNotFound().WithPayload(err)
-		}
-
+		open := utils.CanViewTlogName(tx, userID, name)
 		if !open {
 			err := srv.StandardError("no_tlog")
 			return users.NewGetUsersNameFollowersForbidden().WithPayload(err)
@@ -309,12 +304,7 @@ func loadRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 func loadInvitedUsers(srv *utils.MindwellServer, userID *models.UserID, query, queryWhere, name,
 	afterS, beforeS string, limit int64) middleware.Responder {
 	return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-		open := utils.IsOpenForMe(tx, userID, name)
-		if tx.Error() != nil {
-			err := srv.NewError(nil)
-			return users.NewGetUsersNameFollowersNotFound().WithPayload(err)
-		}
-
+		open := utils.CanViewTlogName(tx, userID, name)
 		if !open {
 			err := srv.StandardError("no_tlog")
 			return users.NewGetUsersNameFollowersForbidden().WithPayload(err)

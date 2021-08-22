@@ -62,24 +62,20 @@ func canVoteForComment(tx *utils.AutoTx, userID *models.UserID, commentID int64)
 		return false
 	}
 
-	return utils.CanViewEntry(tx, userID.ID, entryID)
+	return utils.CanViewEntry(tx, userID, entryID)
 }
 
 func newCommentVoteLoader(srv *utils.MindwellServer) func(votes.GetCommentsIDVoteParams, *models.UserID) middleware.Responder {
 	return func(params votes.GetCommentsIDVoteParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canVoteForComment(tx, userID, params.ID)
-			if tx.Error() != nil {
+			entryID := tx.QueryInt64("SELECT entry_id FROM comments WHERE id = $1", params.ID)
+			canView := utils.CanViewEntry(tx, userID, entryID)
+			if !canView {
 				err := srv.StandardError("no_entry")
 				return votes.NewGetCommentsIDVoteNotFound().WithPayload(err)
 			}
 
 			status := commentRating(tx, userID.ID, params.ID)
-			if tx.Error() != nil {
-				err := srv.StandardError("no_entry")
-				return votes.NewGetCommentsIDVoteNotFound().WithPayload(err)
-			}
-
 			return votes.NewGetCommentsIDVoteOK().WithPayload(status)
 		})
 	}
@@ -136,11 +132,6 @@ func newCommentVoter(srv *utils.MindwellServer) func(votes.PutCommentsIDVotePara
 	return func(params votes.PutCommentsIDVoteParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			canVote := canVoteForComment(tx, userID, params.ID)
-			if tx.Error() != nil {
-				err := srv.StandardError("no_entry")
-				return votes.NewPutCommentsIDVoteNotFound().WithPayload(err)
-			}
-
 			if !canVote {
 				err := srv.NewError(&i18n.Message{ID: "cant_vote", Other: "You are not allowed to vote for this comment."})
 				return votes.NewPutCommentsIDVoteForbidden().WithPayload(err)
@@ -177,18 +168,13 @@ func newCommentUnvoter(srv *utils.MindwellServer) func(votes.DeleteCommentsIDVot
 	return func(params votes.DeleteCommentsIDVoteParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			canVote := canVoteForComment(tx, userID, params.ID)
-			if tx.Error() != nil {
-				err := srv.StandardError("no_entry")
-				return votes.NewDeleteCommentsIDVoteNotFound().WithPayload(err)
-			}
-
 			if !canVote {
 				err := srv.NewError(&i18n.Message{ID: "cant_vote", Other: "You are not allowed to vote for this comment."})
 				return votes.NewDeleteCommentsIDVoteForbidden().WithPayload(err)
 			}
 
 			status, ok := unvoteComment(tx, userID.ID, params.ID)
-			if !ok || tx.Error() != nil {
+			if !ok {
 				err := srv.NewError(nil)
 				return votes.NewDeleteCommentsIDVoteNotFound().WithPayload(err)
 			}

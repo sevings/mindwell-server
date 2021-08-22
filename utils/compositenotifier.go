@@ -153,33 +153,54 @@ func (ntf *CompositeNotifier) SendNewComment(tx *AutoTx, cmt *models.Comment) {
 	tx.Query(fromQ, cmt.Author.ID).Scan(&fromGender)
 
 	const toQ = `
-		SELECT users.name, show_name, email, verified AND email_comments, telegram, telegram_comments
+		SELECT users.id, users.name, show_name, email, verified AND email_comments, telegram, telegram_comments
 		FROM users 
 		INNER JOIN watching ON watching.user_id = users.id 
-		WHERE watching.entry_id = $1 AND users.id <> $2 
-			AND can_view_entry(users.id, $1)`
+		WHERE watching.entry_id = $1 AND users.id <> $2`
 
 	tx.Query(toQ, cmt.EntryID, cmt.Author.ID)
 
-	var toNames []string
-	var toName string
-	var sendEmail, sendTg bool
-	var toShowName, email string
-	var tg sql.NullInt64
-	for tx.Scan(&toName, &toShowName, &email, &sendEmail, &tg, &sendTg) {
-		if sendEmail {
-			ntf.Mail.SendNewComment(email, fromGender, toShowName, title, cmt)
-		}
-
-		if tg.Valid && sendTg {
-			ntf.Tg.SendNewComment(tg.Int64, title, cmt)
-		}
-
-		toNames = append(toNames, toName)
+	type userData struct {
+		id        int64
+		name      string
+		showName  string
+		email     string
+		sendEmail bool
+		sendTg    bool
+		tg        sql.NullInt64
+		canView   bool
 	}
 
-	for _, name := range toNames {
-		ntf.Ntf.Notify(tx, cmt.ID, typeComment, name)
+	var toUsers []*userData
+
+	for {
+		var user userData
+		if !tx.Scan(&user.id, &user.name, &user.showName, &user.email, &user.sendEmail, &user.tg, &user.sendTg) {
+			break
+		}
+
+		toUsers = append(toUsers, &user)
+	}
+
+	for _, user := range toUsers {
+		userID, _ := LoadUserIDByID(tx, user.id)
+		user.canView = CanViewEntry(tx, userID, cmt.EntryID)
+	}
+
+	for _, user := range toUsers {
+		if !user.canView {
+			continue
+		}
+
+		if user.sendEmail {
+			ntf.Mail.SendNewComment(user.email, fromGender, user.showName, title, cmt)
+		}
+
+		if user.tg.Valid && user.sendTg {
+			ntf.Tg.SendNewComment(user.tg.Int64, title, cmt)
+		}
+
+		ntf.Ntf.Notify(tx, cmt.ID, typeComment, user.name)
 	}
 }
 

@@ -28,16 +28,15 @@ func watchingStatus(tx *utils.AutoTx, userID, entryID int64) *models.WatchingSta
 }
 
 func newWatchingStatusLoader(srv *utils.MindwellServer) func(watchings.GetEntriesIDWatchingParams, *models.UserID) middleware.Responder {
-	return func(params watchings.GetEntriesIDWatchingParams, uID *models.UserID) middleware.Responder {
+	return func(params watchings.GetEntriesIDWatchingParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			userID := uID.ID
 			canView := utils.CanViewEntry(tx, userID, params.ID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return watchings.NewGetEntriesIDWatchingNotFound().WithPayload(err)
 			}
 
-			status := watchingStatus(tx, userID, params.ID)
+			status := watchingStatus(tx, userID.ID, params.ID)
 			return watchings.NewGetEntriesIDWatchingOK().WithPayload(status)
 		})
 	}
@@ -61,16 +60,15 @@ func AddWatching(tx *utils.AutoTx, userID, entryID int64) *models.WatchingStatus
 }
 
 func newWatchingAdder(srv *utils.MindwellServer) func(watchings.PutEntriesIDWatchingParams, *models.UserID) middleware.Responder {
-	return func(params watchings.PutEntriesIDWatchingParams, uID *models.UserID) middleware.Responder {
+	return func(params watchings.PutEntriesIDWatchingParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			userID := uID.ID
 			canView := utils.CanViewEntry(tx, userID, params.ID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return watchings.NewPutEntriesIDWatchingNotFound().WithPayload(err)
 			}
 
-			status := AddWatching(tx, userID, params.ID)
+			status := AddWatching(tx, userID.ID, params.ID)
 			return watchings.NewPutEntriesIDWatchingOK().WithPayload(status)
 		})
 	}
@@ -92,16 +90,15 @@ func RemoveWatching(tx *utils.AutoTx, userID, entryID int64) *models.WatchingSta
 }
 
 func newWatchingDeleter(srv *utils.MindwellServer) func(watchings.DeleteEntriesIDWatchingParams, *models.UserID) middleware.Responder {
-	return func(params watchings.DeleteEntriesIDWatchingParams, uID *models.UserID) middleware.Responder {
+	return func(params watchings.DeleteEntriesIDWatchingParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			userID := uID.ID
 			canView := utils.CanViewEntry(tx, userID, params.ID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return watchings.NewDeleteEntriesIDWatchingNotFound().WithPayload(err)
 			}
 
-			status := RemoveWatching(tx, userID, params.ID)
+			status := RemoveWatching(tx, userID.ID, params.ID)
 			return watchings.NewDeleteEntriesIDWatchingOK().WithPayload(status)
 		})
 	}

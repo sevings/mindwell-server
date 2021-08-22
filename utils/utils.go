@@ -4,6 +4,7 @@ import (
 	"bytes"
 	crypto "crypto/rand"
 	"encoding/base64"
+	"github.com/leporo/sqlf"
 	"log"
 	"math/rand"
 	"regexp"
@@ -44,14 +45,149 @@ func LoadConfig(fileName string) *goconf.Config {
 	return config
 }
 
-// CanViewEntry returns true if the user is allowed to read the entry.
-func CanViewEntry(tx *AutoTx, userID, entryID int64) bool {
-	return tx.QueryBool("SELECT can_view_entry($1, $2)", userID, entryID)
+func loadRelation(tx *AutoTx, from, to int64) string {
+	if from == 0 || to == 0 {
+		return models.RelationshipRelationNone
+	}
+
+	relationQuery := sqlf.Select("relation.type").
+		From("relations").
+		Join("relation", "relation.id = relations.type").
+		Where("from_id = ?", from).
+		Where("to_id = ?", to)
+
+	var relation string
+	tx.QueryStmt(relationQuery).Scan(&relation)
+
+	if relation == "" {
+		return models.RelationshipRelationNone
+	}
+
+	return relation
 }
 
-// IsOpenForMe returns true if you can see \param name tlog
-func IsOpenForMe(tx *AutoTx, userID *models.UserID, name interface{}) bool {
-	return tx.QueryBool("SELECT can_view_tlog($1, $2)", userID.ID, name)
+func CanViewTlogName(tx *AutoTx, userID *models.UserID, tlog string) bool {
+	if tlog == "" {
+		return false
+	}
+
+	tlogQuery := sqlf.Select("users.id").Select("user_privacy.type").
+		From("users").
+		LeftJoin("user_privacy", "users.privacy = user_privacy.id").
+		Where("lower(name) = lower(?)", tlog)
+
+	var tlogID int64
+	var privacy string
+	tx.QueryStmt(tlogQuery).Scan(&tlogID, &privacy)
+
+	return CanViewTlog(tx, userID, tlogID, privacy)
+}
+
+func CanViewTlogID(tx *AutoTx, userID *models.UserID, tlogID int64) bool {
+	if tlogID == 0 {
+		return false
+	}
+
+	tlogQuery := sqlf.Select("user_privacy.type").
+		From("users").
+		LeftJoin("user_privacy", "users.privacy = user_privacy.id").
+		Where("users.id = ?", tlogID)
+
+	var privacy string
+	tx.QueryStmt(tlogQuery).Scan(&privacy)
+
+	return CanViewTlog(tx, userID, tlogID, privacy)
+}
+
+// CanViewTlog returns true if the user is allowed to read the tlog.
+func CanViewTlog(tx *AutoTx, userID *models.UserID, tlogID int64, privacy string) bool {
+	if tlogID == 0 {
+		return false
+	}
+
+	if userID.ID == 0 {
+		return privacy == models.EntryPrivacyAll
+	}
+
+	if userID.ID == tlogID {
+		return true
+	}
+
+	relationFrom := loadRelation(tx, tlogID, userID.ID)
+	if relationFrom == models.RelationshipRelationIgnored {
+		return false
+	}
+
+	switch privacy {
+	case models.EntryPrivacyAll:
+		return true
+	case models.EntryPrivacyRegistered:
+		return true
+	case models.EntryPrivacyInvited:
+		return userID.IsInvited
+	case models.EntryPrivacyFollowers:
+		relationTo := loadRelation(tx, userID.ID, tlogID)
+		return relationTo == models.RelationshipRelationFollowed
+	}
+
+	return false
+}
+
+// CanViewEntry returns true if the user is allowed to read the entry.
+func CanViewEntry(tx *AutoTx, userID *models.UserID, entryID int64) bool {
+	if entryID == 0 {
+		return false
+	}
+
+	entryQuery := sqlf.Select("author_id").Select("entry_privacy.type").
+		From("entries").
+		Join("entry_privacy", "visible_for = entry_privacy.id").
+		Where("entries.id = ?", entryID)
+
+	var tlogID int64
+	var privacy string
+	tx.QueryStmt(entryQuery).Scan(&tlogID, &privacy)
+
+	if tlogID == userID.ID {
+		return true
+	}
+
+	if privacy == models.EntryPrivacyAnonymous {
+		return userID.ID > 0
+	}
+
+	if !CanViewTlogID(tx, userID, tlogID) {
+		return false
+	}
+
+	switch privacy {
+	case models.EntryPrivacyAll:
+		return true
+	case models.EntryPrivacyRegistered:
+		return userID.ID > 0
+	case models.EntryPrivacyInvited:
+		return userID.IsInvited
+	case models.EntryPrivacyFollowers:
+		relationTo := loadRelation(tx, userID.ID, tlogID)
+		return relationTo == models.RelationshipRelationFollowed
+	case models.EntryPrivacySome:
+		if userID.ID == 0 {
+			return false
+		}
+
+		privacyQuery := sqlf.Select("TRUE").
+			From("entries_privacy").
+			Where("user_id = ?", userID.ID).
+			Where("entry_id = ?", entryID)
+
+		var canView bool
+		tx.QueryStmt(privacyQuery).Scan(&canView)
+		return canView
+	case models.EntryPrivacyMe:
+		return false
+	}
+
+	return false
 }
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"

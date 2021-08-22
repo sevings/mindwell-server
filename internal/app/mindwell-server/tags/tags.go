@@ -93,7 +93,7 @@ func newUserTagsLoader(srv *utils.MindwellServer) func(users.GetUsersNameTagsPar
 			if userID.Name == params.Name {
 				query = myTagsQuery(userID, *params.Limit)
 			} else {
-				if !utils.IsOpenForMe(tx, userID, params.Name) {
+				if !utils.CanViewTlogName(tx, userID, params.Name) {
 					err := srv.StandardError("no_tlog")
 					return users.NewGetUsersNameTagsNotFound().WithPayload(err)
 				}

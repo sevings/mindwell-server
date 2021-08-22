@@ -551,7 +551,7 @@ func loadTlogFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 func newTlogLoader(srv *utils.MindwellServer) func(users.GetUsersNameTlogParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameTlogParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.IsOpenForMe(tx, userID, params.Name)
+			canView := utils.CanViewTlogName(tx, userID, params.Name)
 			if !canView {
 				err := srv.StandardError("no_tlog")
 				return users.NewGetUsersNameTlogNotFound().WithPayload(err)
@@ -842,7 +842,7 @@ func loadTlogFavorites(srv *utils.MindwellServer, tx *utils.AutoTx, userID *mode
 func newTlogFavoritesLoader(srv *utils.MindwellServer) func(users.GetUsersNameFavoritesParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameFavoritesParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.IsOpenForMe(tx, userID, params.Name)
+			canView := utils.CanViewTlogName(tx, userID, params.Name)
 			if !canView {
 				err := srv.StandardError("no_tlog")
 				return users.NewGetUsersNameFavoritesNotFound().WithPayload(err)

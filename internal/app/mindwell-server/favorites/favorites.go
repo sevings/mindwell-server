@@ -28,16 +28,15 @@ func favoriteStatus(tx *utils.AutoTx, userID, entryID int64) *models.FavoriteSta
 }
 
 func newStatusLoader(srv *utils.MindwellServer) func(favorites.GetEntriesIDFavoriteParams, *models.UserID) middleware.Responder {
-	return func(params favorites.GetEntriesIDFavoriteParams, uID *models.UserID) middleware.Responder {
+	return func(params favorites.GetEntriesIDFavoriteParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			userID := uID.ID
 			canView := utils.CanViewEntry(tx, userID, params.ID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return favorites.NewGetEntriesIDFavoriteNotFound().WithPayload(err)
 			}
 
-			status := favoriteStatus(tx, userID, params.ID)
+			status := favoriteStatus(tx, userID.ID, params.ID)
 			return favorites.NewGetEntriesIDFavoriteOK().WithPayload(status)
 		})
 	}
@@ -61,16 +60,15 @@ func addToFavorites(tx *utils.AutoTx, userID, entryID int64) *models.FavoriteSta
 }
 
 func newFavoriteAdder(srv *utils.MindwellServer) func(favorites.PutEntriesIDFavoriteParams, *models.UserID) middleware.Responder {
-	return func(params favorites.PutEntriesIDFavoriteParams, uID *models.UserID) middleware.Responder {
+	return func(params favorites.PutEntriesIDFavoriteParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			userID := uID.ID
 			canView := utils.CanViewEntry(tx, userID, params.ID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return favorites.NewPutEntriesIDFavoriteNotFound().WithPayload(err)
 			}
 
-			status := addToFavorites(tx, userID, params.ID)
+			status := addToFavorites(tx, userID.ID, params.ID)
 			return favorites.NewPutEntriesIDFavoriteOK().WithPayload(status)
 		})
 	}
@@ -92,16 +90,15 @@ func removeFromFavorites(tx *utils.AutoTx, userID, entryID int64) *models.Favori
 }
 
 func newFavoriteDeleter(srv *utils.MindwellServer) func(favorites.DeleteEntriesIDFavoriteParams, *models.UserID) middleware.Responder {
-	return func(params favorites.DeleteEntriesIDFavoriteParams, uID *models.UserID) middleware.Responder {
+	return func(params favorites.DeleteEntriesIDFavoriteParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			userID := uID.ID
 			canView := utils.CanViewEntry(tx, userID, params.ID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return favorites.NewDeleteEntriesIDFavoriteNotFound().WithPayload(err)
 			}
 
-			status := removeFromFavorites(tx, userID, params.ID)
+			status := removeFromFavorites(tx, userID.ID, params.ID)
 			return favorites.NewDeleteEntriesIDFavoriteOK().WithPayload(status)
 		})
 	}

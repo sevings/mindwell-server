@@ -515,7 +515,7 @@ func setEntryRights(entry *models.Entry, userID *models.UserID) {
 }
 
 func LoadEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID int64, userID *models.UserID) *models.Entry {
-	if !utils.CanViewEntry(tx, userID.ID, entryID) {
+	if !utils.CanViewEntry(tx, userID, entryID) {
 		return &models.Entry{}
 	}
 

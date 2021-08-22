@@ -220,7 +220,7 @@ func TestIsOpenForMe(t *testing.T) {
 	check := func(userID *models.UserID, name string, res bool) {
 		tx := utils.NewAutoTx(db)
 		defer tx.Finish()
-		req.Equal(res, utils.IsOpenForMe(tx, userID, name))
+		req.Equal(res, utils.CanViewTlogName(tx, userID, name))
 	}
 
 	noAuthUser, _ := api.NoAPIKeyAuth("no auth")

@@ -132,7 +132,7 @@ func loadTlogCalendar(tx *utils.AutoTx, userID *models.UserID, tlog string, star
 func newTlogCalendarLoader(srv *utils.MindwellServer) func(users.GetUsersNameCalendarParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameCalendarParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.IsOpenForMe(tx, userID, params.Name)
+			canView := utils.CanViewTlogName(tx, userID, params.Name)
 			if !canView {
 				err := srv.StandardError("no_tlog")
 				return users.NewGetUsersNameCalendarNotFound().WithPayload(err)
