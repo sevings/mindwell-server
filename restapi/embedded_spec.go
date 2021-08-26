@@ -2402,6 +2402,12 @@ func init() {
           },
           {
             "type": "boolean",
+            "default": true,
+            "name": "isCommentable",
+            "in": "formData"
+          },
+          {
+            "type": "boolean",
             "default": false,
             "name": "isVotable",
             "in": "formData"
@@ -3871,6 +3877,12 @@ func init() {
               "format": "int64"
             },
             "name": "visibleFor",
+            "in": "formData"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "name": "isCommentable",
             "in": "formData"
           },
           {
@@ -5688,6 +5700,9 @@ func init() {
         "inLive": {
           "type": "boolean"
         },
+        "isCommentable": {
+          "type": "boolean"
+        },
         "isFavorited": {
           "type": "boolean"
         },
@@ -5756,13 +5771,13 @@ func init() {
         "hasCut": false,
         "id": 152,
         "inLive": true,
+        "isCommentable": true,
         "isFavorited": false,
-        "isVotable": true,
         "isWatching": true,
         "privacy": "all",
-        "rating": -3,
         "rights": {
           "comment": true,
+          "complain": true,
           "delete": false,
           "edit": false,
           "vote": true
@@ -9171,6 +9186,12 @@ func init() {
           },
           {
             "type": "boolean",
+            "default": true,
+            "name": "isCommentable",
+            "in": "formData"
+          },
+          {
+            "type": "boolean",
             "default": false,
             "name": "isVotable",
             "in": "formData"
@@ -10823,6 +10844,12 @@ func init() {
               "format": "int64"
             },
             "name": "visibleFor",
+            "in": "formData"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "name": "isCommentable",
             "in": "formData"
           },
           {
@@ -12909,6 +12936,9 @@ func init() {
         "inLive": {
           "type": "boolean"
         },
+        "isCommentable": {
+          "type": "boolean"
+        },
         "isFavorited": {
           "type": "boolean"
         },
@@ -12977,13 +13007,13 @@ func init() {
         "hasCut": false,
         "id": 152,
         "inLive": true,
+        "isCommentable": true,
         "isFavorited": false,
-        "isVotable": true,
         "isWatching": true,
         "privacy": "all",
-        "rating": -3,
         "rights": {
           "comment": true,
+          "complain": true,
           "delete": false,
           "edit": false,
           "vote": true

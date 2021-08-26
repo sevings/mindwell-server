@@ -364,18 +364,19 @@ func newEntryCommentsLoader(srv *utils.MindwellServer) func(comments.GetEntriesI
 
 func canPostComment(tx *utils.AutoTx, userID *models.UserID, entryID int64) bool {
 	const q = `
-		SELECT author_id
+		SELECT author_id, is_commentable
 		FROM entries
 		WHERE id = $1
 	`
 
 	var authorID int64
-	tx.Query(q, entryID).Scan(&authorID)
+	var commentable bool
+	tx.Query(q, entryID).Scan(&authorID, &commentable)
 	if authorID == userID.ID {
 		return true
 	}
 
-	if userID.Ban.Comment {
+	if !commentable || userID.Ban.Comment {
 		return false
 	}
 

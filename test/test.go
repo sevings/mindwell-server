@@ -266,14 +266,15 @@ func banLive(db *sql.DB, userID *models.UserID) {
 	userID.Ban.Live = true
 }
 
-func createTlogEntry(t *testing.T, id *models.UserID, privacy string, votable, live bool) *models.Entry {
+func createTlogEntry(t *testing.T, id *models.UserID, privacy string, commentable, votable, live bool) *models.Entry {
 	title := ""
 	params := me.PostMeTlogParams{
-		Content:   "test test test" + utils.GenerateString(5),
-		Title:     &title,
-		Privacy:   privacy,
-		IsVotable: &votable,
-		InLive:    &live,
+		Content:       "test test test" + utils.GenerateString(5),
+		Title:         &title,
+		Privacy:       privacy,
+		IsCommentable: &commentable,
+		IsVotable:     &votable,
+		InLive:        &live,
 	}
 
 	resp := api.MePostMeTlogHandler.Handle(params, id)

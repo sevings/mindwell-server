@@ -139,6 +139,17 @@ func TestOpenComments(t *testing.T) {
 	checkPostComment(t, entry, "blabla", false, profiles[1], userIDs[1])
 	removeUserRestrictions(db, userIDs)
 
+	params := editEntryParams(entry)
+	commentable := false
+	params.IsCommentable = &commentable
+	editEntry(params, userIDs[0])
+
+	checkPostComment(t, entry, "bbb", true, profiles[0], userIDs[0])
+	checkPostComment(t, entry, "bbb", false, profiles[1], userIDs[1])
+
+	commentable = false
+	editEntry(params, userIDs[0])
+
 	checkDeleteEntry(t, entry.ID, userIDs[0], true)
 }
 

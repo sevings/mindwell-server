@@ -145,7 +145,8 @@ func setEntryTexts(entry *models.Entry, hasAttach bool) {
 	entry.HasCut = hasCut
 }
 
-func myEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, title, content, privacy string, isVotable, inLive, hasAttach bool) *models.Entry {
+func myEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, title, content, privacy string,
+	isCommentable, isVotable, inLive, hasAttach bool) *models.Entry {
 	if privacy == "followers" {
 		privacy = models.EntryPrivacySome //! \todo add users to list
 	}
@@ -156,10 +157,11 @@ func myEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID,
 	}
 
 	entry := &models.Entry{
-		Author:     users.LoadUserByID(srv, tx, userID.ID),
-		Privacy:    privacy,
-		IsWatching: true,
-		InLive:     inLive,
+		Author:        users.LoadUserByID(srv, tx, userID.ID),
+		Privacy:       privacy,
+		IsWatching:    true,
+		IsCommentable: isCommentable,
+		InLive:        inLive,
 		Rating: &models.Rating{
 			IsVotable: isVotable,
 		},
@@ -175,21 +177,21 @@ func myEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID,
 }
 
 func createEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, title, content, privacy string,
-	isVotable, inLive, hasAttach bool) *models.Entry {
-	entry := myEntry(srv, tx, userID, title, content, privacy, isVotable, inLive, hasAttach)
+	isCommentable, isVotable, inLive, hasAttach bool) *models.Entry {
+	entry := myEntry(srv, tx, userID, title, content, privacy, isCommentable, isVotable, inLive, hasAttach)
 
 	category := entryCategory(entry)
 
 	const q = `
 	INSERT INTO entries (author_id, title, edit_content, 
-		word_count, visible_for, is_votable, in_live, category)
+		word_count, visible_for, is_commentable, is_votable, in_live, category)
 	VALUES ($1, $2, $3, $4,
 		(SELECT id FROM entry_privacy WHERE type = $5), 
-		$6, $7, (SELECT id from categories WHERE type = $8))
+		$6, $7, $8, (SELECT id from categories WHERE type = $9))
 	RETURNING id, extract(epoch from created_at)`
 
 	tx.Query(q, userID.ID, entry.Title, entry.EditContent,
-		entry.WordCount, entry.Privacy, entry.Rating.IsVotable, entry.InLive, category).
+		entry.WordCount, entry.Privacy, entry.IsCommentable, entry.Rating.IsVotable, entry.InLive, category).
 		Scan(&entry.ID, &entry.CreatedAt)
 
 	entry.Rating.ID = entry.ID
@@ -351,7 +353,8 @@ func newMyTlogPoster(srv *utils.MindwellServer) func(me.PostMeTlogParams, *model
 			}
 
 			entry := createEntry(srv, tx, userID,
-				*params.Title, params.Content, params.Privacy, *params.IsVotable, *params.InLive, len(params.Images) > 0)
+				*params.Title, params.Content, params.Privacy,
+				*params.IsCommentable, *params.IsVotable, *params.InLive, len(params.Images) > 0)
 
 			attachImages(srv, tx, entry, params.Images)
 			setTags(tx, entry, params.Tags)
@@ -368,8 +371,9 @@ func newMyTlogPoster(srv *utils.MindwellServer) func(me.PostMeTlogParams, *model
 	}
 }
 
-func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID int64, userID *models.UserID, title, content, privacy string, isVotable, inLive, hasAttach bool) *models.Entry {
-	entry := myEntry(srv, tx, userID, title, content, privacy, isVotable, inLive, hasAttach)
+func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID int64, userID *models.UserID, title, content, privacy string,
+	isCommentable, isVotable, inLive, hasAttach bool) *models.Entry {
+	entry := myEntry(srv, tx, userID, title, content, privacy, isCommentable, isVotable, inLive, hasAttach)
 
 	category := entryCategory(entry)
 
@@ -378,13 +382,14 @@ func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID int64, userI
 	SET title = $1, edit_content = $2,
 	word_count = $3, 
 	visible_for = (SELECT id FROM entry_privacy WHERE type = $4), 
-	is_votable = $5, in_live = $6,
-	category = (SELECT id from categories WHERE type = $7)
-	WHERE id = $8 AND author_id = $9
+	is_commentable = $5, is_votable = $6, in_live = $7,
+	category = (SELECT id from categories WHERE type = $8)
+	WHERE id = $9 AND author_id = $10
 	RETURNING extract(epoch from created_at)`
 
 	tx.Query(q, entry.Title, entry.EditContent,
-		entry.WordCount, entry.Privacy, entry.Rating.IsVotable, entry.InLive, category, entryID, userID.ID).
+		entry.WordCount, entry.Privacy,
+		entry.IsCommentable, entry.Rating.IsVotable, entry.InLive, category, entryID, userID.ID).
 		Scan(&entry.CreatedAt)
 
 	entry.ID = entryID
@@ -476,7 +481,8 @@ func newEntryEditor(srv *utils.MindwellServer) func(entries.PutEntriesIDParams, 
 			}
 
 			entry := editEntry(srv, tx, params.ID, uID,
-				*params.Title, params.Content, params.Privacy, *params.IsVotable, *params.InLive, len(params.Images) > 0)
+				*params.Title, params.Content, params.Privacy,
+				*params.IsCommentable, *params.IsVotable, *params.InLive, len(params.Images) > 0)
 
 			reattachImages(srv, tx, entry, params.Images)
 			resetTags(tx, entry, params.Tags)
@@ -508,7 +514,7 @@ func setEntryRights(entry *models.Entry, userID *models.UserID) {
 	entry.Rights = &models.EntryRights{
 		Edit:     entry.Author.ID == userID.ID,
 		Delete:   entry.Author.ID == userID.ID,
-		Comment:  entry.Author.ID == userID.ID || !userID.Ban.Comment,
+		Comment:  entry.Author.ID == userID.ID || (!userID.Ban.Comment && entry.IsCommentable),
 		Vote:     entry.Author.ID != userID.ID && !userID.Ban.Vote && entry.Rating.IsVotable,
 		Complain: entry.Author.ID != userID.ID && userID.ID > 0,
 	}

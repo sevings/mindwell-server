@@ -18,7 +18,7 @@ import (
 
 func checkEntry(t *testing.T, entry *models.Entry,
 	user *models.AuthProfile, canEdit bool, vote int64, watching bool,
-	wc int64, privacy string, votable, live bool, title, content string, tags []string) {
+	wc int64, privacy string, commentable, votable, live bool, title, content string, tags []string) {
 
 	req := require.New(t)
 	req.NotEmpty(entry.CreatedAt)
@@ -33,6 +33,7 @@ func checkEntry(t *testing.T, entry *models.Entry,
 	req.Empty(entry.CutTitle)
 	req.Empty(entry.CutContent)
 	req.False(entry.HasCut)
+	req.Equal(commentable, entry.IsCommentable)
 	req.Equal(live, entry.InLive)
 
 	realTags := make([]string, 0, len(tags))
@@ -96,7 +97,7 @@ tagLoop:
 
 func checkLoadEntry(t *testing.T, entryID int64, userID *models.UserID, success bool,
 	user *models.AuthProfile, canEdit bool, vote int64, watching bool,
-	wc int64, privacy string, votable, live bool, title, content string, tags []string) {
+	wc int64, privacy string, commentable, votable, live bool, title, content string, tags []string) {
 
 	load := api.EntriesGetEntriesIDHandler.Handle
 	resp := load(entries.GetEntriesIDParams{ID: entryID}, userID)
@@ -107,7 +108,7 @@ func checkLoadEntry(t *testing.T, entryID int64, userID *models.UserID, success 
 	}
 
 	entry := body.Payload
-	checkEntry(t, entry, user, canEdit, vote, watching, wc, privacy, votable, live, title, content, tags)
+	checkEntry(t, entry, user, canEdit, vote, watching, wc, privacy, commentable, votable, live, title, content, tags)
 }
 
 func checkPostEntry(t *testing.T,
@@ -123,11 +124,13 @@ func checkPostEntry(t *testing.T,
 	}
 
 	entry := body.Payload
-	checkEntry(t, entry, user, true, 0, true, wc, params.Privacy, *params.IsVotable, *params.InLive,
+	checkEntry(t, entry, user, true, 0, true, wc, params.Privacy,
+		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
 
 	checkLoadEntry(t, entry.ID, id, true, user,
-		true, 0, true, wc, params.Privacy, *params.IsVotable, *params.InLive,
+		true, 0, true, wc, params.Privacy,
+		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
 
 	return entry.ID
@@ -146,11 +149,13 @@ func checkEditEntry(t *testing.T,
 	}
 
 	entry := body.Payload
-	checkEntry(t, entry, user, true, 0, true, wc, params.Privacy, *params.IsVotable, *params.InLive,
+	checkEntry(t, entry, user, true, 0, true, wc, params.Privacy,
+		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
 
 	checkLoadEntry(t, entry.ID, id, true, user,
-		true, 0, true, wc, params.Privacy, *params.IsVotable, *params.InLive,
+		true, 0, true, wc, params.Privacy,
+		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
 }
 
@@ -165,6 +170,9 @@ func TestPostMyTlog(t *testing.T) {
 	params := me.PostMeTlogParams{
 		Content: "test content",
 	}
+
+	commentable := true
+	params.IsCommentable = &commentable
 
 	votable := false
 	params.IsVotable = &votable
@@ -204,21 +212,24 @@ func TestPostMyTlog(t *testing.T) {
 	id3 := checkPostEntry(t, params, profiles[1], userIDs[1], true, 5)
 
 	title = "title"
+	commentable = false
 	votable = false
 	live = false
 	editParams := entries.PutEntriesIDParams{
-		ID:        id,
-		Content:   "content",
-		Title:     &title,
-		IsVotable: &votable,
-		InLive:    &live,
-		Privacy:   models.EntryPrivacyMe,
-		Tags:      []string{"tag1", "tag3"},
+		ID:            id,
+		Content:       "content",
+		Title:         &title,
+		IsCommentable: &commentable,
+		IsVotable:     &votable,
+		InLive:        &live,
+		Privacy:       models.EntryPrivacyMe,
+		Tags:          []string{"tag1", "tag3"},
 	}
 
 	checkEditEntry(t, editParams, profiles[0], userIDs[0], true, 2)
 
-	checkLoadEntry(t, id, userIDs[1], false, nil, false, 0, false, 0, "", false, false, "", "", []string{})
+	checkLoadEntry(t, id, userIDs[1], false, nil, false, 0, false, 0, "",
+		true, false, false, "", "", []string{})
 
 	editParams.ID = id2
 	editParams.Privacy = models.EntryPrivacyAll
@@ -250,15 +261,17 @@ func TestLiveRestrictions(t *testing.T) {
 		log.Println(err)
 	}
 
+	commentable := true
 	votable := true
 	live := true
 	title := ""
 	postParams := me.PostMeTlogParams{
-		Content:   "test test test",
-		Title:     &title,
-		Privacy:   models.EntryPrivacyAll,
-		IsVotable: &votable,
-		InLive:    &live,
+		Content:       "test test test",
+		Title:         &title,
+		Privacy:       models.EntryPrivacyAll,
+		IsCommentable: &commentable,
+		IsVotable:     &votable,
+		InLive:        &live,
 	}
 	e0 := checkPostEntry(t, postParams, profiles[0], userIDs[0], true, 3)
 
@@ -273,12 +286,13 @@ func TestLiveRestrictions(t *testing.T) {
 
 	live = true
 	editParams := entries.PutEntriesIDParams{
-		ID:        e0,
-		Content:   "content",
-		Title:     &title,
-		IsVotable: &votable,
-		InLive:    &live,
-		Privacy:   models.EntryPrivacyAll,
+		ID:            e0,
+		Content:       "content",
+		Title:         &title,
+		IsCommentable: &commentable,
+		IsVotable:     &votable,
+		InLive:        &live,
+		Privacy:       models.EntryPrivacyAll,
 	}
 	checkEditEntry(t, editParams, profiles[0], userIDs[0], true, 1)
 
@@ -307,14 +321,16 @@ func TestLiveRestrictions(t *testing.T) {
 }
 
 func postEntry(id *models.UserID, privacy string, live bool) *models.Entry {
+	commentable := true
 	votable := true
 	title := ""
 	params := me.PostMeTlogParams{
-		Content:   "test test test" + utils.GenerateString(6),
-		Title:     &title,
-		Privacy:   privacy,
-		IsVotable: &votable,
-		InLive:    &live,
+		Content:       "test test test" + utils.GenerateString(6),
+		Title:         &title,
+		Privacy:       privacy,
+		IsCommentable: &commentable,
+		IsVotable:     &votable,
+		InLive:        &live,
 	}
 	post := api.MePostMeTlogHandler.Handle
 	resp := post(params, id)
@@ -323,6 +339,27 @@ func postEntry(id *models.UserID, privacy string, live bool) *models.Entry {
 
 	time.Sleep(10 * time.Millisecond)
 
+	return entry
+}
+
+func editEntryParams(entry *models.Entry) entries.PutEntriesIDParams {
+	return entries.PutEntriesIDParams{
+		Content:       entry.EditContent,
+		ID:            entry.ID,
+		InLive:        &entry.InLive,
+		IsCommentable: &entry.IsCommentable,
+		IsVotable:     &entry.Rating.IsVotable,
+		Privacy:       entry.Privacy,
+		Tags:          entry.Tags,
+		Title:         &entry.Title,
+	}
+}
+
+func editEntry(params entries.PutEntriesIDParams, id *models.UserID) *models.Entry {
+	edit := api.EntriesPutEntriesIDHandler.Handle
+	resp := edit(params, id)
+	body := resp.(*entries.PutEntriesIDOK)
+	entry := body.Payload
 	return entry
 }
 
@@ -588,7 +625,8 @@ func TestLoadTlog(t *testing.T) {
 	checkLoadTlog(t, userIDs[0], userIDs[3], false, 3, "", "", 1)
 	checkLoadTlog(t, userIDs[0], noAuthUser, false, 10, "", "", 2)
 
-	checkLoadEntry(t, feed.Entries[0].ID, userIDs[3], false, profiles[0], false, 0, false, 0, "", false, false, "", "", []string{})
+	checkLoadEntry(t, feed.Entries[0].ID, userIDs[3], false, profiles[0], false, 0, false, 0, "",
+		true, false, false, "", "", []string{})
 
 	checkFollow(t, userIDs[1], userIDs[0], profiles[0], models.RelationshipRelationRequested, true)
 	checkPermitFollow(t, userIDs[0], userIDs[1], true)
@@ -600,7 +638,8 @@ func TestLoadTlog(t *testing.T) {
 	checkLoadTlog(t, userIDs[0], userIDs[3], false, 3, "", "", 1)
 	checkLoadTlog(t, userIDs[0], noAuthUser, false, 10, "", "", 2)
 
-	checkLoadEntry(t, feed.Entries[0].ID, userIDs[3], false, profiles[0], false, 0, false, 0, "", false, false, "", "", []string{})
+	checkLoadEntry(t, feed.Entries[0].ID, userIDs[3], false, profiles[0], false, 0, false, 0, "",
+		true, false, false, "", "", []string{})
 
 	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationIgnored, true)
 	checkLoadTlog(t, userIDs[0], userIDs[1], false, 3, "", "", 2)
@@ -1148,6 +1187,9 @@ func TestEntryHTML(t *testing.T) {
 			Content: in,
 		}
 
+		commentable := true
+		params.IsCommentable = &commentable
+
 		votable := false
 		params.IsVotable = &votable
 
@@ -1190,11 +1232,11 @@ func TestCanViewEntry(t *testing.T) {
 
 	noAuthUser, _ := api.NoAPIKeyAuth("no auth")
 
-	e1 := createTlogEntry(t, userIDs[0], models.EntryPrivacyAll, true, true)
-	e2 := createTlogEntry(t, userIDs[0], models.EntryPrivacyMe, true, true)
-	e3 := createTlogEntry(t, userIDs[0], models.EntryPrivacyAnonymous, true, true)
-	e4 := createTlogEntry(t, userIDs[0], models.EntryPrivacyRegistered, true, true)
-	e5 := createTlogEntry(t, userIDs[0], models.EntryPrivacyInvited, true, true)
+	e1 := createTlogEntry(t, userIDs[0], models.EntryPrivacyAll, true, true, true)
+	e2 := createTlogEntry(t, userIDs[0], models.EntryPrivacyMe, true, true, true)
+	e3 := createTlogEntry(t, userIDs[0], models.EntryPrivacyAnonymous, true, true, true)
+	e4 := createTlogEntry(t, userIDs[0], models.EntryPrivacyRegistered, true, true, true)
+	e5 := createTlogEntry(t, userIDs[0], models.EntryPrivacyInvited, true, true, true)
 
 	check(userIDs[0], e1.ID, true)
 	check(userIDs[0], e2.ID, true)
@@ -1328,15 +1370,17 @@ func TestCanViewEntry(t *testing.T) {
 
 func checkPostTaggedEntry(t *testing.T, user *models.UserID, author *models.AuthProfile, content string, wc int64, tags []string) *models.Entry {
 	title := ""
+	commentable := true
 	votable := true
 	live := true
 	params := me.PostMeTlogParams{
-		Content:   content,
-		Title:     &title,
-		Privacy:   "all",
-		IsVotable: &votable,
-		InLive:    &live,
-		Tags:      tags,
+		Content:       content,
+		Title:         &title,
+		Privacy:       "all",
+		IsCommentable: &commentable,
+		IsVotable:     &votable,
+		InLive:        &live,
+		Tags:          tags,
 	}
 
 	resp := api.MePostMeTlogHandler.Handle(params, user)
@@ -1344,11 +1388,13 @@ func checkPostTaggedEntry(t *testing.T, user *models.UserID, author *models.Auth
 	require.True(t, ok)
 
 	entry := body.Payload
-	checkEntry(t, entry, author, true, 0, true, wc, params.Privacy, *params.IsVotable, *params.InLive,
+	checkEntry(t, entry, author, true, 0, true, wc, params.Privacy,
+		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
 
 	checkLoadEntry(t, entry.ID, user, true, author,
-		true, 0, true, wc, params.Privacy, *params.IsVotable, *params.InLive,
+		true, 0, true, wc, params.Privacy,
+		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
 
 	return body.Payload
@@ -1356,13 +1402,14 @@ func checkPostTaggedEntry(t *testing.T, user *models.UserID, author *models.Auth
 
 func checkEditTaggedEntry(t *testing.T, entry *models.Entry, user *models.AuthProfile, id *models.UserID, tags []string) {
 	params := entries.PutEntriesIDParams{
-		ID:        entry.ID,
-		Content:   entry.EditContent,
-		InLive:    &entry.InLive,
-		IsVotable: &entry.Rating.IsVotable,
-		Privacy:   entry.Privacy,
-		Tags:      tags,
-		Title:     &entry.Title,
+		ID:            entry.ID,
+		Content:       entry.EditContent,
+		InLive:        &entry.InLive,
+		IsVotable:     &entry.Rating.IsVotable,
+		IsCommentable: &entry.IsCommentable,
+		Privacy:       entry.Privacy,
+		Tags:          tags,
+		Title:         &entry.Title,
 	}
 
 	edit := api.EntriesPutEntriesIDHandler.Handle
@@ -1371,11 +1418,13 @@ func checkEditTaggedEntry(t *testing.T, entry *models.Entry, user *models.AuthPr
 	require.True(t, ok)
 
 	edited := body.Payload
-	checkEntry(t, edited, user, true, 0, true, entry.WordCount, params.Privacy, *params.IsVotable, *params.InLive,
+	checkEntry(t, edited, user, true, 0, true, entry.WordCount, params.Privacy,
+		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
 
 	checkLoadEntry(t, entry.ID, id, true, user,
-		true, 0, true, entry.WordCount, params.Privacy, *params.IsVotable, *params.InLive,
+		true, 0, true, entry.WordCount, params.Privacy,
+		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
 }
 
@@ -1451,16 +1500,18 @@ func TestEntryTags(t *testing.T) {
 
 func TestSearchEntries(t *testing.T) {
 	post := func(title, content string, wc int64) int64 {
+		commentable := true
 		live := true
 		votable := true
 		params := me.PostMeTlogParams{
-			Content:    content,
-			InLive:     &live,
-			IsVotable:  &votable,
-			Privacy:    "all",
-			Tags:       nil,
-			Title:      &title,
-			VisibleFor: nil,
+			Content:       content,
+			IsCommentable: &commentable,
+			InLive:        &live,
+			IsVotable:     &votable,
+			Privacy:       "all",
+			Tags:          nil,
+			Title:         &title,
+			VisibleFor:    nil,
 		}
 
 		return checkPostEntry(t, params, profiles[0], userIDs[0], true, wc)
@@ -1509,14 +1560,16 @@ func TestSearchEntries(t *testing.T) {
 
 func TestLoadTlogCalendar(t *testing.T) {
 	post := func(title, content, privacy string, wc int64) int64 {
+		commentable := true
 		live := privacy == "all"
 		votable := false
 		params := me.PostMeTlogParams{
-			Content:   content,
-			InLive:    &live,
-			IsVotable: &votable,
-			Privacy:   privacy,
-			Title:     &title,
+			Content:       content,
+			IsCommentable: &commentable,
+			InLive:        &live,
+			IsVotable:     &votable,
+			Privacy:       privacy,
+			Title:         &title,
 		}
 
 		return checkPostEntry(t, params, profiles[0], userIDs[0], true, wc)

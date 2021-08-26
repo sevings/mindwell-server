@@ -413,6 +413,8 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/User'
+      isCommentable:
+        type: boolean
       inLive:
         type: boolean
       commentCount:
@@ -439,14 +441,13 @@ definitions:
     example:
       id: 152
       createdAt: 1531029717.333
-      rating: -3
       title: 'example title'
       content: '<p>some text with <b>html</b> tags</p>'
       editContent: 'some text with *html* tags'
       wordCount: 5
       hasCut: false
       privacy: 'all'
-      isVotable: true
+      isCommentable: true
       inLive: true
       commentCount: 0
       isFavorited: false
@@ -456,6 +457,7 @@ definitions:
         delete: false
         comment: true
         vote: true
+        complain: true
   Feed:
     type: object
     properties:
@@ -2108,6 +2110,10 @@ paths:
             format: int64
             minimum: 1
         - in: formData
+          name: isCommentable
+          type: boolean
+          default: true
+        - in: formData
           name: isVotable
           type: boolean
           default: false
@@ -2667,6 +2673,10 @@ paths:
             type: integer
             format: int64
             minimum: 1
+        - in: formData
+          name: isCommentable
+          type: boolean
+          default: true
         - in: formData
           name: isVotable
           type: boolean

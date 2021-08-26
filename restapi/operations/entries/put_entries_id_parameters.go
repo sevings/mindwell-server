@@ -33,8 +33,9 @@ func NewPutEntriesIDParams() PutEntriesIDParams {
 
 		anonymousCommentsDefault = bool(false)
 
-		inLiveDefault    = bool(false)
-		isVotableDefault = bool(false)
+		inLiveDefault        = bool(false)
+		isCommentableDefault = bool(true)
+		isVotableDefault     = bool(false)
 
 		titleDefault = string("")
 	)
@@ -43,6 +44,8 @@ func NewPutEntriesIDParams() PutEntriesIDParams {
 		AnonymousComments: &anonymousCommentsDefault,
 
 		InLive: &inLiveDefault,
+
+		IsCommentable: &isCommentableDefault,
 
 		IsVotable: &isVotableDefault,
 
@@ -89,6 +92,11 @@ type PutEntriesIDParams struct {
 	  Default: false
 	*/
 	InLive *bool
+	/*
+	  In: formData
+	  Default: true
+	*/
+	IsCommentable *bool
 	/*
 	  In: formData
 	  Default: false
@@ -157,6 +165,11 @@ func (o *PutEntriesIDParams) BindRequest(r *http.Request, route *middleware.Matc
 
 	fdInLive, fdhkInLive, _ := fds.GetOK("inLive")
 	if err := o.bindInLive(fdInLive, fdhkInLive, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
+	fdIsCommentable, fdhkIsCommentable, _ := fds.GetOK("isCommentable")
+	if err := o.bindIsCommentable(fdIsCommentable, fdhkIsCommentable, route.Formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -362,6 +375,29 @@ func (o *PutEntriesIDParams) bindInLive(rawData []string, hasKey bool, formats s
 		return errors.InvalidType("inLive", "formData", "bool", raw)
 	}
 	o.InLive = &value
+
+	return nil
+}
+
+// bindIsCommentable binds and validates parameter IsCommentable from formData.
+func (o *PutEntriesIDParams) bindIsCommentable(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	// Required: false
+
+	if raw == "" { // empty values pass all other validations
+		// Default values have been previously initialized by NewPutEntriesIDParams()
+		return nil
+	}
+
+	value, err := swag.ConvertBool(raw)
+	if err != nil {
+		return errors.InvalidType("isCommentable", "formData", "bool", raw)
+	}
+	o.IsCommentable = &value
 
 	return nil
 }

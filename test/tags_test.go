@@ -12,15 +12,17 @@ import (
 
 func postTaggedEntry(t *testing.T, user *models.UserID, privacy string, tags []string) *models.Entry {
 	title := ""
+	commentable := true
 	votable := true
 	live := true
 	params := me.PostMeTlogParams{
-		Content:   "test tagged " + utils.GenerateString(8),
-		Title:     &title,
-		Privacy:   privacy,
-		IsVotable: &votable,
-		InLive:    &live,
-		Tags:      tags,
+		Content:       "test tagged " + utils.GenerateString(8),
+		Title:         &title,
+		Privacy:       privacy,
+		IsCommentable: &commentable,
+		IsVotable:     &votable,
+		InLive:        &live,
+		Tags:          tags,
 	}
 
 	resp := api.MePostMeTlogHandler.Handle(params, user)
@@ -32,13 +34,14 @@ func postTaggedEntry(t *testing.T, user *models.UserID, privacy string, tags []s
 
 func editTaggedEntry(t *testing.T, user *models.UserID, entry *models.Entry, privacy string, tags []string) *models.Entry {
 	params := entries.PutEntriesIDParams{
-		Content:   entry.EditContent,
-		ID:        entry.ID,
-		InLive:    &entry.InLive,
-		IsVotable: &entry.Rating.IsVotable,
-		Privacy:   privacy,
-		Tags:      tags,
-		Title:     &entry.Title,
+		Content:       entry.EditContent,
+		ID:            entry.ID,
+		IsCommentable: &entry.IsCommentable,
+		InLive:        &entry.InLive,
+		IsVotable:     &entry.Rating.IsVotable,
+		Privacy:       privacy,
+		Tags:          tags,
+		Title:         &entry.Title,
 	}
 
 	resp := api.EntriesPutEntriesIDHandler.Handle(params, user)

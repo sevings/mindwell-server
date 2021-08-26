@@ -31,14 +31,17 @@ func NewPostMeTlogParams() PostMeTlogParams {
 	var (
 		// initialize parameters with default values
 
-		inLiveDefault    = bool(false)
-		isVotableDefault = bool(false)
+		inLiveDefault        = bool(false)
+		isCommentableDefault = bool(true)
+		isVotableDefault     = bool(false)
 
 		titleDefault = string("")
 	)
 
 	return PostMeTlogParams{
 		InLive: &inLiveDefault,
+
+		IsCommentable: &isCommentableDefault,
 
 		IsVotable: &isVotableDefault,
 
@@ -74,6 +77,11 @@ type PostMeTlogParams struct {
 	  Default: false
 	*/
 	InLive *bool
+	/*
+	  In: formData
+	  Default: true
+	*/
+	IsCommentable *bool
 	/*
 	  In: formData
 	  Default: false
@@ -132,6 +140,11 @@ func (o *PostMeTlogParams) BindRequest(r *http.Request, route *middleware.Matche
 
 	fdInLive, fdhkInLive, _ := fds.GetOK("inLive")
 	if err := o.bindInLive(fdInLive, fdhkInLive, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
+	fdIsCommentable, fdhkIsCommentable, _ := fds.GetOK("isCommentable")
+	if err := o.bindIsCommentable(fdIsCommentable, fdhkIsCommentable, route.Formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -281,6 +294,29 @@ func (o *PostMeTlogParams) bindInLive(rawData []string, hasKey bool, formats str
 		return errors.InvalidType("inLive", "formData", "bool", raw)
 	}
 	o.InLive = &value
+
+	return nil
+}
+
+// bindIsCommentable binds and validates parameter IsCommentable from formData.
+func (o *PostMeTlogParams) bindIsCommentable(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	// Required: false
+
+	if raw == "" { // empty values pass all other validations
+		// Default values have been previously initialized by NewPostMeTlogParams()
+		return nil
+	}
+
+	value, err := swag.ConvertBool(raw)
+	if err != nil {
+		return errors.InvalidType("isCommentable", "formData", "bool", raw)
+	}
+	o.IsCommentable = &value
 
 	return nil
 }

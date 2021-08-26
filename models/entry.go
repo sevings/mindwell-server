@@ -17,7 +17,7 @@ import (
 )
 
 // Entry entry
-// Example: {"commentCount":0,"content":"\u003cp\u003esome text with \u003cb\u003ehtml\u003c/b\u003e tags\u003c/p\u003e","createdAt":1531029717.333,"editContent":"some text with *html* tags","hasCut":false,"id":152,"inLive":true,"isFavorited":false,"isVotable":true,"isWatching":true,"privacy":"all","rating":-3,"rights":{"comment":true,"delete":false,"edit":false,"vote":true},"title":"example title","wordCount":5}
+// Example: {"commentCount":0,"content":"\u003cp\u003esome text with \u003cb\u003ehtml\u003c/b\u003e tags\u003c/p\u003e","createdAt":1531029717.333,"editContent":"some text with *html* tags","hasCut":false,"id":152,"inLive":true,"isCommentable":true,"isFavorited":false,"isWatching":true,"privacy":"all","rights":{"comment":true,"complain":true,"delete":false,"edit":false,"vote":true},"title":"example title","wordCount":5}
 //
 // swagger:model Entry
 type Entry struct {
@@ -58,6 +58,9 @@ type Entry struct {
 
 	// in live
 	InLive bool `json:"inLive,omitempty"`
+
+	// is commentable
+	IsCommentable bool `json:"isCommentable,omitempty"`
 
 	// is favorited
 	IsFavorited bool `json:"isFavorited,omitempty"`

@@ -1195,6 +1195,7 @@ CREATE TABLE "mindwell"."entries" (
 	"word_count" Integer NOT NULL,
 	"visible_for" Integer NOT NULL,
 	"is_votable" Boolean NOT NULL,
+	"is_commentable" Boolean DEFAULT TRUE NOT NULL,
     "in_live" Boolean DEFAULT TRUE NOT NULL,
 	"rating" Real DEFAULT 0 NOT NULL,
     "up_votes" Integer DEFAULT 0 NOT NULL,

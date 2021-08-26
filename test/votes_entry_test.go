@@ -98,7 +98,7 @@ func checkUnvoteEntry(t *testing.T, user *models.UserID, success bool, entryID, 
 }
 
 func TestEntryVotes(t *testing.T) {
-	e := createTlogEntry(t, userIDs[0], models.EntryPrivacyAll, true, false)
+	e := createTlogEntry(t, userIDs[0], models.EntryPrivacyAll, true, true, false)
 	checkEntryVote(t, userIDs[0], e.ID, 0, 0)
 	checkEntryVote(t, userIDs[1], e.ID, 0, 0)
 
@@ -117,14 +117,14 @@ func TestEntryVotes(t *testing.T) {
 	checkVoteForEntry(t, userIDs[0], false, e.ID, 0, false, 0)
 	checkUnvoteEntry(t, userIDs[0], false, e.ID, 0)
 
-	e = createTlogEntry(t, userIDs[0], models.EntryPrivacyAll, false, false)
+	e = createTlogEntry(t, userIDs[0], models.EntryPrivacyAll, true, false, false)
 	checkEntryVote(t, userIDs[1], e.ID, 0, 0)
 
 	checkVoteForEntry(t, userIDs[0], false, e.ID, 0, false, 0)
 	checkVoteForEntry(t, userIDs[1], false, e.ID, 0, false, 0)
 	checkUnvoteEntry(t, userIDs[2], false, e.ID, -1)
 
-	e = createTlogEntry(t, userIDs[0], models.EntryPrivacyAnonymous, true, false)
+	e = createTlogEntry(t, userIDs[0], models.EntryPrivacyAnonymous, true, true, false)
 	checkEntryVote(t, userIDs[0], e.ID, 0, 0)
 	checkEntryVote(t, userIDs[1], e.ID, 0, 0)
 
