@@ -59,11 +59,10 @@ func configureAPI(api *operations.MindwellAPI) http.Handler {
 
 	domain := srv.ConfigString("mailgun.domain")
 	apiKey := srv.ConfigString("mailgun.api_key")
-	pubKey := srv.ConfigString("mailgun.pub_key")
 	baseURL := srv.ConfigString("server.base_url")
 	support := srv.ConfigString("server.support")
 
-	srv.Ntf.Mail = utils.NewPostman(domain, apiKey, pubKey, baseURL, support, srv.LogEmail())
+	srv.Ntf.Mail = utils.NewPostman(domain, apiKey, baseURL, support, srv.LogEmail())
 
 	accountImpl.ConfigureAPI(srv)
 	admImpl.ConfigureAPI(srv)

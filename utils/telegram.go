@@ -132,7 +132,7 @@ func (bot *TelegramBot) run() {
 		return
 	}
 
-	api, err := tgbotapi.NewBotAPIWithClient(token, tgbotapi.APIEndpoint, client)
+	api, err := tgbotapi.NewBotAPIWithClient(token, client)
 	if err != nil {
 		bot.log.Error(err.Error())
 		return

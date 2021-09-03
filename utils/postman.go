@@ -1,13 +1,14 @@
 package utils
 
 import (
+	"context"
 	"go.uber.org/zap"
 	"strconv"
 	"time"
 
-	"github.com/matcornic/hermes"
+	"github.com/mailgun/mailgun-go/v4"
+	"github.com/matcornic/hermes/v2"
 	"github.com/sevings/mindwell-server/models"
-	"gopkg.in/mailgun/mailgun-go.v1"
 )
 
 type Postman struct {
@@ -20,10 +21,10 @@ type Postman struct {
 	stop chan interface{}
 }
 
-func NewPostman(domain, apiKey, pubKey, baseURL, support string, log *zap.Logger) *Postman {
+func NewPostman(domain, apiKey, baseURL, support string, log *zap.Logger) *Postman {
 	pm := &Postman{
 		url: baseURL,
-		mg:  mailgun.NewMailgun(domain, apiKey, pubKey),
+		mg:  mailgun.NewMailgun(domain, apiKey),
 		h: hermes.Hermes{
 			Theme: &hermes.Flat{},
 			Product: hermes.Product{
@@ -69,7 +70,7 @@ func NewPostman(domain, apiKey, pubKey, baseURL, support string, log *zap.Logger
 
 			count++
 
-			resp, id, err := pm.mg.Send(msg)
+			resp, id, err := pm.mg.Send(context.Background(), msg)
 			if err == nil {
 				pm.log.Info("sent",
 					zap.String("id", id),
