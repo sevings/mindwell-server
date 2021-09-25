@@ -147,10 +147,6 @@ func setEntryTexts(entry *models.Entry, hasAttach bool) {
 
 func myEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, title, content, privacy string,
 	isCommentable, isVotable, inLive, hasAttach bool) *models.Entry {
-	if privacy == "followers" {
-		privacy = models.EntryPrivacySome //! \todo add users to list
-	}
-
 	if privacy == models.EntryPrivacyMe {
 		isVotable = false
 		inLive = false
