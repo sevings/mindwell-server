@@ -2,6 +2,7 @@ package utils
 
 import (
 	"database/sql"
+	"fmt"
 	"github.com/leporo/sqlf"
 	"go.uber.org/zap"
 	"math/rand"
@@ -162,41 +163,45 @@ func (bot *TelegramBot) run() {
 				continue
 			}
 
-			cmd := upd.Message.Command()
-			bot.log.Info("update",
-				zap.String("cmd", cmd),
-				zap.String("from", upd.Message.From.UserName),
-			)
-
-			var reply string
-			switch cmd {
-			case "start":
-				reply = bot.start(&upd)
-			case "login":
-				reply = bot.login(&upd)
-			case "logout":
-				reply = bot.logout(&upd)
-			case "help":
-				reply = bot.help(&upd)
-			case "hide":
-				reply = bot.hide(&upd)
-			case "ban":
-				reply = bot.ban(&upd)
-			case "unban":
-				reply = bot.unban(&upd)
-			case "create":
-				reply = bot.create(&upd)
-			case "info":
-				reply = bot.info(&upd)
-			case "stat":
-				reply = bot.stat(&upd)
-			default:
-				reply = unrecognisedText
-			}
-
-			bot.sendMessageNow(upd.Message.Chat.ID, reply)
+			bot.command(upd)
 		}
 	}
+}
+
+func (bot *TelegramBot) command(upd tgbotapi.Update) {
+	cmd := upd.Message.Command()
+	bot.log.Info("update",
+		zap.String("cmd", cmd),
+		zap.String("from", upd.Message.From.UserName),
+	)
+
+	var reply string
+	switch cmd {
+	case "start":
+		reply = bot.start(&upd)
+	case "login":
+		reply = bot.login(&upd)
+	case "logout":
+		reply = bot.logout(&upd)
+	case "help":
+		reply = bot.help(&upd)
+	case "hide":
+		reply = bot.hide(&upd)
+	case "ban":
+		reply = bot.ban(&upd)
+	case "unban":
+		reply = bot.unban(&upd)
+	case "create":
+		reply = bot.create(&upd)
+	case "info":
+		reply = bot.info(&upd)
+	case "stat":
+		reply = bot.stat(&upd)
+	default:
+		reply = unrecognisedText
+	}
+
+	bot.sendMessageNow(upd.Message.Chat.ID, reply)
 }
 
 func (bot *TelegramBot) Stop() {
@@ -594,13 +599,14 @@ SELECT users.id, users.name, users.show_name, created_at,
 	entries_count, followers_count, followings_count, comments_count, invited_count,
 	invite_ban, vote_ban, comment_ban, live_ban, adm_ban
 FROM users
-JOIN (SELECT id, name, show_name FROM users) AS invited ON users.invited_by = invited.id
+LEFT JOIN (SELECT id, name, show_name FROM users) AS invited ON users.invited_by = invited.id
 WHERE lower(users.email) = lower($1) OR lower(users.name) = lower($1)`
 
 	atx.Query(q, arg)
 
 	var id int64
-	var name, showName, email, invitedByName, invitedByShowName string
+	var name, showName, email string
+	var invitedByName, invitedByShowName sql.NullString
 	var verified bool
 	var createdAt, validThru time.Time
 	var rank int64
@@ -620,6 +626,13 @@ WHERE lower(users.email) = lower($1) OR lower(users.name) = lower($1)`
 
 	today := time.Now()
 
+	var invitedByLink string
+	if invitedByName.Valid && invitedByShowName.Valid {
+		invitedByLink = fmt.Sprintf(`<a href="%susers/%s">%s</a>`, bot.url, invitedByName.String, invitedByShowName.String)
+	} else {
+		invitedByLink = "(not invited)"
+	}
+
 	var text string
 	text += "\n<b>id</b>: " + strconv.FormatInt(id, 10)
 	text += "\n<b>url</b>: " + `<a href="` + bot.url + "users/" + name + `">` + showName + `</a>`
@@ -629,7 +642,7 @@ WHERE lower(users.email) = lower($1) OR lower(users.name) = lower($1)`
 	text += "\n<b>valid thru</b>: " + validThru.Format("15:04:05 02 Jan 2006 MST")
 	text += "\n<b>rank</b>: " + strconv.FormatInt(rank, 10)
 	text += "\n<b>karma</b>: " + strconv.FormatFloat(karma, 'f', 2, 64)
-	text += "\n<b>invited by</b>: " + `<a href="` + bot.url + "users/" + invitedByName + `">` + invitedByShowName + `</a>`
+	text += "\n<b>invited by</b>: " + invitedByLink
 	text += "\n<b>entries</b>: " + strconv.FormatInt(entries, 10)
 	text += "\n<b>followers</b>: " + strconv.FormatInt(followers, 10)
 	text += "\n<b>followings</b>: " + strconv.FormatInt(followings, 10)
