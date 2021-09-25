@@ -6403,6 +6403,13 @@ func init() {
     "UserID": {
       "type": "object",
       "properties": {
+        "authority": {
+          "type": "string",
+          "enum": [
+            "user",
+            "admin"
+          ]
+        },
         "ban": {
           "type": "object",
           "properties": {
@@ -13744,6 +13751,13 @@ func init() {
     "UserID": {
       "type": "object",
       "properties": {
+        "authority": {
+          "type": "string",
+          "enum": [
+            "user",
+            "admin"
+          ]
+        },
         "ban": {
           "type": "object",
           "properties": {

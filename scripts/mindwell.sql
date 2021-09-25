@@ -32,6 +32,17 @@ INSERT INTO "mindwell"."user_privacy" VALUES(3, 'registered');
 
 
 
+-- CREATE TABLE "authority" ------------------------------------
+CREATE TABLE "mindwell"."authority" (
+    "id" Integer UNIQUE NOT NULL,
+    "type" Text NOT NULL );
+
+INSERT INTO "mindwell"."authority" VALUES(0, 'user');
+INSERT INTO "mindwell"."authority" VALUES(1, 'admin');
+-- -------------------------------------------------------------
+
+
+
 -- CREATE TYPE "font_family" -----------------------------------
 CREATE TABLE "mindwell"."font_family" (
     "id" Integer UNIQUE NOT NULL,
@@ -127,11 +138,13 @@ CREATE TABLE "mindwell"."users" (
     "live_ban" Date DEFAULT CURRENT_DATE NOT NULL,
     "adm_ban" Boolean DEFAULT TRUE NOT NULL,
     "telegram" Integer,
+    "authority" Integer DEFAULT 0 NOT NULL,
 	CONSTRAINT "unique_user_id" PRIMARY KEY( "id" ),
     CONSTRAINT "enum_user_gender" FOREIGN KEY("gender") REFERENCES "mindwell"."gender"("id"),
     CONSTRAINT "enum_user_privacy" FOREIGN KEY("privacy") REFERENCES "mindwell"."user_privacy"("id"),
     CONSTRAINT "enum_user_alignment" FOREIGN KEY("text_alignment") REFERENCES "mindwell"."alignment"("id"),
-    CONSTRAINT "enum_user_font_family" FOREIGN KEY("font_family") REFERENCES "mindwell"."font_family"("id") );
+    CONSTRAINT "enum_user_font_family" FOREIGN KEY("font_family") REFERENCES "mindwell"."font_family"("id"),
+    CONSTRAINT "enum_user_authority" FOREIGN KEY("authority") REFERENCES "mindwell"."authority"("id") );
  ;
 -- -------------------------------------------------------------
 

@@ -140,14 +140,16 @@ func newInviter(srv *utils.MindwellServer) func(relations.PostRelationsInvitedNa
 				return relations.NewPostRelationsInvitedNameForbidden().WithPayload(err)
 			}
 
-			if !canInvite(tx, params.Name) {
-				err := srv.NewError(&i18n.Message{ID: "cant_be_invited", Other: "The user can't be invited."})
-				return relations.NewPostRelationsInvitedNameForbidden().WithPayload(err)
-			}
+			if userID.Authority != models.UserIDAuthorityAdmin {
+				if !canInvite(tx, params.Name) {
+					err := srv.NewError(&i18n.Message{ID: "cant_be_invited", Other: "The user can't be invited."})
+					return relations.NewPostRelationsInvitedNameForbidden().WithPayload(err)
+				}
 
-			if ok := removeInvite(tx, params.Invite, userID.ID); !ok {
-				err := srv.StandardError("invalid_invite")
-				return relations.NewPostRelationsInvitedNameForbidden().WithPayload(err)
+				if ok := removeInvite(tx, params.Invite, userID.ID); !ok {
+					err := srv.StandardError("invalid_invite")
+					return relations.NewPostRelationsInvitedNameForbidden().WithPayload(err)
+				}
 			}
 
 			setInvited(tx, userID.ID, params.Name)

@@ -7,6 +7,7 @@ package models
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
@@ -18,6 +19,10 @@ import (
 //
 // swagger:model UserID
 type UserID struct {
+
+	// authority
+	// Enum: [user admin]
+	Authority string `json:"authority,omitempty"`
 
 	// ban
 	Ban *UserIDBan `json:"ban,omitempty"`
@@ -47,6 +52,10 @@ type UserID struct {
 func (m *UserID) Validate(formats strfmt.Registry) error {
 	var res []error
 
+	if err := m.validateAuthority(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.validateBan(formats); err != nil {
 		res = append(res, err)
 	}
@@ -58,6 +67,48 @@ func (m *UserID) Validate(formats strfmt.Registry) error {
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+var userIdTypeAuthorityPropEnum []interface{}
+
+func init() {
+	var res []string
+	if err := json.Unmarshal([]byte(`["user","admin"]`), &res); err != nil {
+		panic(err)
+	}
+	for _, v := range res {
+		userIdTypeAuthorityPropEnum = append(userIdTypeAuthorityPropEnum, v)
+	}
+}
+
+const (
+
+	// UserIDAuthorityUser captures enum value "user"
+	UserIDAuthorityUser string = "user"
+
+	// UserIDAuthorityAdmin captures enum value "admin"
+	UserIDAuthorityAdmin string = "admin"
+)
+
+// prop value enum
+func (m *UserID) validateAuthorityEnum(path, location string, value string) error {
+	if err := validate.EnumCase(path, location, value, userIdTypeAuthorityPropEnum, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *UserID) validateAuthority(formats strfmt.Registry) error {
+	if swag.IsZero(m.Authority) { // not required
+		return nil
+	}
+
+	// value enum
+	if err := m.validateAuthorityEnum("authority", "body", m.Authority); err != nil {
+		return err
+	}
+
 	return nil
 }
 

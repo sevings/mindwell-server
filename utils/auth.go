@@ -13,14 +13,16 @@ import (
 )
 
 const userIDQuery = `
-			SELECT id, name, followers_count, 
+			SELECT users.id, name, followers_count, 
 				invited_by is not null, karma < -1, verified,
 				invite_ban > CURRENT_DATE, vote_ban > CURRENT_DATE, 
-				comment_ban > CURRENT_DATE, live_ban > CURRENT_DATE
-			FROM users `
+				comment_ban > CURRENT_DATE, live_ban > CURRENT_DATE,
+				authority.type
+			FROM users
+			JOIN authority ON users.authority = authority.id `
 
 func LoadUserIDByID(tx *AutoTx, id int64) (*models.UserID, error) {
-	const q = userIDQuery + "WHERE id = $1"
+	const q = userIDQuery + "WHERE users.id = $1"
 	tx.Query(q, id)
 	return scanUserID(tx)
 }
@@ -42,7 +44,8 @@ func scanUserID(tx *AutoTx) (*models.UserID, error) {
 	user.Ban = &models.UserIDBan{}
 	tx.Scan(&user.ID, &user.Name, &user.FollowersCount,
 		&user.IsInvited, &user.NegKarma, &user.Verified,
-		&user.Ban.Invite, &user.Ban.Vote, &user.Ban.Comment, &user.Ban.Live)
+		&user.Ban.Invite, &user.Ban.Vote, &user.Ban.Comment, &user.Ban.Live,
+		&user.Authority)
 	if tx.Error() != nil {
 		return nil, errUnauthorized
 	}
