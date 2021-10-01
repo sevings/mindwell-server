@@ -166,7 +166,7 @@ var allScopes = [...]string{
 	"comments:write",
 	"entries:read",
 	"entries:write",
-	"favotites:write",
+	"favorites:write",
 	"images:read",
 	"images:write",
 	"messages:read",
