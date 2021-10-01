@@ -25,6 +25,7 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.NoAPIKeyAuth = utils.NoApiKeyAuth
 	srv.API.OAuth2PasswordAuth = utils.NewOAuth2User(srv.TokenHash(), srv.DB, utils.PasswordFlow)
 	srv.API.OAuth2CodeAuth = utils.NewOAuth2User(srv.TokenHash(), srv.DB, utils.CodeFlow)
+	srv.API.OAuth2AppAuth = utils.NewOAuth2App(srv.TokenHash(), srv.DB)
 
 	srv.API.Oauth2PostOauth2AllowHandler = oauth2.PostOauth2AllowHandlerFunc(newOAuth2Allow(srv))
 	srv.API.Oauth2GetOauth2DenyHandler = oauth2.GetOauth2DenyHandlerFunc(newOAuth2Deny(srv))

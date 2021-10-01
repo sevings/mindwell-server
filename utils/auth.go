@@ -276,7 +276,7 @@ WHERE lower(users.name) = lower($1)
 	}
 }
 
-func NewOAuth2App(h TokenHash, db *sql.DB) func(string) error {
+func NewOAuth2App(h TokenHash, db *sql.DB) func(string, []string) (*models.UserID, error) {
 	const query = `
 SELECT ban, AuthFlow
 FROM app_tokens
@@ -286,15 +286,15 @@ WHERE lower(apps.name) = lower($1)
 	AND valid_thru > $3
 `
 
-	return func(token string) error {
+	return func(token string, scopes []string) (*models.UserID, error) {
 		nameToken := strings.Split(token, "+")
 		if len(nameToken) < 2 {
-			return fmt.Errorf("app token is invalid: %s", token)
+			return nil, fmt.Errorf("app token is invalid: %s", token)
 		}
 
 		appToken := nameToken[1]
 		if len(appToken) != AppTokenLength {
-			return fmt.Errorf("app token is invalid: %s", token)
+			return nil, fmt.Errorf("app token is invalid: %s", token)
 		}
 
 		name := nameToken[0]
@@ -308,13 +308,22 @@ WHERE lower(apps.name) = lower($1)
 		var flowEx AuthFlow
 		tx.Query(query, name, hash, now).Scan(&ban, &flowEx)
 		if tx.Error() != nil {
-			return fmt.Errorf("app token is invalid: %s", token)
+			return nil, fmt.Errorf("app token is invalid: %s", token)
 		}
 
 		if ban || flowEx&AppFlow != AppFlow {
-			return errors.New("access denied")
+			return nil, errors.New("access denied")
 		}
 
-		return nil
+		userID := &models.UserID{
+			Ban: &models.UserIDBan{
+				Comment: true,
+				Invite:  true,
+				Live:    true,
+				Vote:    true,
+			},
+		}
+
+		return userID, nil
 	}
 }
