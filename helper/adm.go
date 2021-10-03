@@ -1,11 +1,9 @@
 package helper
 
 import (
-	"bufio"
 	"database/sql"
 	"log"
 	"math/rand"
-	"os"
 	"time"
 
 	"github.com/sevings/mindwell-server/utils"
@@ -15,6 +13,7 @@ type user struct {
 	email  string
 	name   string
 	gender string
+	at     time.Time // used in mailing
 }
 
 func genderNames(tx *utils.AutoTx) [][]string {
@@ -193,8 +192,5 @@ func UpdateAdm(tx *utils.AutoTx, mail *utils.Postman) {
 		mail.SendAdm(usr.email, usr.name, usr.gender)
 	}
 
-	log.Println("Completed. Sending emails... (press Enter to exit)")
-
-	reader := bufio.NewReader(os.Stdin)
-	_, _ = reader.ReadString('\n')
+	log.Println("Completed. Sending emails...")
 }

@@ -489,3 +489,31 @@ func (pm *Postman) SendEntryComplain(from, against, content, entry string, entry
 	subj := "Жалоба на запись пользователя " + against
 	pm.sendComplain(email, subj)
 }
+
+func (pm *Postman) SendReminder(address, name, gender string) {
+	var ending string
+	if gender == "female" {
+		ending = "а"
+	}
+
+	email := hermes.Email{
+		Body: hermes.Body{
+			Intros: []string{
+				"ты давно к нам не заходил" + ending + ".",
+			},
+			Actions: []hermes.Action{
+				{
+					Instructions: "Мы скучаем! Возвращайся!",
+					Button: hermes.Button{
+						Color: "#22BC66",
+						Text:  "Майндвелл",
+						Link:  pm.url,
+					},
+				},
+			},
+		},
+	}
+
+	subj := "Мы соскучились"
+	pm.send(email, address, subj, name)
+}

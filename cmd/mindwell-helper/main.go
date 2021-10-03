@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"go.uber.org/zap"
 	"log"
 	"os"
@@ -11,6 +12,7 @@ import (
 
 const admArg = "adm"
 const helpArg = "help"
+const mailArg = "mail"
 
 func printHelp() {
 	log.Printf(
@@ -19,8 +21,9 @@ Usage: mindwell-helper [option]
 
 Options are:
 %s		- set grandfathers in adm and sent emails to them.
+%s      - send email reminders.
 %s		- print this help message.
-`, admArg, helpArg)
+`, admArg, mailArg, helpArg)
 }
 
 func main() {
@@ -57,10 +60,17 @@ func main() {
 		switch arg {
 		case admArg:
 			helper.UpdateAdm(tx, mail)
+		case mailArg:
+			helper.SendReminders(tx, mail)
 		case helpArg:
 			printHelp()
 		default:
 			log.Printf("Unknown argument: %s\n", arg)
 		}
+
+		log.Println("(press Enter to continue)")
+
+		reader := bufio.NewReader(os.Stdin)
+		_, _ = reader.ReadString('\n')
 	}
 }
