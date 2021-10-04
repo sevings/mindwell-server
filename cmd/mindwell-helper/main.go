@@ -21,7 +21,7 @@ Usage: mindwell-helper [option]
 
 Options are:
 %s		- set grandfathers in adm and sent emails to them.
-%s      - send email reminders.
+%s		- send email reminders.
 %s		- print this help message.
 `, admArg, mailArg, helpArg)
 }
