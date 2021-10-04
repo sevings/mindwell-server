@@ -28,13 +28,17 @@ func searchUsers(srv *utils.MindwellServer, tx *utils.AutoTx, params users.GetUs
 
 }
 
-func loadTopUsers(srv *utils.MindwellServer, tx *utils.AutoTx, params users.GetUsersParams) middleware.Responder {
+func loadTopUsers(srv *utils.MindwellServer, tx *utils.AutoTx, params users.GetUsersParams, userID *models.UserID) middleware.Responder {
 	query := usersQuerySelect + ", false "
 
 	if *params.Top == "rank" {
 		query += "FROM users, gender, user_privacy WHERE invited_by IS NOT NULL" + usersQueryJoins + "ORDER BY rank ASC"
+		query += " LIMIT 50"
+		tx.Query(query)
 	} else if *params.Top == "new" {
 		query += "FROM users, gender, user_privacy WHERE invited_by IS NOT NULL" + usersQueryJoins + " ORDER BY created_at DESC"
+		query += " LIMIT 50"
+		tx.Query(query)
 	} else if *params.Top == "waiting" {
 		query += `
 			FROM (
@@ -46,8 +50,20 @@ func loadTopUsers(srv *utils.MindwellServer, tx *utils.AutoTx, params users.GetU
 					INNER JOIN users ON entries.author_id = users.id
 					INNER JOIN entry_privacy ON entries.visible_for = entry_privacy.id
 					INNER JOIN user_privacy ON users.privacy = user_privacy.id
-					WHERE entry_privacy.type = 'all' 
-						AND user_privacy.type <> 'followers'
+					WHERE 
+						CASE user_privacy.type
+						WHEN 'all' THEN TRUE
+						WHEN 'registered' THEN TRUE
+						WHEN 'invited' THEN $1
+						ELSE FALSE
+						END
+						AND
+						CASE entry_privacy.type
+						WHEN 'all' THEN TRUE
+						WHEN 'registered' THEN TRUE
+						WHEN 'invited' THEN $1
+						ELSE FALSE
+						END
 					GROUP BY author_id
 				) AS last_entries ON users.id = last_entries.author_id
 				WHERE invited_by IS NULL
@@ -56,13 +72,13 @@ func loadTopUsers(srv *utils.MindwellServer, tx *utils.AutoTx, params users.GetU
 			INNER JOIN gender ON gender.id = users.gender
 			INNER JOIN user_privacy ON users.privacy = user_privacy.id
 		`
+		query += " LIMIT 50"
+		tx.Query(query, userID.IsInvited)
 	} else {
 		fmt.Printf("Unknown users top: %s\n", *params.Top)
 		return users.NewGetUsersOK() //.WithPayload(srv.NewError(nil))
 	}
 
-	query += " LIMIT 50"
-	tx.Query(query)
 	list, _, _ := loadUserList(srv, tx, false)
 	body := &users.GetUsersOKBody{
 		Users: list,
@@ -77,7 +93,7 @@ func newUsersLoader(srv *utils.MindwellServer) func(users.GetUsersParams, *model
 			if params.Query != nil {
 				return searchUsers(srv, tx, params)
 			} else {
-				return loadTopUsers(srv, tx, params)
+				return loadTopUsers(srv, tx, params, userID)
 			}
 		})
 	}
