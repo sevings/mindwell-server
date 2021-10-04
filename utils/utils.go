@@ -15,14 +15,12 @@ import (
 
 	goconf "github.com/zpatrick/go-config"
 
-	"github.com/go-openapi/errors"
 	"github.com/sevings/mindwell-server/models"
 
 	// to use postgres
 	_ "github.com/lib/pq"
 )
 
-var errUnauthorized = errors.New(401, "Invalid or expired API key")
 var htmlEsc = strings.NewReplacer(
 	"<", "&lt;",
 	">", "&gt;",

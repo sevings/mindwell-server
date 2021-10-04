@@ -2,15 +2,19 @@ package utils
 
 import (
 	"database/sql"
-	"errors"
-	"fmt"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/go-openapi/errors"
 	"github.com/sevings/mindwell-server/models"
 	"log"
 	"strconv"
 	"strings"
 	"time"
 )
+
+var errUnauthorized = errors.New(401, "Invalid or expired API key")
+var errAccessToken = errors.New(401, "Invalid access token")
+var errAppToken = errors.New(401, "Invalid app token")
+var errAccessDenied = errors.New(403, "Access denied")
 
 const userIDQuery = `
 			SELECT users.id, name, followers_count, 
@@ -61,7 +65,7 @@ func scanUserID(tx *AutoTx) (*models.UserID, error) {
 func readUserID(secret []byte, tokenString string) (int64, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			return nil, errors.New(401, "unexpected signing method: %v", token.Header["alg"])
 		}
 
 		return secret, nil
@@ -100,7 +104,7 @@ func readUserID(secret []byte, tokenString string) (int64, error) {
 func NewKeyAuth(db *sql.DB, secret []byte) func(apiKey string) (*models.UserID, error) {
 	return func(apiKey string) (*models.UserID, error) {
 		if len(apiKey) < 32 {
-			return nil, fmt.Errorf("api token is invalid: %s", apiKey)
+			return nil, errUnauthorized
 		}
 
 		tx := NewAutoTx(db)
@@ -188,7 +192,7 @@ func findScope(scope string) (uint32, error) {
 		}
 	}
 
-	return 0, fmt.Errorf("scope is invalid: %s", scope)
+	return 0, errors.New(401, "invalid scope: %s", scope)
 }
 
 func ScopeFromString(scopes []string) (uint32, error) {
@@ -245,12 +249,12 @@ WHERE lower(users.name) = lower($1)
 
 		nameToken := strings.Split(token, ".")
 		if len(nameToken) < 2 {
-			return nil, fmt.Errorf("access token is invalid: %s", token)
+			return nil, errAccessToken
 		}
 
 		accessToken := nameToken[1]
 		if len(accessToken) != AccessTokenLength {
-			return nil, fmt.Errorf("access token is invalid: %s", token)
+			return nil, errAccessToken
 		}
 
 		name := nameToken[0]
@@ -265,11 +269,11 @@ WHERE lower(users.name) = lower($1)
 		var ban bool
 		tx.Query(query, name, hash[:], now).Scan(&scopeEx, &flowEx, &ban)
 		if tx.Error() != nil {
-			return nil, fmt.Errorf("access token is invalid: %s", token)
+			return nil, errAccessToken
 		}
 
 		if ban || scopeEx&scopeReq != scopeReq || flowEx&flowReq != flowReq {
-			return nil, errors.New("access denied")
+			return nil, errAccessDenied
 		}
 
 		return LoadUserIDByName(tx, name)
@@ -289,12 +293,12 @@ WHERE lower(apps.name) = lower($1)
 	return func(token string, scopes []string) (*models.UserID, error) {
 		nameToken := strings.Split(token, "+")
 		if len(nameToken) < 2 {
-			return nil, fmt.Errorf("app token is invalid: %s", token)
+			return nil, errAppToken
 		}
 
 		appToken := nameToken[1]
 		if len(appToken) != AppTokenLength {
-			return nil, fmt.Errorf("app token is invalid: %s", token)
+			return nil, errAppToken
 		}
 
 		name := nameToken[0]
@@ -308,11 +312,11 @@ WHERE lower(apps.name) = lower($1)
 		var flowEx AuthFlow
 		tx.Query(query, name, hash, now).Scan(&ban, &flowEx)
 		if tx.Error() != nil {
-			return nil, fmt.Errorf("app token is invalid: %s", token)
+			return nil, errAppToken
 		}
 
 		if ban || flowEx&AppFlow != AppFlow {
-			return nil, errors.New("access denied")
+			return nil, errAccessDenied
 		}
 
 		userID := &models.UserID{
