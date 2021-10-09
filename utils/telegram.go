@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -195,6 +196,8 @@ func (bot *TelegramBot) command(upd tgbotapi.Update) {
 		reply = bot.create(&upd)
 	case "info":
 		reply = bot.info(&upd)
+	case "alts":
+		reply = bot.alts(&upd)
 	case "stat":
 		reply = bot.stat(&upd)
 	default:
@@ -312,6 +315,7 @@ func (bot *TelegramBot) help(upd *tgbotapi.Update) string {
 <code>/ban user {login или ссылка}</code> — заблокировать пользователя.
 <code>/unban {login или ссылка}</code> — разблокировать пользователя.
 <code>/info {email, login или ссылка}</code> — информация о пользователе.
+<code>/alts {email, login или ссылка}</code> — искать альтернативные аккаунты пользователя.
 <code>/delete {email}</code> — удалить пользователя.
 <code>/create app {dev_name} {public | private} {code | password} {redirect_uri} {name} {show_name} {platform} {info}</code> - создать приложение.
 /stat — статистика сервера.
@@ -653,6 +657,80 @@ WHERE lower(users.email) = lower($1) OR lower(users.name) = lower($1)`
 	text += "\n<b>comment ban</b>: " + strconv.FormatBool(commentBan.After(today)) + ", " + commentBan.Format("02 Jan 2006")
 	text += "\n<b>live ban</b>: " + strconv.FormatBool(liveBan.After(today)) + ", " + liveBan.Format("02 Jan 2006")
 	text += "\n<b>adm ban</b>: " + strconv.FormatBool(admBan)
+
+	return text
+}
+
+func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
+	if !bot.isAdmin(upd) {
+		return unrecognisedText
+	}
+
+	if upd.Message.From == nil {
+		return errorText
+	}
+
+	arg := upd.Message.CommandArguments()
+	if strings.Contains(arg, "/") {
+		arg = loginRe.FindString(arg)
+	}
+	if arg == "" {
+		return "Укажи логин или адрес почты."
+	}
+
+	atx := NewAutoTx(bot.srv.DB)
+	defer atx.Finish()
+
+	var name, showName string
+	const nameQuery = "SELECT name, show_name FROM users WHERE lower(users.email) = lower($1) OR lower(users.name) = lower($1)"
+	atx.Query(nameQuery, arg)
+	if ok := atx.Scan(&name, &showName); !ok {
+		return "Пользователь с логином или адресом почты " + arg + " не найден."
+	}
+
+	getAlts := func(on string) []string {
+		q := sqlf.Select("ul.name, MAX(ul.at) AS last_at").
+			From("user_log AS ul").
+			Join("user_log AS ol", on).
+			Where("ul.name <> ?", name).
+			Where("ol.name = ?", name).
+			GroupBy("ul.name").
+			OrderBy("last_at DESC").
+			Limit(5)
+
+		atx.QueryStmt(q)
+
+		var alts []string
+		for {
+			var at time.Time
+			var twink string
+			ok := atx.Scan(&twink, &at)
+			if !ok {
+				break
+			}
+
+			alts = append(alts, twink)
+		}
+
+		sort.Strings(alts)
+
+		for i, alt := range alts {
+			alts[i] = `<a href="` + bot.url + "users/" + alt + `">` + alt + `</a>`
+		}
+
+		return alts
+	}
+
+	ipAlts := getAlts("ul.ip = ol.ip")
+	devAlts := getAlts("ul.device = ol.device")
+	appAlts := getAlts("ul.app = ol.app")
+	uidAlts := getAlts("ul.uid = ol.uid")
+
+	text := `Possible accounts of <a href="` + bot.url + "users/" + name + `">` + showName + `</a>`
+	text += "\n<b>By IP</b>: " + strings.Join(ipAlts, ", ")
+	text += "\n<b>By device</b>: " + strings.Join(devAlts, ", ")
+	text += "\n<b>By app</b>: " + strings.Join(appAlts, ", ")
+	text += "\n<b>By UID</b>: " + strings.Join(uidAlts, ", ")
 
 	return text
 }
