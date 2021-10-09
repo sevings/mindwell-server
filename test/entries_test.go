@@ -281,6 +281,12 @@ func TestLiveRestrictions(t *testing.T) {
 	postParams.Content = "test test test3"
 	checkPostEntry(t, postParams, profiles[0], userIDs[0], false, 3)
 
+	postParams.Privacy = models.EntryPrivacyRegistered
+	checkPostEntry(t, postParams, profiles[0], userIDs[0], false, 3)
+
+	postParams.Privacy = models.EntryPrivacyInvited
+	checkPostEntry(t, postParams, profiles[0], userIDs[0], false, 3)
+
 	live = false
 	e1 := checkPostEntry(t, postParams, profiles[0], userIDs[0], true, 3)
 
@@ -303,6 +309,12 @@ func TestLiveRestrictions(t *testing.T) {
 	checkEditEntry(t, editParams, profiles[0], userIDs[0], true, 1)
 
 	editParams.ID = e1
+	checkEditEntry(t, editParams, profiles[0], userIDs[0], false, 1)
+
+	editParams.Privacy = models.EntryPrivacyRegistered
+	checkEditEntry(t, editParams, profiles[0], userIDs[0], false, 1)
+
+	editParams.Privacy = models.EntryPrivacyInvited
 	checkEditEntry(t, editParams, profiles[0], userIDs[0], false, 1)
 
 	banLive(db, userIDs[0])

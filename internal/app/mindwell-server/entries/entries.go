@@ -329,7 +329,10 @@ func newMyTlogPoster(srv *utils.MindwellServer) func(me.PostMeTlogParams, *model
 				return me.NewPostMeTlogForbidden().WithPayload(err)
 			}
 
-			if *params.InLive && params.Privacy == models.EntryPrivacyAll {
+			if *params.InLive &&
+				(params.Privacy == models.EntryPrivacyAll ||
+					params.Privacy == models.EntryPrivacyRegistered ||
+					params.Privacy == models.EntryPrivacyInvited) {
 				err := canPostInLive(srv, tx, userID)
 				if err != nil {
 					return me.NewPostMeTlogForbidden().WithPayload(err)
@@ -457,7 +460,10 @@ func canEditInLive(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 func newEntryEditor(srv *utils.MindwellServer) func(entries.PutEntriesIDParams, *models.UserID) middleware.Responder {
 	return func(params entries.PutEntriesIDParams, uID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			if *params.InLive && params.Privacy == models.EntryPrivacyAll {
+			if *params.InLive &&
+				(params.Privacy == models.EntryPrivacyAll ||
+					params.Privacy == models.EntryPrivacyRegistered ||
+					params.Privacy == models.EntryPrivacyInvited) {
 				err := canEditInLive(srv, tx, uID, params.ID)
 				if err != nil {
 					return entries.NewPutEntriesIDForbidden().WithPayload(err)
