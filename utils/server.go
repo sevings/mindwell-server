@@ -45,6 +45,7 @@ const (
 	logTelegram = "telegram"
 	logEmail    = "email"
 	logSystem   = "system"
+	logRequest  = "request"
 )
 
 type MindwellServer struct {
@@ -260,6 +261,10 @@ func (srv *MindwellServer) LogEmail() *zap.Logger {
 
 func (srv *MindwellServer) LogSystem() *zap.Logger {
 	return srv.Log(logSystem)
+}
+
+func (srv *MindwellServer) LogRequest() *zap.Logger {
+	return srv.Log(logRequest)
 }
 
 func (srv *MindwellServer) recalcKarma() {

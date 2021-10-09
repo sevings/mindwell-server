@@ -90,6 +90,8 @@ func configureAPI(api *operations.MindwellAPI) http.Handler {
 		srv.Ntf.Stop()
 	}
 
+	api.AddMiddlewareFor("GET", "/me", utils.CreateUserLog(srv.DB, srv.LogRequest()))
+
 	return setupGlobalMiddleware(api.Serve(setupMiddlewares))
 }
 
