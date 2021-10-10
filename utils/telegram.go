@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"net/http"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -688,49 +687,61 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 		return "Пользователь с логином или адресом почты " + arg + " не найден."
 	}
 
-	getAlts := func(on string) []string {
-		q := sqlf.Select("ul.name, MAX(ul.at) AS last_at").
-			From("user_log AS ul").
-			Join("user_log AS ol", on).
-			Where("ul.name <> lower(?)", name).
-			Where("ol.name = lower(?)", name).
-			GroupBy("ul.name").
-			OrderBy("last_at DESC").
-			Limit(5)
-
+	getAlts := func(q *sqlf.Stmt) string {
 		atx.QueryStmt(q)
 
 		var alts []string
 		for {
-			var at time.Time
-			var twink string
-			ok := atx.Scan(&twink, &at)
+			var cnt int64
+			var alt string
+			ok := atx.Scan(&alt, &cnt)
 			if !ok {
 				break
 			}
 
-			alts = append(alts, twink)
+			alt = fmt.Sprintf(`<a href="%susers/%s">%s</a> (%d)`, bot.url, alt, alt, cnt)
+			alts = append(alts, alt)
 		}
 
-		sort.Strings(alts)
-
-		for i, alt := range alts {
-			alts[i] = `<a href="` + bot.url + "users/" + alt + `">` + alt + `</a>`
-		}
-
-		return alts
+		return strings.Join(alts, ", ")
 	}
 
-	ipAlts := getAlts("ul.ip = ol.ip")
-	devAlts := getAlts("ul.device = ol.device AND ol.device > 0")
-	appAlts := getAlts("ul.app = ol.app AND ol.app > 0")
-	uidAlts := getAlts("ul.uid = ol.uid AND ol.uid > 0")
+	q := sqlf.Select("ul.name, COUNT(*) AS cnt").
+		From("user_log AS ul").
+		Where("ul.name <> lower(?)", name).
+		Where("ol.name = lower(?)", name).
+		Where("ul.first <> ol.first").
+		GroupBy("ul.name").
+		OrderBy("cnt DESC").
+		Limit(5)
+
+	ipQuery := q.Clone().
+		Join("user_log AS ol", "ul.ip = ol.ip").
+		Where("(CASE WHEN ul.at > ol.at THEN ul.at - ol.at ELSE ol.at - ul.at END) < interval '1 hour'")
+	ipAlts := getAlts(ipQuery)
+
+	devQuery := q.Clone().
+		Join("user_log AS ol", "ul.device = ol.device").
+		Where("ol.device <> 0").
+		Where("(CASE WHEN ul.at > ol.at THEN ul.at - ol.at ELSE ol.at - ul.at END) < interval '1 hour'")
+	devAlts := getAlts(devQuery)
+
+	appQuery := q.Clone().
+		Join("user_log AS ol", "ul.app = ol.app").
+		Where("ol.app <> 0").
+		Where("(CASE WHEN ul.at > ol.at THEN ul.at - ol.at ELSE ol.at - ul.at END) < interval '1 hour'")
+	appAlts := getAlts(appQuery)
+
+	uidQuery := q.Clone().
+		Join("user_log AS ol", "ul.uid = ol.uid").
+		Where("ol.uid <> 0")
+	uidAlts := getAlts(uidQuery)
 
 	text := `Possible accounts of <a href="` + bot.url + "users/" + name + `">` + showName + `</a>`
-	text += "\n<b>By IP</b>: " + strings.Join(ipAlts, ", ")
-	text += "\n<b>By device</b>: " + strings.Join(devAlts, ", ")
-	text += "\n<b>By app</b>: " + strings.Join(appAlts, ", ")
-	text += "\n<b>By UID</b>: " + strings.Join(uidAlts, ", ")
+	text += "\n<b>By IP</b>: " + ipAlts
+	text += "\n<b>By device</b>: " + devAlts
+	text += "\n<b>By app</b>: " + appAlts
+	text += "\n<b>By UID</b>: " + uidAlts
 
 	return text
 }
