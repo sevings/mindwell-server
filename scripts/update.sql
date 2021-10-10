@@ -1,6 +1,3 @@
-DROP VIEW user_log_view;
-DROP TABLE user_log;
-
 CREATE TABLE "mindwell"."user_log" (
     "name" Text NOT NULL,
     "user_agent" Text NOT NULL,

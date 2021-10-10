@@ -47,6 +47,10 @@ func ClearDatabase(db *sql.DB) {
 	dropTable(tx, "complains")
 	dropTable(tx, "talkers")
 	dropTable(tx, "chats")
+	//dropTable(tx, "apps")
+	dropTable(tx, "sessions")
+	//dropTable(tx, "app_tokens")
+	dropTable(tx, "user_log")
 
 	_, err = tx.Exec("delete from users where id != 1")
 	if err != nil {

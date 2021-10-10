@@ -724,7 +724,7 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 	ipAlts := getAlts("ul.ip = ol.ip")
 	devAlts := getAlts("ul.device = ol.device")
 	appAlts := getAlts("ul.app = ol.app")
-	uidAlts := getAlts("ul.uid = ol.uid")
+	uidAlts := getAlts("ul.uid = ol.uid AND ol.uid <> -1")
 
 	text := `Possible accounts of <a href="` + bot.url + "users/" + name + `">` + showName + `</a>`
 	text += "\n<b>By IP</b>: " + strings.Join(ipAlts, ", ")

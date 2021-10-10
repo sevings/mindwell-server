@@ -20,15 +20,15 @@ type userRequest struct {
 	at   time.Time
 }
 
-func (le userRequest) key() string {
+func (req userRequest) key() string {
 	var str strings.Builder
 	str.Grow(68)
 
-	str.WriteString(le.ip)
-	str.WriteString(le.dev)
-	str.WriteString(le.app)
-	str.WriteString(le.uid)
-	str.WriteString(le.user)
+	str.WriteString(req.ip)
+	str.WriteString(req.dev)
+	str.WriteString(req.app)
+	str.WriteString(req.uid)
+	str.WriteString(req.user)
 
 	return str.String()
 }
@@ -155,12 +155,12 @@ func (ul *userLog) save(tx *AutoTx, req *userRequest, first bool) {
 
 	dev, err := strconv.ParseUint(req.dev, 16, 32)
 	if err != nil {
-		ul.log.Warn("dev id is invalid", zap.String("dev", req.uid))
+		ul.log.Warn("dev id is invalid", zap.String("dev", req.dev))
 	}
 
 	const query = `
     INSERT INTO user_log(name, ip, user_agent, device, app, uid, at, first) 
-    VALUeS($1, $2, $3, $4, $5, $6, $7, $8)
+    VALUES(lower($1), $2, $3, $4, $5, $6, $7, $8)
 `
 
 	tx.Exec(query, req.user, req.ip, req.ua, int32(dev), int64(app), int32(uid), req.at, first)
