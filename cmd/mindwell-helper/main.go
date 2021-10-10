@@ -13,6 +13,7 @@ import (
 const admArg = "adm"
 const helpArg = "help"
 const mailArg = "mail"
+const logArg = "log"
 
 func printHelp() {
 	log.Printf(
@@ -22,8 +23,9 @@ Usage: mindwell-helper [option]
 Options are:
 %s		- set grandfathers in adm and sent emails to them.
 %s		- send email reminders.
+%s      - import user request log.
 %s		- print this help message.
-`, admArg, mailArg, helpArg)
+`, admArg, mailArg, logArg, helpArg)
 }
 
 func main() {
@@ -62,6 +64,8 @@ func main() {
 			helper.UpdateAdm(tx, mail)
 		case mailArg:
 			helper.SendReminders(tx, mail)
+		case logArg:
+			helper.ImportUserLog(tx)
 		case helpArg:
 			printHelp()
 		default:
