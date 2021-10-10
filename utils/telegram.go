@@ -692,8 +692,8 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 		q := sqlf.Select("ul.name, MAX(ul.at) AS last_at").
 			From("user_log AS ul").
 			Join("user_log AS ol", on).
-			Where("ul.name <> ?", name).
-			Where("ol.name = ?", name).
+			Where("ul.name <> lower(?)", name).
+			Where("ol.name = lower(?)", name).
 			GroupBy("ul.name").
 			OrderBy("last_at DESC").
 			Limit(5)
