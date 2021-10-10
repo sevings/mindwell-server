@@ -62,17 +62,34 @@ func ImportUserLog(tx *utils.AutoTx) {
 			continue
 		}
 
-		prev[req.key()] = req
+		key := req.key()
+		prevReq, found := prev[key]
+		if found {
+			if req.At < prevReq.At {
+				log.Printf("Wrong log order: %s before %s\n",
+					time.Unix(int64(req.At), 0).Format(time.RFC822),
+					time.Unix(int64(prevReq.At), 0).Format(time.RFC822))
+			}
+
+			if req.At-prevReq.At > time.Hour.Seconds() {
+				saveUserRequest(tx, prevReq, false)
+				saveUserRequest(tx, req, true)
+			}
+		} else {
+			saveUserRequest(tx, req, true)
+		}
+
+		prev[key] = req
 	}
 
 	for _, req := range prev {
-		saveUserRequest(tx, req)
+		saveUserRequest(tx, req, false)
 	}
 
-	log.Printf("Added %d log lines.\n", len(prev))
+	log.Printf("Found %d unique requests.\n", len(prev))
 }
 
-func saveUserRequest(tx *utils.AutoTx, req userRequest) {
+func saveUserRequest(tx *utils.AutoTx, req userRequest, first bool) {
 	app, err := strconv.ParseUint(req.App[:16], 16, 64)
 	if err != nil {
 		log.Printf("Browser id is invalid: %s\n", req.App)
@@ -95,5 +112,5 @@ func saveUserRequest(tx *utils.AutoTx, req userRequest) {
     VALUES(lower($1), $2, $3, $4, $5, $6, $7, $8)
 `
 
-	tx.Exec(query, req.User, ip, req.Ua, int32(dev), int64(app), -1, at, false)
+	tx.Exec(query, req.User, ip, req.Ua, int32(dev), int64(app), 0, at, first)
 }
