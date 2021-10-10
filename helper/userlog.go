@@ -88,11 +88,12 @@ func saveUserRequest(tx *utils.AutoTx, req userRequest) {
 	dev := adler32.Checksum(device)
 
 	at := time.UnixMicro(int64(req.At * 1000000))
+	ip := strings.SplitN(req.Ip, ",", 2)[0]
 
 	const query = `
     INSERT INTO user_log(name, ip, user_agent, device, app, uid, at, first) 
     VALUES(lower($1), $2, $3, $4, $5, $6, $7, $8)
 `
 
-	tx.Exec(query, req.User, req.Ip, req.Ua, int32(dev), int64(app), -1, at, false)
+	tx.Exec(query, req.User, ip, req.Ua, int32(dev), int64(app), -1, at, false)
 }

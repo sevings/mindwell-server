@@ -158,10 +158,12 @@ func (ul *userLog) save(tx *AutoTx, req *userRequest, first bool) {
 		ul.log.Warn("dev id is invalid", zap.String("dev", req.dev))
 	}
 
+	ip := strings.SplitN(req.ip, ",", 2)[0]
+
 	const query = `
     INSERT INTO user_log(name, ip, user_agent, device, app, uid, at, first) 
     VALUES(lower($1), $2, $3, $4, $5, $6, $7, $8)
 `
 
-	tx.Exec(query, req.user, req.ip, req.ua, int32(dev), int64(app), int32(uid), req.at, first)
+	tx.Exec(query, req.user, ip, req.ua, int32(dev), int64(app), int32(uid), req.at, first)
 }
