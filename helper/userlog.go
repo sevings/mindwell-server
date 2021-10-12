@@ -23,6 +23,7 @@ type userRequest struct {
 	Type string  `json:"type"`
 	Mtd  string  `json:"method"`
 	Url  string  `json:"url"`
+	Size int64   `json:"reply_size"`
 }
 
 func (req userRequest) key() string {
@@ -41,6 +42,7 @@ func ImportUserLog(tx *utils.AutoTx) {
 	prev := make(map[string]userRequest)
 
 	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Buffer(make([]byte, 256*1024), 1024*1024)
 	for scanner.Scan() {
 		if !strings.HasPrefix(scanner.Text(), "{") {
 			continue
@@ -53,8 +55,7 @@ func ImportUserLog(tx *utils.AutoTx) {
 			continue
 		}
 
-		if req.Type != "web" || req.Mtd != "GET" ||
-			(req.Url != "/live" && req.Url != "/friends" && req.Url != "/best" && req.Url != "/users") {
+		if req.Type != "web" || req.Mtd != "GET" || req.Size < 20000 {
 			continue
 		}
 
@@ -79,7 +80,16 @@ func ImportUserLog(tx *utils.AutoTx) {
 			saveUserRequest(tx, req, true)
 		}
 
-		prev[key] = req
+		if req.Url == "/account/logout" {
+			saveUserRequest(tx, req, false)
+			delete(prev, key)
+		} else {
+			prev[key] = req
+		}
+	}
+
+	if scanner.Err() != nil {
+		log.Println(scanner.Err())
 	}
 
 	for _, req := range prev {
