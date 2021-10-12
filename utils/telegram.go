@@ -674,19 +674,25 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 		arg = loginRe.FindString(arg)
 	}
 	if arg == "" {
-		return "Укажи логин или адрес почты."
+		return "Укажи логин."
+	}
+
+	users := strings.Split(arg, " ")
+	if len(users) > 2 {
+		return "Укажи не более двух аккаунтов."
 	}
 
 	atx := NewAutoTx(bot.srv.DB)
 	defer atx.Finish()
 
-	var name, showName string
-	const nameQuery = "SELECT name, show_name FROM users WHERE lower(users.email) = lower($1) OR lower(users.name) = lower($1)"
-	atx.Query(nameQuery, arg)
-	if ok := atx.Scan(&name, &showName); !ok {
-		return "Пользователь с логином или адресом почты " + arg + " не найден."
+	if len(users) == 1 {
+		return bot.possibleAlts(atx, users[0])
 	}
 
+	return bot.compareUsers(atx, users[0], users[1])
+}
+
+func (bot *TelegramBot) possibleAlts(atx *AutoTx, user string) string {
 	getAlts := func(q *sqlf.Stmt) string {
 		atx.QueryStmt(q)
 
@@ -708,12 +714,12 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 
 	q := sqlf.Select("ul.name, COUNT(*) AS cnt").
 		From("user_log AS ul").
-		Where("ul.name <> lower(?)", name).
-		Where("ol.name = lower(?)", name).
+		Where("ul.name <> lower(?)", user).
+		Where("ol.name = lower(?)", user).
 		Where("ul.first <> ol.first").
 		GroupBy("ul.name").
 		OrderBy("cnt DESC").
-		Limit(5)
+		Limit(10)
 
 	ipQuery := q.Clone().
 		Join("user_log AS ol", "ul.ip = ol.ip").
@@ -727,8 +733,8 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 	devAlts := getAlts(devQuery)
 
 	appQuery := q.Clone().
-		Join("user_log AS ol", "ul.app = ol.app").
-		Where("ol.app <> 0").
+		Join("user_log AS ol", "ul.app = ol.app AND ul.device = ol.device").
+		Where("ol.app <> 0 AND ol.device <> 0").
 		Where("(CASE WHEN ul.at > ol.at THEN ul.at - ol.at ELSE ol.at - ul.at END) < interval '1 hour'")
 	appAlts := getAlts(appQuery)
 
@@ -737,11 +743,100 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 		Where("ol.uid <> 0")
 	uidAlts := getAlts(uidQuery)
 
-	text := `Possible accounts of <a href="` + bot.url + "users/" + name + `">` + showName + `</a>`
+	text := `Possible accounts of <a href="` + bot.url + "users/" + user + `">` + user + `</a>`
 	text += "\n<b>By IP</b>: " + ipAlts
 	text += "\n<b>By device</b>: " + devAlts
 	text += "\n<b>By app</b>: " + appAlts
 	text += "\n<b>By UID</b>: " + uidAlts
+
+	return text
+}
+
+func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB string) string {
+	getCounts := func(q *sqlf.Stmt) string {
+		atx.QueryStmt(q)
+
+		var result []string
+		for {
+			var cnt int64
+			var from, to time.Time
+			var data string
+			ok := atx.Scan(&cnt, &from, &to, &data)
+			if !ok {
+				break
+			}
+
+			data = fmt.Sprintf("%s (%d, %s — %s)", data, cnt,
+				from.Format("02.01.2006"), to.Format("02.01.2006"))
+			result = append(result, data)
+		}
+
+		return strings.Join(result, "\n")
+	}
+
+	commonQuery := func() *sqlf.Stmt {
+		return sqlf.Select("COUNT(*) AS cnt, MIN(ul.at), MAX(ul.at)").
+			From("user_log AS ul").
+			Where("ul.name = lower(?)", userA).
+			Where("ol.name = lower(?)", userB).
+			Where("ul.first <> ol.first").
+			OrderBy("cnt DESC").
+			Limit(10)
+	}
+
+	commonIpsQ := commonQuery().
+		Join("user_log AS ol", "ul.ip = ol.ip").
+		Where("(CASE WHEN ul.at > ol.at THEN ul.at - ol.at ELSE ol.at - ul.at END) < interval '1 hour'").
+		Select("ul.ip").
+		GroupBy("ul.ip")
+	commonIps := getCounts(commonIpsQ)
+
+	commonAppsQ := commonQuery().
+		Join("user_log AS ol", "ul.app = ol.app AND ul.device = ol.device").
+		Where("(CASE WHEN ul.at > ol.at THEN ul.at - ol.at ELSE ol.at - ul.at END) < interval '1 hour'").
+		Select("ul.user_agent").
+		GroupBy("ul.user_agent")
+	commonApps := getCounts(commonAppsQ)
+
+	diffQuery := func(a, b string) *sqlf.Stmt {
+		sub := sqlf.Select("*").From("user_log").Where("name = ?", b)
+		return sqlf.Select("COUNT(*) AS cnt, MIN(ol.at), MAX(ol.at)").
+			From("").SubQuery("(", ") AS ul", sub).
+			Where("ol.name = lower(?)", a).
+			OrderBy("cnt DESC").
+			Limit(10)
+	}
+
+	diffIpsQ := func(a, b string) *sqlf.Stmt {
+		return diffQuery(a, b).
+			RightJoin("user_log AS ol", "ul.ip = ol.ip").
+			Where("ul.ip IS NULL").
+			Select("ol.ip").
+			GroupBy("ol.ip")
+	}
+
+	diffIpsA := getCounts(diffIpsQ(userA, userB))
+	diffIpsB := getCounts(diffIpsQ(userB, userA))
+
+	diffAppsQ := func(a, b string) *sqlf.Stmt {
+		return diffQuery(a, b).
+			RightJoin("user_log AS ol", "ul.app = ol.app AND ul.device = ol.device").
+			Where("ul.app IS NULL").
+			Select("ol.user_agent").
+			GroupBy("ol.user_agent")
+	}
+
+	diffAppsA := getCounts(diffAppsQ(userA, userB))
+	diffAppsB := getCounts(diffAppsQ(userB, userA))
+
+	text := fmt.Sprintf(`Comparison of <a href="%susers/%s">%s</a> and <a href="%susers/%s">%s</a>`,
+		bot.url, userA, userA, bot.url, userB, userB)
+	text += "\n<b>Common IPs</b>:\n" + commonIps
+	text += "\n<b>Common apps</b>:\n" + commonApps
+	text += "\n<b>IPs used only by " + userA + "</b>:\n" + diffIpsA
+	text += "\n<b>IPs used only by " + userB + "</b>:\n" + diffIpsB
+	text += "\n<b>Apps used only by " + userA + "</b>:\n" + diffAppsA
+	text += "\n<b>Apps used only by " + userB + "</b>:\n" + diffAppsB
 
 	return text
 }
