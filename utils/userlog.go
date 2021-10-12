@@ -147,6 +147,10 @@ func (ul *userLog) save(tx *AutoTx, req *userRequest, first bool) {
 		return
 	}
 
+	if req.app == "" && req.uid == "" && req.dev == "" {
+		return
+	}
+
 	app, err := strconv.ParseUint(req.app, 16, 64)
 	if err != nil {
 		ul.log.Warn("app id is invalid", zap.String("app", req.app))
