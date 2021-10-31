@@ -45,7 +45,7 @@ extract(epoch from users.created_at), extract(epoch from users.last_seen_at), is
 user_age(users.birthday),
 users.entries_count, users.followings_count, users.followers_count, 
 users.ignored_count, users.invited_count, users.comments_count, 
-users.favorites_count, users.tags_count, CURRENT_DATE - users.created_at::date,
+users.favorites_count, users.tags_count, extract(days from now() - users.created_at),
 users.country, users.city,
 users.cover,
 users.css, users.background_color, users.text_color, 
