@@ -422,6 +422,8 @@ definitions:
         type: boolean
       commentCount:
         type: integer
+      favoriteCount:
+        type: integer
       isFavorited:
         type: boolean
       isWatching:
@@ -527,6 +529,8 @@ definitions:
         minimum: 1
       isFavorited:
         type: boolean
+      count:
+        type: integer
   WatchingStatus:
     type: object
     properties:

@@ -1217,6 +1217,7 @@ CREATE TABLE "mindwell"."entries" (
     "weight_sum" Real DEFAULT 0 NOT NULL,
     "category" Integer NOT NULL,
 	"comments_count" Integer DEFAULT 0 NOT NULL,
+	"favorites_count" Integer DEFAULT 0 NOT NULL,
     "last_comment" Integer,
 	CONSTRAINT "unique_entry_id" PRIMARY KEY( "id" ),
     CONSTRAINT "entry_user_id" FOREIGN KEY("author_id") REFERENCES "mindwell"."users"("id"),
@@ -1453,7 +1454,11 @@ CREATE OR REPLACE FUNCTION mindwell.inc_favorites() RETURNS TRIGGER AS $$
         UPDATE mindwell.users
         SET favorites_count = favorites_count + 1
         WHERE id = NEW.user_id;
-        
+
+        UPDATE mindwell.entries
+        SET favorites_count = favorites_count + 1
+        WHERE id = NEW.entry_id;
+
         RETURN NULL;
     END;
 $$ LANGUAGE plpgsql;
@@ -1463,7 +1468,11 @@ CREATE OR REPLACE FUNCTION mindwell.dec_favorites() RETURNS TRIGGER AS $$
         UPDATE mindwell.users
         SET favorites_count = favorites_count - 1
         WHERE id = OLD.user_id;
-        
+
+        UPDATE mindwell.entries
+        SET favorites_count = favorites_count - 1
+        WHERE id = NEW.entry_id;
+
         RETURN NULL;
     END;
 $$ LANGUAGE plpgsql;

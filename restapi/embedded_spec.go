@@ -5683,6 +5683,9 @@ func init() {
         "editContent": {
           "type": "string"
         },
+        "favoriteCount": {
+          "type": "integer"
+        },
         "hasCut": {
           "type": "boolean"
         },
@@ -5800,6 +5803,9 @@ func init() {
     "FavoriteStatus": {
       "type": "object",
       "properties": {
+        "count": {
+          "type": "integer"
+        },
         "id": {
           "type": "integer",
           "format": "int64",
@@ -12926,6 +12932,9 @@ func init() {
         "editContent": {
           "type": "string"
         },
+        "favoriteCount": {
+          "type": "integer"
+        },
         "hasCut": {
           "type": "boolean"
         },
@@ -13063,6 +13072,9 @@ func init() {
     "FavoriteStatus": {
       "type": "object",
       "properties": {
+        "count": {
+          "type": "integer"
+        },
         "id": {
           "type": "integer",
           "format": "int64",

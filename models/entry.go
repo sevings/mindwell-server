@@ -46,6 +46,9 @@ type Entry struct {
 	// edit content
 	EditContent string `json:"editContent,omitempty"`
 
+	// favorite count
+	FavoriteCount int64 `json:"favoriteCount,omitempty"`
+
 	// has cut
 	HasCut bool `json:"hasCut,omitempty"`
 

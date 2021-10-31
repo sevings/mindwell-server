@@ -19,6 +19,9 @@ import (
 // swagger:model FavoriteStatus
 type FavoriteStatus struct {
 
+	// count
+	Count int64 `json:"count,omitempty"`
+
 	// id
 	// Minimum: 1
 	ID int64 `json:"id,omitempty"`

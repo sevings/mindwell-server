@@ -19,7 +19,8 @@ func baseFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 		Select("rating, entries.up_votes, entries.down_votes").
 		Select("entries.title, edit_content").
 		Select("word_count, entry_privacy.type as privacy").
-		Select("is_commentable, is_votable, in_live, entries.comments_count").
+		Select("is_commentable, is_votable, in_live").
+		Select("entries.comments_count, entries.favorites_count").
 		Select("author_id, users.name, users.show_name").
 		Select("is_online(users.last_seen_at) as is_online").
 		Select("users.avatar").
@@ -53,7 +54,8 @@ func addSubQuery(q *sqlf.Stmt) *sqlf.Stmt {
 		Select("rating, up_votes, down_votes").
 		Select("title, edit_content").
 		Select("word_count, privacy").
-		Select("is_commentable, is_votable, in_live, comments_count").
+		Select("is_commentable, is_votable, in_live").
+		Select("comments_count, favorites_count").
 		Select("author_id, name, show_name").
 		Select("is_online").
 		Select("avatar").
@@ -283,7 +285,8 @@ func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID
 			&rating.Rating, &rating.UpCount, &rating.DownCount,
 			&entry.Title, &entry.EditContent,
 			&entry.WordCount, &entry.Privacy,
-			&entry.IsCommentable, &rating.IsVotable, &entry.InLive, &entry.CommentCount,
+			&entry.IsCommentable, &rating.IsVotable, &entry.InLive,
+			&entry.CommentCount, &entry.FavoriteCount,
 			&author.ID, &author.Name, &author.ShowName,
 			&author.IsOnline,
 			&avatar,

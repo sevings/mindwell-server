@@ -14,15 +14,23 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.FavoritesDeleteEntriesIDFavoriteHandler = favorites.DeleteEntriesIDFavoriteHandlerFunc(newFavoriteDeleter(srv))
 }
 
+func favoriteCount(tx *utils.AutoTx, entryID int64) int64 {
+	const q = `
+		SELECT favorites_count
+		FROM entries
+		WHERE id = $1`
+	return tx.QueryInt64(q, entryID)
+}
+
 func favoriteStatus(tx *utils.AutoTx, userID, entryID int64) *models.FavoriteStatus {
+	status := models.FavoriteStatus{ID: entryID}
+	status.Count = favoriteCount(tx, entryID)
+
 	const q = `
 		SELECT TRUE 
 		FROM favorites
 		WHERE user_id = $1 AND entry_id = $2`
-
-	status := models.FavoriteStatus{ID: entryID}
-
-	tx.Query(q, userID, entryID).Scan(&status.IsFavorited)
+	status.IsFavorited = tx.QueryBool(q, userID, entryID)
 
 	return &status
 }
@@ -54,6 +62,7 @@ func addToFavorites(tx *utils.AutoTx, userID, entryID int64) *models.FavoriteSta
 	status := models.FavoriteStatus{
 		ID:          entryID,
 		IsFavorited: true,
+		Count:       favoriteCount(tx, entryID),
 	}
 
 	return &status
@@ -84,6 +93,7 @@ func removeFromFavorites(tx *utils.AutoTx, userID, entryID int64) *models.Favori
 	status := models.FavoriteStatus{
 		ID:          entryID,
 		IsFavorited: false,
+		Count:       favoriteCount(tx, entryID),
 	}
 
 	return &status
