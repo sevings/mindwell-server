@@ -167,12 +167,6 @@ func unvoteComment(tx *utils.AutoTx, userID, commentID int64) (*models.Rating, b
 func newCommentUnvoter(srv *utils.MindwellServer) func(votes.DeleteCommentsIDVoteParams, *models.UserID) middleware.Responder {
 	return func(params votes.DeleteCommentsIDVoteParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canVote := canVoteForComment(tx, userID, params.ID)
-			if !canVote {
-				err := srv.NewError(&i18n.Message{ID: "cant_vote", Other: "You are not allowed to vote for this comment."})
-				return votes.NewDeleteCommentsIDVoteForbidden().WithPayload(err)
-			}
-
 			status, ok := unvoteComment(tx, userID.ID, params.ID)
 			if !ok {
 				err := srv.NewError(nil)

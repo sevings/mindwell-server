@@ -163,12 +163,6 @@ func unvoteEntry(tx *utils.AutoTx, userID, entryID int64) (*models.Rating, bool)
 func newEntryUnvoter(srv *utils.MindwellServer) func(votes.DeleteEntriesIDVoteParams, *models.UserID) middleware.Responder {
 	return func(params votes.DeleteEntriesIDVoteParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canVote := canVoteForEntry(tx, userID, params.ID)
-			if !canVote {
-				err := srv.NewError(&i18n.Message{ID: "cant_vote", Other: "You are not allowed to vote for this entry."})
-				return votes.NewDeleteEntriesIDVoteForbidden().WithPayload(err)
-			}
-
 			status, ok := unvoteEntry(tx, userID.ID, params.ID)
 			if !ok {
 				err := srv.NewError(nil)
