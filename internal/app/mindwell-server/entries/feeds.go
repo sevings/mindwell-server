@@ -158,7 +158,8 @@ func liveInvitedQuery(userID *models.UserID, limit int64, tag string) *sqlf.Stmt
 
 func addLiveWaitingQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt {
 	return addLiveQuery(q, userID, tag).
-		Where("users.invited_by IS NULL")
+		Where("users.invited_by IS NULL").
+		Where("now() - entries.created_at <= interval '3 months'")
 }
 
 func addLiveCommentsQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt {
