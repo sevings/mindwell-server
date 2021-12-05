@@ -20,8 +20,7 @@ func genderNames(tx *utils.AutoTx) [][]string {
 	names := make([][]string, 3)
 
 	tx.Query("SELECT users.name, users.gender FROM users, adm " +
-		"WHERE lower(adm.name) = lower(users.name)" +
-		"ORDER BY gender")
+		"WHERE lower(adm.name) = lower(users.name)")
 
 	for {
 		var name string
@@ -73,43 +72,36 @@ func mixNames(names [][]string, ignored map[string][]string) []string {
 	cnt := len(names[0]) + len(names[1]) + len(names[2])
 	log.Printf("Found %d adms...\n", cnt)
 
-	adm := make([]string, cnt)
-	var i int
-
-	fillGender := func(gender int) {
-		curNames := names[gender]
-		for ; len(curNames) > 0; i += 2 {
-			if i >= cnt {
-				i = 1
-			}
-
-			adm[i], curNames = takeRandom(curNames)
-		}
-	}
-
-	containsIgnored := func(first, second string) bool {
-		ign := ignored[first]
-		for _, name := range ign {
-			if name == second {
-				log.Printf("Found ignoring pair: %s, %s. Remixing.", first, second)
-				return true
-			}
-		}
-		return false
-	}
+	adm := make([]string, cnt+1)
 
 remix:
 	for {
-		for j := 2; j >= 0; j-- {
-			fillGender(j)
-		}
-		for i := 0; i < len(adm)-1; i++ {
-			if containsIgnored(adm[i], adm[i+1]) {
-				continue remix
+		i := 0
+		for j := 0; j <= 2; j++ {
+			curNames := make([]string, len(names[j]))
+			copy(curNames, names[j])
+
+			for ; len(curNames) > 0; i += 2 {
+				if i >= cnt {
+					i = 1
+				}
+
+				adm[i], curNames = takeRandom(curNames)
 			}
 		}
-		if containsIgnored(adm[len(adm)-1], adm[0]) {
-			continue remix
+
+		adm[cnt] = adm[0]
+
+		for j := 0; j < len(adm)-1; j++ {
+			gs := adm[j]
+			gf := adm[j+1]
+			ign := ignored[gs]
+			for _, name := range ign {
+				if name == gf {
+					log.Printf("Found ignoring pair: %s, %s. Remixing.", gs, gf)
+					continue remix
+				}
+			}
 		}
 
 		break
@@ -119,20 +111,16 @@ remix:
 }
 
 func setAdm(adm []string, tx *utils.AutoTx) {
-	set := func(gs, gf string) {
-		tx.Exec("UPDATE adm SET grandfather = $2 WHERE lower(name) = lower($1)", gf, gs)
+	for i := 0; i < len(adm)-1; i++ {
+		gs := adm[i]
+		gf := adm[i+1]
+		tx.Exec("UPDATE adm SET grandfather = $2 WHERE lower(name) = lower($1)", gs, gf)
 
 		rows := tx.RowsAffected()
 		if rows != 1 {
 			log.Printf("Couldn't set grandfather for %s\n", gs)
 		}
 	}
-
-	for i := 0; i < len(adm)-1; i++ {
-		set(adm[i], adm[i+1])
-	}
-
-	set(adm[len(adm)-1], adm[0])
 }
 
 func loadUsers(adm []string, tx *utils.AutoTx) []user {
@@ -183,7 +171,7 @@ func UpdateAdm(tx *utils.AutoTx, mail *utils.Postman) {
 		return
 	}
 
-	users := loadUsers(adm, tx)
+	users := loadUsers(adm[:len(adm)-1], tx)
 	if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
 		return
 	}
