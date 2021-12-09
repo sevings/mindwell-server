@@ -687,7 +687,7 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 
 	q := `SELECT true FROM users WHERE lower(name) = lower($1)`
 	if !atx.QueryBool(q, users[0]) {
-		return "Пользователь " + users[0] + " не найден"
+		return "Пользователь " + users[0] + " не найден."
 	}
 
 	if len(users) == 1 {
@@ -695,7 +695,7 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 	}
 
 	if !atx.QueryBool(q, users[1]) {
-		return "Пользователь " + users[1] + " не найден"
+		return "Пользователь " + users[1] + " не найден."
 	}
 
 	return bot.compareUsers(atx, users[0], users[1])
