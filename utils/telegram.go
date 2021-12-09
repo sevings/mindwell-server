@@ -495,14 +495,14 @@ func (bot *TelegramBot) createApp(args []string) string {
 		return "Укажи необходимые аргументы."
 	}
 
-	devName := args[0]
-	appType := args[1]
-	appFlow := args[2]
-	redirectUri := args[3]
-	appName := args[4]
-	showName := args[5]
-	platform := args[6]
-	info := args[7]
+	devName := strings.TrimSpace(args[0])
+	appType := strings.TrimSpace(args[1])
+	appFlow := strings.TrimSpace(args[2])
+	redirectUri := strings.TrimSpace(args[3])
+	appName := strings.TrimSpace(args[4])
+	showName := strings.TrimSpace(args[5])
+	platform := strings.TrimSpace(args[6])
+	info := strings.TrimSpace(args[7])
 
 	var secretHash []byte
 	var secret string
