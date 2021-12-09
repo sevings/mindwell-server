@@ -685,8 +685,17 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 	atx := NewAutoTx(bot.srv.DB)
 	defer atx.Finish()
 
+	q := `SELECT true FROM users WHERE lower(name) = lower($1)`
+	if !atx.QueryBool(q, users[0]) {
+		return "Пользователь " + users[0] + " не найден"
+	}
+
 	if len(users) == 1 {
 		return bot.possibleAlts(atx, users[0])
+	}
+
+	if !atx.QueryBool(q, users[1]) {
+		return "Пользователь " + users[1] + " не найден"
 	}
 
 	return bot.compareUsers(atx, users[0], users[1])
