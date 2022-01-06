@@ -6,10 +6,6 @@ basePath: /api/v1
 produces:
   - application/json
 securityDefinitions:
-  ApiKeyHeader:
-    type: apiKey
-    in: header
-    name: X-User-Key
   NoApiKey:
     type: apiKey
     in: header
@@ -338,11 +334,6 @@ definitions:
           account:
             type: object
             properties:
-              apiKey:
-                type: string
-              validThru:
-                type: number
-                format: double
               email:
                 type: string
               verified:
@@ -364,8 +355,6 @@ definitions:
                 format: double
         example:
           account:
-            apiKey: 'blah-blah-blah'
-            validThru: 1531029717.333
             email: 'mail@example.com'
             verified: true
           ban:
@@ -993,7 +982,6 @@ paths:
     post:
       summary: request verification email
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: []
       tags:
         - account
@@ -1032,7 +1020,6 @@ paths:
   /account/settings/email:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: []
         - OAuth2Code: [ "settings:read" ]
       tags:
@@ -1051,7 +1038,6 @@ paths:
                 type: boolean
     put:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "settings:write" ]
       tags:
@@ -1078,7 +1064,6 @@ paths:
   /account/settings/telegram:
     get:
       security:
-          - ApiKeyHeader: []
           - OAuth2Password: []
           - OAuth2Code: [ "settings:read" ]
       tags:
@@ -1099,7 +1084,6 @@ paths:
                 type: boolean
     put:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "settings:write" ]
       tags:
@@ -1147,7 +1131,6 @@ paths:
           maxLength: 100
           required: true
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "account:write" ]
       tags:
@@ -1169,7 +1152,6 @@ paths:
         - $ref: '#/parameters/formEmail'
         - $ref: '#/parameters/password'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "account:write" ]
       tags:
@@ -1234,7 +1216,6 @@ paths:
   /account/invites:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "account:read" ]
       tags:
@@ -1252,7 +1233,6 @@ paths:
   /account/subscribe/token:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "notifications:read" ]
       tags:
@@ -1268,7 +1248,6 @@ paths:
   /account/subscribe/telegram:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "settings:write" ]
       tags:
@@ -1283,7 +1262,6 @@ paths:
                 type: string
     delete:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "settings:write" ]
       tags:
@@ -1297,7 +1275,6 @@ paths:
       tags:
         - oauth2
       security:
-        - ApiKeyHeader: [ ]
         - OAuth2Password: []
       consumes:
         - multipart/form-data
@@ -1376,39 +1353,6 @@ paths:
           description: some error happened
           schema:
             $ref: '#/definitions/OAuth2Error'
-  /oauth2/upgrade:
-    post:
-      summary: only for internal usage
-      tags:
-        - oauth2
-      security:
-        - ApiKeyHeader: [ ]
-      consumes:
-        - multipart/form-data
-        - application/x-www-form-urlencoded
-      parameters:
-        - in: formData
-          name: client_id
-          type: integer
-          required: true
-        - in: formData
-          name: client_secret
-          type: string
-          required: true
-          maxLength: 64
-      responses:
-        400:
-          description: some error happened
-          schema:
-            $ref: '#/definitions/OAuth2Error'
-        401:
-          description: invalid client
-          schema:
-            $ref: '#/definitions/OAuth2Error'
-        200:
-          description: authorized
-          schema:
-            $ref: '#/definitions/OAuth2Token'
   /oauth2/token:
     post:
       tags:
@@ -1473,7 +1417,6 @@ paths:
   /oauth2/apps/{id}:
     get:
       security:
-        - ApiKeyHeader: [ ]
         - OAuth2Password: []
       parameters:
         - $ref: '#/parameters/pathId'
@@ -1491,7 +1434,6 @@ paths:
   /notifications:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "notifications:read" ]
       parameters:
@@ -1512,7 +1454,6 @@ paths:
   /notifications/{id}:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "notifications:read" ]
       parameters:
@@ -1531,7 +1472,6 @@ paths:
   /notifications/read:
     put:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "notifications:read" ]
       parameters:
@@ -1552,7 +1492,6 @@ paths:
   /users:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
       parameters:
@@ -1587,7 +1526,6 @@ paths:
       - $ref: '#/parameters/pathName'
     get:
       security:
-        - ApiKeyHeader: []
         - NoApiKey: []
         - OAuth2App: []
         - OAuth2Password: [ ]
@@ -1612,7 +1550,6 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
       tags:
@@ -1639,7 +1576,6 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
       tags:
@@ -1666,7 +1602,6 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
       tags:
@@ -1696,7 +1631,6 @@ paths:
         - $ref: '#/parameters/sort'
         - $ref: '#/parameters/query'
       security:
-        - ApiKeyHeader: []
         - NoApiKey: []
         - OAuth2App: []
         - OAuth2Password: [ ]
@@ -1721,7 +1655,6 @@ paths:
         - $ref: '#/parameters/end'
         - $ref: '#/parameters/bigLimit'
       security:
-        - ApiKeyHeader: [ ]
         - NoApiKey: []
         - OAuth2App: []
         - OAuth2Password: [ ]
@@ -1747,7 +1680,6 @@ paths:
         - $ref: '#/parameters/before'
         - $ref: '#/parameters/query'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -1770,7 +1702,6 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "images:read" ]
       tags:
@@ -1790,7 +1721,6 @@ paths:
         - $ref: '#/parameters/pathName'
         - $ref: '#/parameters/limit'
       security:
-        - ApiKeyHeader: []
         - NoApiKey: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
@@ -1808,7 +1738,6 @@ paths:
   /me:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
       tags:
@@ -1820,7 +1749,6 @@ paths:
             $ref: '#/definitions/AuthProfile'
     put:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:write" ]
       tags:
@@ -1882,7 +1810,6 @@ paths:
   /me/avatar:
     put:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:write" ]
       tags:
@@ -1904,7 +1831,6 @@ paths:
   /me/cover:
     put:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:write" ]
       tags:
@@ -1926,7 +1852,6 @@ paths:
   /me/online:
     put:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ ]
       tags:
@@ -1948,7 +1873,6 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
       tags:
@@ -1965,7 +1889,6 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
       tags:
@@ -1982,7 +1905,6 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
       tags:
@@ -1999,7 +1921,6 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
       tags:
@@ -2016,7 +1937,6 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
       tags:
@@ -2033,7 +1953,6 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
       tags:
@@ -2053,7 +1972,6 @@ paths:
         - $ref: '#/parameters/sort'
         - $ref: '#/parameters/query'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -2065,7 +1983,6 @@ paths:
             $ref: '#/definitions/Feed'
     post:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:write" ]
       tags:
@@ -2144,7 +2061,6 @@ paths:
         - $ref: '#/parameters/end'
         - $ref: '#/parameters/bigLimit'
       security:
-        - ApiKeyHeader: [ ]
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -2162,7 +2078,6 @@ paths:
         - $ref: '#/parameters/before'
         - $ref: '#/parameters/query'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -2179,7 +2094,6 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "images:read" ]
       tags:
@@ -2198,7 +2112,6 @@ paths:
       parameters:
         - $ref: '#/parameters/limit'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -2211,7 +2124,6 @@ paths:
   /design:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
       tags:
@@ -2253,7 +2165,6 @@ paths:
           enum: [left, right, center, justify]
           required: true
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:write" ]
       tags:
@@ -2266,7 +2177,6 @@ paths:
   /design/fonts:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
       tags:
@@ -2286,7 +2196,6 @@ paths:
       - $ref: '#/parameters/pathName'
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
       tags:
@@ -2308,7 +2217,6 @@ paths:
           enum: [followed, ignored, hidden]
           required: true
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "relations:write" ]
       tags:
@@ -2328,7 +2236,6 @@ paths:
             $ref: '#/definitions/Error'
     delete:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "relations:write" ]
       tags:
@@ -2347,7 +2254,6 @@ paths:
       - $ref: '#/parameters/pathName'
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
       tags:
@@ -2364,7 +2270,6 @@ paths:
     put:
       summary: permit the user to follow you
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "relations:write" ]
       tags:
@@ -2385,7 +2290,6 @@ paths:
     delete:
       summary: cancel following request or unsubscribe the user
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "relations:write" ]
       tags:
@@ -2406,7 +2310,6 @@ paths:
   /relations/invited/{name}:
     post:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "relations:write" ]
       tags:
@@ -2446,7 +2349,6 @@ paths:
           enum: [entries, comments, waiting]
           default: entries
       security:
-        - ApiKeyHeader: [ ]
         - NoApiKey: [ ]
         - Oauth2App: [ ]
         - OAuth2Password: [ ]
@@ -2467,7 +2369,6 @@ paths:
         - $ref: '#/parameters/tag'
         - $ref: '#/parameters/query'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -2484,7 +2385,6 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -2506,7 +2406,6 @@ paths:
           enum: [month, week]
           default: month
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -2519,7 +2418,6 @@ paths:
   /entries/random:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -2542,7 +2440,6 @@ paths:
         - $ref: '#/parameters/tag'
         - $ref: '#/parameters/query'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -2554,7 +2451,6 @@ paths:
             $ref: '#/definitions/Feed'
     post:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:write" ]
       tags:
@@ -2607,7 +2503,6 @@ paths:
       - $ref: '#/parameters/pathId'
     get:
       security:
-        - ApiKeyHeader: [ ]
         - NoApiKey: [ ]
         - Oauth2App: [ ]
         - OAuth2Password: [ ]
@@ -2629,7 +2524,6 @@ paths:
             $ref: '#/definitions/Error'
     put:
       security:
-        - ApiKeyHeader: [ ]
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:write" ]
       tags:
@@ -2711,7 +2605,6 @@ paths:
             $ref: '#/definitions/Error'
     delete:
       security:
-        - ApiKeyHeader: [ ]
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:write" ]
       tags:
@@ -2732,7 +2625,6 @@ paths:
       parameters:
         - $ref: '#/parameters/limit'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -2747,7 +2639,6 @@ paths:
       - $ref: '#/parameters/pathId'
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -2772,7 +2663,6 @@ paths:
           type: boolean
           default: true
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "votes:write" ]
       tags:
@@ -2792,7 +2682,6 @@ paths:
             $ref: '#/definitions/Error'
     delete:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "votes:write" ]
       tags:
@@ -2815,7 +2704,6 @@ paths:
       - $ref: '#/parameters/pathId'
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -2831,7 +2719,6 @@ paths:
             $ref: '#/definitions/Error'
     put:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "favorites:write" ]
       tags:
@@ -2847,7 +2734,6 @@ paths:
             $ref: '#/definitions/Error'
     delete:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "favorites:write" ]
       tags:
@@ -2866,7 +2752,6 @@ paths:
       - $ref: '#/parameters/pathId'
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -2882,7 +2767,6 @@ paths:
             $ref: '#/definitions/Error'
     put:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "watchings:write" ]
       tags:
@@ -2898,7 +2782,6 @@ paths:
             $ref: '#/definitions/Error'
     delete:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "watchings:write" ]
       tags:
@@ -2921,7 +2804,6 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "comments:read" ]
       tags:
@@ -2948,7 +2830,6 @@ paths:
           required: true
           pattern: "\\s*\\S+.*"
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "comments:write" ]
       tags:
@@ -2980,7 +2861,6 @@ paths:
           maxLength: 1000
           default: ""
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ ]
       tags:
@@ -3001,7 +2881,6 @@ paths:
       - $ref: '#/parameters/pathId'
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "comments:read" ]
       tags:
@@ -3032,7 +2911,6 @@ paths:
           required: true
           pattern: "\\s*\\S+.*"
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "comments:write" ]
       tags:
@@ -3052,7 +2930,6 @@ paths:
             $ref: '#/definitions/Error'
     delete:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "comments:write" ]
       tags:
@@ -3073,7 +2950,6 @@ paths:
       - $ref: '#/parameters/pathId'
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "comments:read" ]
       tags:
@@ -3098,7 +2974,6 @@ paths:
           type: boolean
           default: true
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "votes:write" ]
       tags:
@@ -3118,7 +2993,6 @@ paths:
             $ref: '#/definitions/Error'
     delete:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "votes:write" ]
       tags:
@@ -3150,7 +3024,6 @@ paths:
           maxLength: 1000
           default: ""
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ ]
       tags:
@@ -3173,7 +3046,6 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "messages:read" ]
       tags:
@@ -3188,7 +3060,6 @@ paths:
       - $ref: '#/parameters/pathName'
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "messages:read" ]
       tags:
@@ -3207,7 +3078,6 @@ paths:
       - $ref: '#/parameters/pathName'
     put:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "messages:read" ]
       parameters:
@@ -3239,7 +3109,6 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "messages:read" ]
       tags:
@@ -3271,7 +3140,6 @@ paths:
           required: true
           description: unique message id
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "messages:write" ]
       tags:
@@ -3294,7 +3162,6 @@ paths:
       - $ref: '#/parameters/pathId'
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "messages:read" ]
       tags:
@@ -3324,7 +3191,6 @@ paths:
           required: true
           pattern: "\\s*\\S+.*"
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "messages:write" ]
       tags:
@@ -3344,7 +3210,6 @@ paths:
             $ref: '#/definitions/Error'
     delete:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "messages:write" ]
       tags:
@@ -3363,7 +3228,6 @@ paths:
   /adm/grandson:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "adm:read" ]
       tags:
@@ -3396,7 +3260,6 @@ paths:
             $ref: '#/definitions/Error'
     post:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "adm:write" ]
       tags:
@@ -3448,7 +3311,6 @@ paths:
   /adm/grandson/status:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "adm:read" ]
       tags:
@@ -3473,7 +3335,6 @@ paths:
             $ref: '#/definitions/Error'
     post:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "adm:write" ]
       tags:
@@ -3497,7 +3358,6 @@ paths:
   /adm/grandfather:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "adm:read" ]
       tags:
@@ -3531,7 +3391,6 @@ paths:
   /adm/grandfather/status:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "adm:read" ]
       tags:
@@ -3556,7 +3415,6 @@ paths:
             $ref: '#/definitions/Error'
     post:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "adm:write" ]
       tags:
@@ -3580,7 +3438,6 @@ paths:
   /adm/stat:
     get:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "adm:read" ]
       tags:
@@ -3604,7 +3461,6 @@ paths:
   /images:
     post:
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "images:write" ]
       tags:
@@ -3632,7 +3488,6 @@ paths:
       tags:
         - images
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "images:read" ]
       responses:
@@ -3652,7 +3507,6 @@ paths:
       tags:
         - images
       security:
-        - ApiKeyHeader: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "images:write" ]
       responses:

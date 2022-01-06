@@ -336,9 +336,6 @@ func NewMindwellAPI(spec *loads.Document) *MindwellAPI {
 		Oauth2PostOauth2TokenHandler: oauth2.PostOauth2TokenHandlerFunc(func(params oauth2.PostOauth2TokenParams) middleware.Responder {
 			return middleware.NotImplemented("operation oauth2.PostOauth2Token has not yet been implemented")
 		}),
-		Oauth2PostOauth2UpgradeHandler: oauth2.PostOauth2UpgradeHandlerFunc(func(params oauth2.PostOauth2UpgradeParams, principal *models.UserID) middleware.Responder {
-			return middleware.NotImplemented("operation oauth2.PostOauth2Upgrade has not yet been implemented")
-		}),
 		RelationsPostRelationsInvitedNameHandler: relations.PostRelationsInvitedNameHandlerFunc(func(params relations.PostRelationsInvitedNameParams, principal *models.UserID) middleware.Responder {
 			return middleware.NotImplemented("operation relations.PostRelationsInvitedName has not yet been implemented")
 		}),
@@ -398,10 +395,6 @@ func NewMindwellAPI(spec *loads.Document) *MindwellAPI {
 		}),
 
 		// Applies when the "X-User-Key" header is set
-		APIKeyHeaderAuth: func(token string) (*models.UserID, error) {
-			return nil, errors.NotImplemented("api key auth (ApiKeyHeader) X-User-Key from header param [X-User-Key] has not yet been implemented")
-		},
-		// Applies when the "X-User-Key" header is set
 		NoAPIKeyAuth: func(token string) (*models.UserID, error) {
 			return nil, errors.NotImplemented("api key auth (NoApiKey) X-User-Key from header param [X-User-Key] has not yet been implemented")
 		},
@@ -454,10 +447,6 @@ type MindwellAPI struct {
 	// JSONProducer registers a producer for the following mime types:
 	//   - application/json
 	JSONProducer runtime.Producer
-
-	// APIKeyHeaderAuth registers a function that takes a token and returns a principal
-	// it performs authentication based on an api key X-User-Key provided in the header
-	APIKeyHeaderAuth func(string) (*models.UserID, error)
 
 	// NoAPIKeyAuth registers a function that takes a token and returns a principal
 	// it performs authentication based on an api key X-User-Key provided in the header
@@ -662,8 +651,6 @@ type MindwellAPI struct {
 	Oauth2PostOauth2AllowHandler oauth2.PostOauth2AllowHandler
 	// Oauth2PostOauth2TokenHandler sets the operation handler for the post oauth2 token operation
 	Oauth2PostOauth2TokenHandler oauth2.PostOauth2TokenHandler
-	// Oauth2PostOauth2UpgradeHandler sets the operation handler for the post oauth2 upgrade operation
-	Oauth2PostOauth2UpgradeHandler oauth2.PostOauth2UpgradeHandler
 	// RelationsPostRelationsInvitedNameHandler sets the operation handler for the post relations invited name operation
 	RelationsPostRelationsInvitedNameHandler relations.PostRelationsInvitedNameHandler
 	// AccountPutAccountSettingsEmailHandler sets the operation handler for the put account settings email operation
@@ -782,9 +769,6 @@ func (o *MindwellAPI) Validate() error {
 		unregistered = append(unregistered, "JSONProducer")
 	}
 
-	if o.APIKeyHeaderAuth == nil {
-		unregistered = append(unregistered, "XUserKeyAuth")
-	}
 	if o.NoAPIKeyAuth == nil {
 		unregistered = append(unregistered, "XUserKeyAuth")
 	}
@@ -1074,9 +1058,6 @@ func (o *MindwellAPI) Validate() error {
 	if o.Oauth2PostOauth2TokenHandler == nil {
 		unregistered = append(unregistered, "oauth2.PostOauth2TokenHandler")
 	}
-	if o.Oauth2PostOauth2UpgradeHandler == nil {
-		unregistered = append(unregistered, "oauth2.PostOauth2UpgradeHandler")
-	}
 	if o.RelationsPostRelationsInvitedNameHandler == nil {
 		unregistered = append(unregistered, "relations.PostRelationsInvitedNameHandler")
 	}
@@ -1152,12 +1133,6 @@ func (o *MindwellAPI) AuthenticatorsFor(schemes map[string]spec.SecurityScheme) 
 	result := make(map[string]runtime.Authenticator)
 	for name := range schemes {
 		switch name {
-		case "ApiKeyHeader":
-			scheme := schemes[name]
-			result[name] = o.APIKeyAuthenticator(scheme.Name, scheme.In, func(token string) (interface{}, error) {
-				return o.APIKeyHeaderAuth(token)
-			})
-
 		case "NoApiKey":
 			scheme := schemes[name]
 			result[name] = o.APIKeyAuthenticator(scheme.Name, scheme.In, func(token string) (interface{}, error) {
@@ -1624,10 +1599,6 @@ func (o *MindwellAPI) initHandlerCache() {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
 	o.handlers["POST"]["/oauth2/token"] = oauth2.NewPostOauth2Token(o.context, o.Oauth2PostOauth2TokenHandler)
-	if o.handlers["POST"] == nil {
-		o.handlers["POST"] = make(map[string]http.Handler)
-	}
-	o.handlers["POST"]["/oauth2/upgrade"] = oauth2.NewPostOauth2Upgrade(o.context, o.Oauth2PostOauth2UpgradeHandler)
 	if o.handlers["POST"] == nil {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}

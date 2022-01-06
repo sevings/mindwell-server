@@ -32,9 +32,6 @@ func init() {
       "post": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -119,9 +116,6 @@ func init() {
     "/account/invites": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -226,9 +220,6 @@ func init() {
     "/account/password": {
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -429,9 +420,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -465,9 +453,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -515,9 +500,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -554,9 +536,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -610,9 +589,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -641,9 +617,6 @@ func init() {
       "delete": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -665,9 +638,6 @@ func init() {
     "/account/subscribe/token": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -698,9 +668,6 @@ func init() {
     "/account/verification": {
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           }
@@ -763,9 +730,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -823,9 +787,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -869,9 +830,6 @@ func init() {
       "post": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -913,9 +871,6 @@ func init() {
     "/adm/grandson": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -971,9 +926,6 @@ func init() {
       },
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -1056,9 +1008,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -1102,9 +1051,6 @@ func init() {
       "post": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -1146,9 +1092,6 @@ func init() {
     "/adm/stat": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -1192,9 +1135,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -1231,9 +1171,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -1269,9 +1206,6 @@ func init() {
     "/chats/{name}/messages": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -1312,9 +1246,6 @@ func init() {
       },
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -1380,9 +1311,6 @@ func init() {
       "put": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -1433,9 +1361,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -1470,9 +1395,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -1524,9 +1446,6 @@ func init() {
       "delete": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -1565,9 +1484,6 @@ func init() {
     "/comments/{id}/complain": {
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -1619,9 +1535,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -1656,9 +1569,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -1703,9 +1613,6 @@ func init() {
       "delete": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -1748,9 +1655,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -1773,9 +1677,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -1851,9 +1752,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -1886,9 +1784,6 @@ func init() {
     "/entries/anonymous": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -1929,9 +1824,6 @@ func init() {
       },
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -2010,9 +1902,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -2059,9 +1948,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -2103,9 +1989,6 @@ func init() {
     "/entries/live": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "NoApiKey": []
           },
@@ -2166,9 +2049,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -2200,9 +2080,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -2232,9 +2109,6 @@ func init() {
     "/entries/watching": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -2271,9 +2145,6 @@ func init() {
     "/entries/{id}": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "NoApiKey": []
           },
@@ -2315,9 +2186,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -2449,9 +2317,6 @@ func init() {
       "delete": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -2490,9 +2355,6 @@ func init() {
     "/entries/{id}/comments": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -2533,9 +2395,6 @@ func init() {
       },
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -2594,9 +2453,6 @@ func init() {
       "post": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -2647,9 +2503,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -2679,9 +2532,6 @@ func init() {
       "put": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -2710,9 +2560,6 @@ func init() {
       },
       "delete": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -2750,9 +2597,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -2787,9 +2631,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -2834,9 +2675,6 @@ func init() {
       "delete": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -2879,9 +2717,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -2911,9 +2746,6 @@ func init() {
       "put": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -2942,9 +2774,6 @@ func init() {
       },
       "delete": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -2981,9 +2810,6 @@ func init() {
     "/images": {
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -3027,9 +2853,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -3064,9 +2887,6 @@ func init() {
       },
       "delete": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -3107,9 +2927,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -3132,9 +2949,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -3239,9 +3053,6 @@ func init() {
       "put": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -3281,9 +3092,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -3319,9 +3127,6 @@ func init() {
     "/me/cover": {
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -3362,9 +3167,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -3404,9 +3206,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -3442,9 +3241,6 @@ func init() {
     "/me/followings": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -3482,9 +3278,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -3521,9 +3314,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -3559,9 +3349,6 @@ func init() {
     "/me/images": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -3605,9 +3392,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -3644,9 +3428,6 @@ func init() {
       "put": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -3677,9 +3458,6 @@ func init() {
     "/me/requested": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -3717,9 +3495,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -3749,9 +3524,6 @@ func init() {
     "/me/tlog": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -3795,9 +3567,6 @@ func init() {
       },
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -3918,9 +3687,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -3955,9 +3721,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -4008,9 +3771,6 @@ func init() {
       "delete": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -4049,9 +3809,6 @@ func init() {
     "/notifications": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -4095,9 +3852,6 @@ func init() {
       "put": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -4136,9 +3890,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -4174,9 +3925,6 @@ func init() {
     "/oauth2/allow": {
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           }
@@ -4279,9 +4027,6 @@ func init() {
     "/oauth2/apps/{id}": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           }
@@ -4437,64 +4182,9 @@ func init() {
         }
       }
     },
-    "/oauth2/upgrade": {
-      "post": {
-        "security": [
-          {
-            "ApiKeyHeader": []
-          }
-        ],
-        "consumes": [
-          "multipart/form-data",
-          "application/x-www-form-urlencoded"
-        ],
-        "tags": [
-          "oauth2"
-        ],
-        "summary": "only for internal usage",
-        "parameters": [
-          {
-            "type": "integer",
-            "name": "client_id",
-            "in": "formData",
-            "required": true
-          },
-          {
-            "maxLength": 64,
-            "type": "string",
-            "name": "client_secret",
-            "in": "formData",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "authorized",
-            "schema": {
-              "$ref": "#/definitions/OAuth2Token"
-            }
-          },
-          "400": {
-            "description": "some error happened",
-            "schema": {
-              "$ref": "#/definitions/OAuth2Error"
-            }
-          },
-          "401": {
-            "description": "invalid client",
-            "schema": {
-              "$ref": "#/definitions/OAuth2Error"
-            }
-          }
-        }
-      }
-    },
     "/relations/from/{name}": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -4524,9 +4214,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -4563,9 +4250,6 @@ func init() {
       },
       "delete": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -4609,9 +4293,6 @@ func init() {
     "/relations/invited/{name}": {
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -4663,9 +4344,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -4694,9 +4372,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -4746,9 +4421,6 @@ func init() {
       "delete": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -4784,9 +4456,6 @@ func init() {
     "/users": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -4847,9 +4516,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "NoApiKey": []
           },
           {
@@ -4891,9 +4557,6 @@ func init() {
     "/users/{name}/calendar": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "NoApiKey": []
           },
@@ -4948,9 +4611,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -5000,9 +4660,6 @@ func init() {
     "/users/{name}/followers": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -5057,9 +4714,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -5113,9 +4767,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -5162,9 +4813,6 @@ func init() {
     "/users/{name}/invited": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -5219,9 +4867,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "NoApiKey": []
           },
           {
@@ -5263,9 +4908,6 @@ func init() {
     "/users/{name}/tlog": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "NoApiKey": []
           },
@@ -5358,15 +5000,8 @@ func init() {
             "account": {
               "type": "object",
               "properties": {
-                "apiKey": {
-                  "type": "string"
-                },
                 "email": {
                   "type": "string"
-                },
-                "validThru": {
-                  "type": "number",
-                  "format": "double"
                 },
                 "verified": {
                   "type": "boolean"
@@ -5404,9 +5039,7 @@ func init() {
           },
           "example": {
             "account": {
-              "apiKey": "blah-blah-blah",
               "email": "mail@example.com",
-              "validThru": 1531029717.333,
               "verified": true
             },
             "ban": {
@@ -6574,11 +6207,6 @@ func init() {
     }
   },
   "securityDefinitions": {
-    "ApiKeyHeader": {
-      "type": "apiKey",
-      "name": "X-User-Key",
-      "in": "header"
-    },
     "NoApiKey": {
       "type": "apiKey",
       "name": "X-User-Key",
@@ -6641,9 +6269,6 @@ func init() {
     "/account/email": {
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -6739,9 +6364,6 @@ func init() {
     "/account/invites": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -6857,9 +6479,6 @@ func init() {
     "/account/password": {
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -7085,9 +6704,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -7121,9 +6737,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -7171,9 +6784,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -7210,9 +6820,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -7266,9 +6873,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -7297,9 +6901,6 @@ func init() {
       "delete": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -7321,9 +6922,6 @@ func init() {
     "/account/subscribe/token": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -7354,9 +6952,6 @@ func init() {
     "/account/verification": {
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           }
@@ -7419,9 +7014,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -7479,9 +7071,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -7525,9 +7114,6 @@ func init() {
       "post": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -7569,9 +7155,6 @@ func init() {
     "/adm/grandson": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -7627,9 +7210,6 @@ func init() {
       },
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -7712,9 +7292,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -7758,9 +7335,6 @@ func init() {
       "post": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -7803,9 +7377,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -7847,9 +7418,6 @@ func init() {
     "/chats": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -7898,9 +7466,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -7942,9 +7507,6 @@ func init() {
     "/chats/{name}/messages": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -7996,9 +7558,6 @@ func init() {
       },
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -8070,9 +7629,6 @@ func init() {
       "put": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -8129,9 +7685,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -8166,9 +7719,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -8220,9 +7770,6 @@ func init() {
       "delete": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -8266,9 +7813,6 @@ func init() {
     "/comments/{id}/complain": {
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -8325,9 +7869,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -8362,9 +7903,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -8408,9 +7946,6 @@ func init() {
       },
       "delete": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -8459,9 +7994,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -8484,9 +8016,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -8562,9 +8091,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -8597,9 +8123,6 @@ func init() {
     "/entries/anonymous": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -8659,9 +8182,6 @@ func init() {
       },
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -8740,9 +8260,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -8801,9 +8318,6 @@ func init() {
     "/entries/friends": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -8865,9 +8379,6 @@ func init() {
     "/entries/live": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "NoApiKey": []
           },
@@ -8947,9 +8458,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -8980,9 +8488,6 @@ func init() {
     "/entries/tags": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -9018,9 +8523,6 @@ func init() {
     "/entries/watching": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -9069,9 +8571,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "NoApiKey": []
           },
           {
@@ -9112,9 +8611,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -9246,9 +8742,6 @@ func init() {
       "delete": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -9292,9 +8785,6 @@ func init() {
     "/entries/{id}/comments": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -9346,9 +8836,6 @@ func init() {
       },
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -9412,9 +8899,6 @@ func init() {
       "post": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -9470,9 +8954,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -9502,9 +8983,6 @@ func init() {
       "put": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -9533,9 +9011,6 @@ func init() {
       },
       "delete": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -9578,9 +9053,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -9615,9 +9087,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -9661,9 +9130,6 @@ func init() {
       },
       "delete": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -9712,9 +9178,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -9744,9 +9207,6 @@ func init() {
       "put": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -9775,9 +9235,6 @@ func init() {
       },
       "delete": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -9819,9 +9276,6 @@ func init() {
     "/images": {
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -9865,9 +9319,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -9902,9 +9353,6 @@ func init() {
       },
       "delete": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -9950,9 +9398,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -9975,9 +9420,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -10082,9 +9524,6 @@ func init() {
       "put": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -10123,9 +9562,6 @@ func init() {
     "/me/calendar": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -10176,9 +9612,6 @@ func init() {
       "put": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -10217,9 +9650,6 @@ func init() {
     "/me/favorites": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -10275,9 +9705,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -10324,9 +9751,6 @@ func init() {
     "/me/followings": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -10375,9 +9799,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -10425,9 +9846,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -10474,9 +9892,6 @@ func init() {
     "/me/images": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -10531,9 +9946,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -10581,9 +9993,6 @@ func init() {
       "put": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -10614,9 +10023,6 @@ func init() {
     "/me/requested": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -10665,9 +10071,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -10702,9 +10105,6 @@ func init() {
     "/me/tlog": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -10775,9 +10175,6 @@ func init() {
       },
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -10898,9 +10295,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -10935,9 +10329,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -10988,9 +10379,6 @@ func init() {
       "delete": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -11034,9 +10422,6 @@ func init() {
     "/notifications": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -11091,9 +10476,6 @@ func init() {
       "put": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -11131,9 +10513,6 @@ func init() {
     "/notifications/{id}": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -11175,9 +10554,6 @@ func init() {
     "/oauth2/allow": {
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           }
@@ -11280,9 +10656,6 @@ func init() {
     "/oauth2/apps/{id}": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           }
@@ -11443,64 +10816,9 @@ func init() {
         }
       }
     },
-    "/oauth2/upgrade": {
-      "post": {
-        "security": [
-          {
-            "ApiKeyHeader": []
-          }
-        ],
-        "consumes": [
-          "application/x-www-form-urlencoded",
-          "multipart/form-data"
-        ],
-        "tags": [
-          "oauth2"
-        ],
-        "summary": "only for internal usage",
-        "parameters": [
-          {
-            "type": "integer",
-            "name": "client_id",
-            "in": "formData",
-            "required": true
-          },
-          {
-            "maxLength": 64,
-            "type": "string",
-            "name": "client_secret",
-            "in": "formData",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "authorized",
-            "schema": {
-              "$ref": "#/definitions/OAuth2Token"
-            }
-          },
-          "400": {
-            "description": "some error happened",
-            "schema": {
-              "$ref": "#/definitions/OAuth2Error"
-            }
-          },
-          "401": {
-            "description": "invalid client",
-            "schema": {
-              "$ref": "#/definitions/OAuth2Error"
-            }
-          }
-        }
-      }
-    },
     "/relations/from/{name}": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -11530,9 +10848,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -11569,9 +10884,6 @@ func init() {
       },
       "delete": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -11621,9 +10933,6 @@ func init() {
     "/relations/invited/{name}": {
       "post": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -11681,9 +10990,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -11712,9 +11018,6 @@ func init() {
       },
       "put": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -11764,9 +11067,6 @@ func init() {
       "delete": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -11808,9 +11108,6 @@ func init() {
     "/users": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -11871,9 +11168,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "NoApiKey": []
           },
           {
@@ -11921,9 +11215,6 @@ func init() {
     "/users/{name}/calendar": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "NoApiKey": []
           },
@@ -11997,9 +11288,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -12071,9 +11359,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -12143,9 +11428,6 @@ func init() {
     "/users/{name}/followings": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -12217,9 +11499,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "OAuth2Password": []
           },
           {
@@ -12283,9 +11562,6 @@ func init() {
     "/users/{name}/invited": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "OAuth2Password": []
           },
@@ -12357,9 +11633,6 @@ func init() {
       "get": {
         "security": [
           {
-            "ApiKeyHeader": []
-          },
-          {
             "NoApiKey": []
           },
           {
@@ -12412,9 +11685,6 @@ func init() {
     "/users/{name}/tlog": {
       "get": {
         "security": [
-          {
-            "ApiKeyHeader": []
-          },
           {
             "NoApiKey": []
           },
@@ -12540,15 +11810,8 @@ func init() {
             "account": {
               "type": "object",
               "properties": {
-                "apiKey": {
-                  "type": "string"
-                },
                 "email": {
                   "type": "string"
-                },
-                "validThru": {
-                  "type": "number",
-                  "format": "double"
                 },
                 "verified": {
                   "type": "boolean"
@@ -12586,9 +11849,7 @@ func init() {
           },
           "example": {
             "account": {
-              "apiKey": "blah-blah-blah",
               "email": "mail@example.com",
-              "validThru": 1531029717.333,
               "verified": true
             },
             "ban": {
@@ -12604,15 +11865,8 @@ func init() {
     "AuthProfileAO1Account": {
       "type": "object",
       "properties": {
-        "apiKey": {
-          "type": "string"
-        },
         "email": {
           "type": "string"
-        },
-        "validThru": {
-          "type": "number",
-          "format": "double"
         },
         "verified": {
           "type": "boolean"
@@ -13945,11 +13199,6 @@ func init() {
     }
   },
   "securityDefinitions": {
-    "ApiKeyHeader": {
-      "type": "apiKey",
-      "name": "X-User-Key",
-      "in": "header"
-    },
     "NoApiKey": {
       "type": "apiKey",
       "name": "X-User-Key",

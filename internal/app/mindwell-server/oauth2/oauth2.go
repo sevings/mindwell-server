@@ -19,9 +19,7 @@ import (
 // ConfigureAPI creates operations handlers
 func ConfigureAPI(srv *utils.MindwellServer) {
 	webIP = srv.ConfigString("web.ip")
-	apiSecret := srv.ConfigBytes("server.api_secret")
 
-	srv.API.APIKeyHeaderAuth = utils.NewKeyAuth(srv.DB, apiSecret)
 	srv.API.NoAPIKeyAuth = utils.NoApiKeyAuth
 	srv.API.OAuth2PasswordAuth = utils.NewOAuth2User(srv.TokenHash(), srv.DB, utils.PasswordFlow)
 	srv.API.OAuth2CodeAuth = utils.NewOAuth2User(srv.TokenHash(), srv.DB, utils.CodeFlow)
@@ -29,7 +27,6 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 
 	srv.API.Oauth2PostOauth2AllowHandler = oauth2.PostOauth2AllowHandlerFunc(newOAuth2Allow(srv))
 	srv.API.Oauth2GetOauth2DenyHandler = oauth2.GetOauth2DenyHandlerFunc(newOAuth2Deny(srv))
-	srv.API.Oauth2PostOauth2UpgradeHandler = oauth2.PostOauth2UpgradeHandlerFunc(newOAuth2Upgrade(srv))
 
 	srv.API.Oauth2PostOauth2TokenHandler = oauth2.PostOauth2TokenHandlerFunc(newOAuth2Token(srv))
 	srv.API.Oauth2GetOauth2AppsIDHandler = oauth2.GetOauth2AppsIDHandlerFunc(newAppLoader(srv))
@@ -249,37 +246,6 @@ func newOAuth2Deny(srv *utils.MindwellServer) func(oauth2.GetOauth2DenyParams) m
 			}
 
 			return getDenyBadRequest(models.OAuth2ErrorErrorAccessDenied)
-		})
-	}
-}
-
-func postUpgradeBadRequest(err string) middleware.Responder {
-	body := models.OAuth2Error{Error: err}
-	return oauth2.NewPostOauth2UpgradeBadRequest().WithPayload(&body)
-}
-
-func newOAuth2Upgrade(srv *utils.MindwellServer) func(oauth2.PostOauth2UpgradeParams, *models.UserID) middleware.Responder {
-	return func(params oauth2.PostOauth2UpgradeParams, userID *models.UserID) middleware.Responder {
-		if err, ok := checkWebRequest(params.HTTPRequest); !ok {
-			return postUpgradeBadRequest(err)
-		}
-
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			granted, err := checkPasswordGrant(srv.TokenHash(), tx, params.ClientID, params.ClientSecret)
-			if err != nil {
-				return postUpgradeBadRequest(models.OAuth2ErrorErrorUnrecognizedClient)
-			}
-			if !granted {
-				return postUpgradeBadRequest(models.OAuth2ErrorErrorInvalidGrant)
-			}
-
-			var scope uint32 = 1<<31 - 1
-			resp := createTokens(srv.TokenHash(), tx, params.ClientID, userID.ID, scope, userID.Name)
-			if resp == nil {
-				return postUpgradeBadRequest(models.OAuth2ErrorErrorServerError)
-			}
-
-			return oauth2.NewPostOauth2UpgradeOK().WithPayload(resp)
 		})
 	}
 }

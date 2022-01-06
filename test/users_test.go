@@ -13,20 +13,6 @@ import (
 	"github.com/sevings/mindwell-server/utils"
 )
 
-func TestKeyAuth(t *testing.T) {
-	auth := api.APIKeyHeaderAuth
-	req := require.New(t)
-
-	for _, user := range profiles {
-		id, err := auth(user.Account.APIKey)
-		req.Nil(err)
-		req.Equal(id.ID, int64(user.ID))
-	}
-
-	_, err := auth("12345678901234567890123456789012")
-	req.NotNil(err)
-}
-
 func TestNoKeyAuth(t *testing.T) {
 	auth := api.NoAPIKeyAuth
 	req := require.New(t)

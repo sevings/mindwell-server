@@ -116,8 +116,6 @@ CREATE TABLE "mindwell"."users" (
 	"city" Text DEFAULT '' NOT NULL,
 	"email" Text NOT NULL,
 	"verified" Boolean DEFAULT false NOT NULL,
-    "api_key" Text NOT NULL,
-    "valid_thru" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP + interval '6 months' NOT NULL,
 	"avatar" Text DEFAULT '' NOT NULL,
 	"cover" Text DEFAULT '' NOT NULL,
 	"font_family" Integer DEFAULT 0 NOT NULL,
@@ -158,10 +156,6 @@ CREATE UNIQUE INDEX "index_user_name" ON "mindwell"."users" USING btree( lower("
 
 -- CREATE INDEX "index_user_email" -----------------------------
 CREATE UNIQUE INDEX "index_user_email" ON "mindwell"."users" USING btree( lower("email") );
--- -------------------------------------------------------------
-
--- CREATE INDEX "index_token_user" -----------------------------
-CREATE UNIQUE INDEX "index_user_key" ON "mindwell"."users" USING btree( "api_key" );
 -- -------------------------------------------------------------
 
 -- CREATE INDEX "index_telegram" -------------------------------
@@ -1931,8 +1925,8 @@ CREATE TRIGGER cnt_comment_votes_del
 
 
 INSERT INTO mindwell.users
-    (name, show_name, email, password_hash, api_key, invited_by)
-    VALUES('Mindwell', 'Mindwell', '', '', '', 1);
+    (name, show_name, email, password_hash, invited_by)
+    VALUES('Mindwell', 'Mindwell', '', '', 1);
 
 
 
@@ -2502,14 +2496,11 @@ $$ LANGUAGE SQL;
 CREATE OR REPLACE FUNCTION mindwell.ban_user(userName TEXT) RETURNS TEXT AS $$
     BEGIN
         UPDATE mindwell.users
-        SET api_key = (
-            SELECT array_to_string(array(
-                SELECT substr('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 
-                    trunc(random() * 62)::integer + 1, 1)
-                FROM generate_series(1, 32)), '')
-            ),
-            password_hash = '', verified = false
+        SET password_hash = '', verified = false
         WHERE lower(users.name) = lower(userName);
+
+        DELETE FROM mindwell.sessions
+        WHERE user_id = (SELECT id FROM users WHERE lower(name) = lower(userName));
 
         RETURN (SELECT name FROM mindwell.users WHERE id = (
             SELECT invited_by FROM users WHERE lower(name) = lower(userName)

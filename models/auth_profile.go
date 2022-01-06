@@ -234,14 +234,8 @@ func (m *AuthProfile) UnmarshalBinary(b []byte) error {
 // swagger:model AuthProfileAO1Account
 type AuthProfileAO1Account struct {
 
-	// api key
-	APIKey string `json:"apiKey,omitempty"`
-
 	// email
 	Email string `json:"email,omitempty"`
-
-	// valid thru
-	ValidThru float64 `json:"validThru,omitempty"`
 
 	// verified
 	Verified bool `json:"verified,omitempty"`

@@ -160,16 +160,15 @@ func generateAvatar(srv *utils.MindwellServer, name, gender string) string {
 
 func createUser(srv *utils.MindwellServer, tx *utils.AutoTx, params account.PostAccountRegisterParams) int64 {
 	hash := srv.TokenHash().PasswordHash(params.Password)
-	apiKey := utils.GenerateString(32)
 
 	const q = `
 		INSERT INTO users 
-		(name, show_name, email, password_hash, api_key,
+		(name, show_name, email, password_hash,
 		gender, 
 		country, city, avatar)
-		values($1, $1, $2, $3, $4,
-			(select id from gender where type = $5), 
-			$6, $7, $8)
+		values($1, $1, $2, $3,
+			(select id from gender where type = $4), 
+			$5, $6, $7)
 		RETURNING id`
 
 	if params.Gender == nil {
@@ -191,7 +190,7 @@ func createUser(srv *utils.MindwellServer, tx *utils.AutoTx, params account.Post
 
 	var user int64
 	tx.Query(q,
-		params.Name, params.Email, hash, apiKey,
+		params.Name, params.Email, hash,
 		*params.Gender,
 		*params.Country, *params.City, avatar).Scan(&user)
 
@@ -218,7 +217,6 @@ users.cover,
 users.css, users.background_color, users.text_color, 
 font_family.type, users.font_size, alignment.type, 
 users.email, users.verified, users.birthday,
-users.api_key, extract(epoch from users.valid_thru),
 extract(epoch from users.invite_ban), extract(epoch from users.vote_ban),
 extract(epoch from users.comment_ban), extract(epoch from users.live_ban),
 invited_by.id, 
@@ -268,7 +266,6 @@ func loadAuthProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 		&profile.Design.CSS, &backColor, &textColor,
 		&profile.Design.FontFamily, &profile.Design.FontSize, &profile.Design.TextAlignment,
 		&profile.Account.Email, &profile.Account.Verified, &bday,
-		&profile.Account.APIKey, &profile.Account.ValidThru,
 		&profile.Ban.Invite, &profile.Ban.Vote,
 		&profile.Ban.Comment, &profile.Ban.Live,
 		&invitedByID,
@@ -425,7 +422,7 @@ func newPasswordUpdater(srv *utils.MindwellServer) func(account.PostAccountPassw
 			}
 
 			if !ok {
-				err := srv.NewError(&i18n.Message{ID: "invalid_password_or_api_key", Other: "Password or ApiKey is invalid."})
+				err := srv.NewError(&i18n.Message{ID: "invalid_password", Other: "Old password is invalid."})
 				return account.NewPostAccountPasswordForbidden().WithPayload(err)
 			}
 
@@ -467,7 +464,7 @@ func setEmail(srv *utils.MindwellServer, tx *utils.AutoTx, params account.PostAc
 	tx.Exec(q, newEmail, hash, userID.ID)
 
 	if tx.RowsAffected() < 1 {
-		return srv.NewError(&i18n.Message{ID: "invalid_password_or_api_key", Other: "Password or ApiKey is invalid."}), ""
+		return srv.NewError(&i18n.Message{ID: "invalid_password", Other: "Old password is invalid."}), ""
 	}
 
 	return nil, oldEmail

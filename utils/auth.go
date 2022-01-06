@@ -2,11 +2,8 @@ package utils
 
 import (
 	"database/sql"
-	"github.com/dgrijalva/jwt-go"
 	"github.com/go-openapi/errors"
 	"github.com/sevings/mindwell-server/models"
-	"log"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -37,12 +34,6 @@ func LoadUserIDByName(tx *AutoTx, name string) (*models.UserID, error) {
 	return scanUserID(tx)
 }
 
-func LoadUserIDByApiKey(tx *AutoTx, apiKey string) (*models.UserID, error) {
-	const q = userIDQuery + "WHERE api_key = $1 AND valid_thru > CURRENT_TIMESTAMP"
-	tx.Query(q, apiKey)
-	return scanUserID(tx)
-}
-
 func scanUserID(tx *AutoTx) (*models.UserID, error) {
 	var user models.UserID
 	user.Ban = &models.UserIDBan{}
@@ -62,67 +53,6 @@ func scanUserID(tx *AutoTx) (*models.UserID, error) {
 	return &user, nil
 }
 
-func readUserID(secret []byte, tokenString string) (int64, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New(401, "unexpected signing method: %v", token.Header["alg"])
-		}
-
-		return secret, nil
-	})
-
-	if err != nil {
-		log.Println(err)
-		return 0, errUnauthorized
-	}
-
-	if !token.Valid {
-		log.Printf("Invalid token: %s\n", tokenString)
-		return 0, errUnauthorized
-
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		log.Printf("Error get claims: %s\n", tokenString)
-		return 0, errUnauthorized
-	}
-
-	if claims.Valid() != nil {
-		return 0, errUnauthorized
-	}
-
-	id, err := strconv.ParseInt(claims["sub"].(string), 32, 64)
-	if err != nil {
-		log.Println(err)
-		return 0, errUnauthorized
-	}
-
-	return id, nil
-}
-
-func NewKeyAuth(db *sql.DB, secret []byte) func(apiKey string) (*models.UserID, error) {
-	return func(apiKey string) (*models.UserID, error) {
-		if len(apiKey) < 32 {
-			return nil, errUnauthorized
-		}
-
-		tx := NewAutoTx(db)
-		defer tx.Finish()
-
-		if len(apiKey) == 32 {
-			return LoadUserIDByApiKey(tx, apiKey)
-		}
-
-		id, err := readUserID(secret, apiKey)
-		if err != nil {
-			return nil, err
-		}
-
-		return LoadUserIDByID(tx, id)
-	}
-}
-
 func NoApiKeyAuth(string) (*models.UserID, error) {
 	return &models.UserID{
 		Ban: &models.UserIDBan{
@@ -132,25 +62,6 @@ func NoApiKeyAuth(string) (*models.UserID, error) {
 			Vote:    true,
 		},
 	}, nil
-}
-
-func BuildApiToken(secret []byte, userID int64) (string, int64) {
-	now := time.Now().Unix()
-	exp := now + 60*60*24*365
-	sub := strconv.FormatInt(userID, 32)
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"iat": now,
-		"exp": exp,
-		"sub": sub,
-	})
-
-	tokenString, err := token.SignedString(secret)
-	if err != nil {
-		log.Print(err)
-	}
-
-	return tokenString, exp
 }
 
 type AuthFlow uint8

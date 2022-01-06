@@ -418,47 +418,6 @@ func TestRefreshToken(t *testing.T) {
 	removeOAuth2App(app)
 }
 
-func TestUpgradeToken(t *testing.T) {
-	app := createOauth2App(4)
-
-	params := oauth2.PostOauth2UpgradeParams{
-		ClientID:     app.id,
-		ClientSecret: app.secret,
-	}
-
-	req := require.New(t)
-
-	upgrade := func(success bool) *models.OAuth2Token {
-		post := api.Oauth2PostOauth2UpgradeHandler.Handle
-		resp := post(params, userIDs[0])
-		body, ok := resp.(*oauth2.PostOauth2UpgradeOK)
-		req.Equal(success, ok)
-		if !ok {
-			return nil
-		}
-
-		return body.Payload
-	}
-
-	params.ClientID++
-	upgrade(false)
-	params.ClientID--
-
-	params.ClientSecret = app.redirectUri
-	upgrade(false)
-	params.ClientSecret = app.secret
-
-	upgrade(true)
-
-	removeOAuth2App(app)
-
-	app = createOauth2App(3)
-	params.ClientID = app.id
-	params.ClientSecret = app.secret
-	upgrade(false)
-	removeOAuth2App(app)
-}
-
 func TestPasswordFlow(t *testing.T) {
 	req := require.New(t)
 	app := createOauth2App(4)

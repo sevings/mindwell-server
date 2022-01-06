@@ -353,7 +353,6 @@ func TestRegister(t *testing.T) {
 	req.False(user.ShowInTops)
 
 	acc := user.Account
-	req.NotEmpty(acc.ValidThru)
 	req.True(acc.Verified)
 
 	resp = register(params)
@@ -405,8 +404,6 @@ func TestRegister(t *testing.T) {
 	req.Equal(int64(25), user.AgeLowerBound)
 	req.Equal(int64(29), user.AgeUpperBound)
 	req.Equal("1992-01-06T00:00:00Z", user.Birthday)
-
-	req.NotEqual(acc.APIKey, user.Account.APIKey)
 
 	params = account.PostAccountRegisterParams{
 		Name:     "testtest3",
