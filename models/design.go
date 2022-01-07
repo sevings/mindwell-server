@@ -70,6 +70,8 @@ func (m *Design) validateBackgroundColor(formats strfmt.Registry) error {
 	if err := m.BackgroundColor.Validate(formats); err != nil {
 		if ve, ok := err.(*errors.Validation); ok {
 			return ve.ValidateName("backgroundColor")
+		} else if ce, ok := err.(*errors.CompositeError); ok {
+			return ce.ValidateName("backgroundColor")
 		}
 		return err
 	}
@@ -133,6 +135,8 @@ func (m *Design) validateTextColor(formats strfmt.Registry) error {
 	if err := m.TextColor.Validate(formats); err != nil {
 		if ve, ok := err.(*errors.Validation); ok {
 			return ve.ValidateName("textColor")
+		} else if ce, ok := err.(*errors.CompositeError); ok {
+			return ce.ValidateName("textColor")
 		}
 		return err
 	}
@@ -163,6 +167,8 @@ func (m *Design) contextValidateBackgroundColor(ctx context.Context, formats str
 	if err := m.BackgroundColor.ContextValidate(ctx, formats); err != nil {
 		if ve, ok := err.(*errors.Validation); ok {
 			return ve.ValidateName("backgroundColor")
+		} else if ce, ok := err.(*errors.CompositeError); ok {
+			return ce.ValidateName("backgroundColor")
 		}
 		return err
 	}
@@ -175,6 +181,8 @@ func (m *Design) contextValidateTextColor(ctx context.Context, formats strfmt.Re
 	if err := m.TextColor.ContextValidate(ctx, formats); err != nil {
 		if ve, ok := err.(*errors.Validation); ok {
 			return ve.ValidateName("textColor")
+		} else if ce, ok := err.(*errors.CompositeError); ok {
+			return ce.ValidateName("textColor")
 		}
 		return err
 	}

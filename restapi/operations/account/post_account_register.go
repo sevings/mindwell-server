@@ -42,7 +42,7 @@ type PostAccountRegister struct {
 func (o *PostAccountRegister) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	route, rCtx, _ := o.Context.RouteInfo(r)
 	if rCtx != nil {
-		r = rCtx
+		*r = *rCtx
 	}
 	var Params = NewPostAccountRegisterParams()
 	if err := o.Context.BindValidRequest(r, route, &Params); err != nil { // bind params

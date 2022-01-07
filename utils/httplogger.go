@@ -34,7 +34,11 @@ func LogHandler(tpe string, nextHandler http.Handler) (http.Handler, error) {
 				token = typeTok[1]
 			}
 		}
-		user := strings.SplitN(token, ".", 2)[0]
+		userTok := strings.SplitN(token, ".", 2)
+		user := ""
+		if len(userTok) == 2 {
+			user = userTok[0]
+		}
 
 		logger.Info("http",
 			zap.String("method", r.Method),

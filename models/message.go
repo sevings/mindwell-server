@@ -70,6 +70,8 @@ func (m *Message) validateAuthor(formats strfmt.Registry) error {
 		if err := m.Author.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("author")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("author")
 			}
 			return err
 		}
@@ -87,6 +89,8 @@ func (m *Message) validateRights(formats strfmt.Registry) error {
 		if err := m.Rights.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("rights")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("rights")
 			}
 			return err
 		}
@@ -119,6 +123,8 @@ func (m *Message) contextValidateAuthor(ctx context.Context, formats strfmt.Regi
 		if err := m.Author.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("author")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("author")
 			}
 			return err
 		}
@@ -133,6 +139,8 @@ func (m *Message) contextValidateRights(ctx context.Context, formats strfmt.Regi
 		if err := m.Rights.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("rights")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("rights")
 			}
 			return err
 		}

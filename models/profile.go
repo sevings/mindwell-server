@@ -231,6 +231,8 @@ func (m *Profile) validateDesign(formats strfmt.Registry) error {
 		if err := m.Design.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("design")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("design")
 			}
 			return err
 		}
@@ -249,6 +251,8 @@ func (m *Profile) validateInvitedBy(formats strfmt.Registry) error {
 		if err := m.InvitedBy.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("invitedBy")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("invitedBy")
 			}
 			return err
 		}
@@ -267,6 +271,8 @@ func (m *Profile) validateRelations(formats strfmt.Registry) error {
 		if err := m.Relations.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("relations")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("relations")
 			}
 			return err
 		}
@@ -308,6 +314,8 @@ func (m *Profile) contextValidateDesign(ctx context.Context, formats strfmt.Regi
 		if err := m.Design.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("design")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("design")
 			}
 			return err
 		}
@@ -322,6 +330,8 @@ func (m *Profile) contextValidateInvitedBy(ctx context.Context, formats strfmt.R
 		if err := m.InvitedBy.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("invitedBy")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("invitedBy")
 			}
 			return err
 		}
@@ -336,6 +346,8 @@ func (m *Profile) contextValidateRelations(ctx context.Context, formats strfmt.R
 		if err := m.Relations.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("relations")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("relations")
 			}
 			return err
 		}

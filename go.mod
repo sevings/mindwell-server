@@ -7,6 +7,7 @@ require (
 	github.com/Workiva/go-datastructures v1.0.53
 	github.com/carlescere/scheduler v0.0.0-20170109141437-ee74d2f83d82
 	github.com/centrifugal/gocent v2.2.0+incompatible
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/didip/tollbooth v4.0.2+incompatible
 	github.com/disintegration/imaging v1.6.2
 	github.com/go-openapi/errors v0.20.1

@@ -1990,10 +1990,7 @@ func init() {
       "get": {
         "security": [
           {
-            "NoApiKey": []
-          },
-          {
-            "Oauth2App": []
+            "OAuth2App": []
           },
           {
             "OAuth2Password": []
@@ -2146,10 +2143,7 @@ func init() {
       "get": {
         "security": [
           {
-            "NoApiKey": []
-          },
-          {
-            "Oauth2App": []
+            "OAuth2App": []
           },
           {
             "OAuth2Password": []
@@ -4516,9 +4510,6 @@ func init() {
       "get": {
         "security": [
           {
-            "NoApiKey": []
-          },
-          {
             "OAuth2App": []
           },
           {
@@ -4557,9 +4548,6 @@ func init() {
     "/users/{name}/calendar": {
       "get": {
         "security": [
-          {
-            "NoApiKey": []
-          },
           {
             "OAuth2App": []
           },
@@ -4867,7 +4855,7 @@ func init() {
       "get": {
         "security": [
           {
-            "NoApiKey": []
+            "OAuth2App": []
           },
           {
             "OAuth2Password": []
@@ -4908,9 +4896,6 @@ func init() {
     "/users/{name}/tlog": {
       "get": {
         "security": [
-          {
-            "NoApiKey": []
-          },
           {
             "OAuth2App": []
           },
@@ -6207,15 +6192,9 @@ func init() {
     }
   },
   "securityDefinitions": {
-    "NoApiKey": {
-      "type": "apiKey",
-      "name": "X-User-Key",
-      "in": "header"
-    },
     "OAuth2App": {
       "type": "oauth2",
       "flow": "application",
-      "authorizationUrl": "",
       "tokenUrl": "/oauth2/token"
     },
     "OAuth2Code": {
@@ -6250,7 +6229,6 @@ func init() {
     "OAuth2Password": {
       "type": "oauth2",
       "flow": "password",
-      "authorizationUrl": "",
       "tokenUrl": "/oauth2/token"
     }
   }
@@ -8380,10 +8358,7 @@ func init() {
       "get": {
         "security": [
           {
-            "NoApiKey": []
-          },
-          {
-            "Oauth2App": []
+            "OAuth2App": []
           },
           {
             "OAuth2Password": []
@@ -8571,10 +8546,7 @@ func init() {
       "get": {
         "security": [
           {
-            "NoApiKey": []
-          },
-          {
-            "Oauth2App": []
+            "OAuth2App": []
           },
           {
             "OAuth2Password": []
@@ -11168,9 +11140,6 @@ func init() {
       "get": {
         "security": [
           {
-            "NoApiKey": []
-          },
-          {
             "OAuth2App": []
           },
           {
@@ -11215,9 +11184,6 @@ func init() {
     "/users/{name}/calendar": {
       "get": {
         "security": [
-          {
-            "NoApiKey": []
-          },
           {
             "OAuth2App": []
           },
@@ -11633,7 +11599,7 @@ func init() {
       "get": {
         "security": [
           {
-            "NoApiKey": []
+            "OAuth2App": []
           },
           {
             "OAuth2Password": []
@@ -11685,9 +11651,6 @@ func init() {
     "/users/{name}/tlog": {
       "get": {
         "security": [
-          {
-            "NoApiKey": []
-          },
           {
             "OAuth2App": []
           },
@@ -13199,15 +13162,9 @@ func init() {
     }
   },
   "securityDefinitions": {
-    "NoApiKey": {
-      "type": "apiKey",
-      "name": "X-User-Key",
-      "in": "header"
-    },
     "OAuth2App": {
       "type": "oauth2",
       "flow": "application",
-      "authorizationUrl": "",
       "tokenUrl": "/oauth2/token"
     },
     "OAuth2Code": {
@@ -13242,7 +13199,6 @@ func init() {
     "OAuth2Password": {
       "type": "oauth2",
       "flow": "password",
-      "authorizationUrl": "",
       "tokenUrl": "/oauth2/token"
     }
   }

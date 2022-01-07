@@ -76,6 +76,8 @@ func (m *User) validateAvatar(formats strfmt.Registry) error {
 		if err := m.Avatar.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("avatar")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("avatar")
 			}
 			return err
 		}
@@ -148,6 +150,8 @@ func (m *User) contextValidateAvatar(ctx context.Context, formats strfmt.Registr
 		if err := m.Avatar.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("avatar")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("avatar")
 			}
 			return err
 		}

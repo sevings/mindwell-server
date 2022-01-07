@@ -49,7 +49,7 @@ type GetUsers struct {
 func (o *GetUsers) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	route, rCtx, _ := o.Context.RouteInfo(r)
 	if rCtx != nil {
-		r = rCtx
+		*r = *rCtx
 	}
 	var Params = NewGetUsersParams()
 	uprinc, aCtx, err := o.Context.Authorize(r, route)
@@ -58,7 +58,7 @@ func (o *GetUsers) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if aCtx != nil {
-		r = aCtx
+		*r = *aCtx
 	}
 	var principal *models.UserID
 	if uprinc != nil {
@@ -118,6 +118,8 @@ func (o *GetUsersOKBody) validateUsers(formats strfmt.Registry) error {
 			if err := o.Users[i].Validate(formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("getUsersOK" + "." + "users" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("getUsersOK" + "." + "users" + "." + strconv.Itoa(i))
 				}
 				return err
 			}
@@ -150,6 +152,8 @@ func (o *GetUsersOKBody) contextValidateUsers(ctx context.Context, formats strfm
 			if err := o.Users[i].ContextValidate(ctx, formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("getUsersOK" + "." + "users" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("getUsersOK" + "." + "users" + "." + strconv.Itoa(i))
 				}
 				return err
 			}

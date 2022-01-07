@@ -60,6 +60,8 @@ func (m *Calendar) validateEntries(formats strfmt.Registry) error {
 			if err := m.Entries[i].Validate(formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("entries" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("entries" + "." + strconv.Itoa(i))
 				}
 				return err
 			}
@@ -92,6 +94,8 @@ func (m *Calendar) contextValidateEntries(ctx context.Context, formats strfmt.Re
 			if err := m.Entries[i].ContextValidate(ctx, formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("entries" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("entries" + "." + strconv.Itoa(i))
 				}
 				return err
 			}

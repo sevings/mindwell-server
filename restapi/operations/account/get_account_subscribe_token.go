@@ -47,7 +47,7 @@ type GetAccountSubscribeToken struct {
 func (o *GetAccountSubscribeToken) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	route, rCtx, _ := o.Context.RouteInfo(r)
 	if rCtx != nil {
-		r = rCtx
+		*r = *rCtx
 	}
 	var Params = NewGetAccountSubscribeTokenParams()
 	uprinc, aCtx, err := o.Context.Authorize(r, route)
@@ -56,7 +56,7 @@ func (o *GetAccountSubscribeToken) ServeHTTP(rw http.ResponseWriter, r *http.Req
 		return
 	}
 	if aCtx != nil {
-		r = aCtx
+		*r = *aCtx
 	}
 	var principal *models.UserID
 	if uprinc != nil {

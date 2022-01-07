@@ -134,6 +134,8 @@ func (m *AuthProfile) validateAccount(formats strfmt.Registry) error {
 		if err := m.Account.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("account")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("account")
 			}
 			return err
 		}
@@ -152,6 +154,8 @@ func (m *AuthProfile) validateBan(formats strfmt.Registry) error {
 		if err := m.Ban.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("ban")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("ban")
 			}
 			return err
 		}
@@ -189,6 +193,8 @@ func (m *AuthProfile) contextValidateAccount(ctx context.Context, formats strfmt
 		if err := m.Account.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("account")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("account")
 			}
 			return err
 		}
@@ -203,6 +209,8 @@ func (m *AuthProfile) contextValidateBan(ctx context.Context, formats strfmt.Reg
 		if err := m.Ban.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("ban")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("ban")
 			}
 			return err
 		}

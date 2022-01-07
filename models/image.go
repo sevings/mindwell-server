@@ -82,6 +82,8 @@ func (m *Image) validateAuthor(formats strfmt.Registry) error {
 		if err := m.Author.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("author")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("author")
 			}
 			return err
 		}
@@ -99,6 +101,8 @@ func (m *Image) validateLarge(formats strfmt.Registry) error {
 		if err := m.Large.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("large")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("large")
 			}
 			return err
 		}
@@ -116,6 +120,8 @@ func (m *Image) validateMedium(formats strfmt.Registry) error {
 		if err := m.Medium.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("medium")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("medium")
 			}
 			return err
 		}
@@ -133,6 +139,8 @@ func (m *Image) validateSmall(formats strfmt.Registry) error {
 		if err := m.Small.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("small")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("small")
 			}
 			return err
 		}
@@ -150,6 +158,8 @@ func (m *Image) validateThumbnail(formats strfmt.Registry) error {
 		if err := m.Thumbnail.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("thumbnail")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("thumbnail")
 			}
 			return err
 		}
@@ -194,6 +204,8 @@ func (m *Image) contextValidateAuthor(ctx context.Context, formats strfmt.Regist
 		if err := m.Author.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("author")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("author")
 			}
 			return err
 		}
@@ -208,6 +220,8 @@ func (m *Image) contextValidateLarge(ctx context.Context, formats strfmt.Registr
 		if err := m.Large.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("large")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("large")
 			}
 			return err
 		}
@@ -222,6 +236,8 @@ func (m *Image) contextValidateMedium(ctx context.Context, formats strfmt.Regist
 		if err := m.Medium.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("medium")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("medium")
 			}
 			return err
 		}
@@ -236,6 +252,8 @@ func (m *Image) contextValidateSmall(ctx context.Context, formats strfmt.Registr
 		if err := m.Small.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("small")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("small")
 			}
 			return err
 		}
@@ -250,6 +268,8 @@ func (m *Image) contextValidateThumbnail(ctx context.Context, formats strfmt.Reg
 		if err := m.Thumbnail.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("thumbnail")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("thumbnail")
 			}
 			return err
 		}

@@ -86,6 +86,8 @@ func (m *Comment) validateAuthor(formats strfmt.Registry) error {
 		if err := m.Author.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("author")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("author")
 			}
 			return err
 		}
@@ -127,6 +129,8 @@ func (m *Comment) validateRating(formats strfmt.Registry) error {
 		if err := m.Rating.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("rating")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("rating")
 			}
 			return err
 		}
@@ -144,6 +148,8 @@ func (m *Comment) validateRights(formats strfmt.Registry) error {
 		if err := m.Rights.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("rights")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("rights")
 			}
 			return err
 		}
@@ -180,6 +186,8 @@ func (m *Comment) contextValidateAuthor(ctx context.Context, formats strfmt.Regi
 		if err := m.Author.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("author")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("author")
 			}
 			return err
 		}
@@ -194,6 +202,8 @@ func (m *Comment) contextValidateRating(ctx context.Context, formats strfmt.Regi
 		if err := m.Rating.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("rating")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("rating")
 			}
 			return err
 		}
@@ -208,6 +218,8 @@ func (m *Comment) contextValidateRights(ctx context.Context, formats strfmt.Regi
 		if err := m.Rights.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("rights")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("rights")
 			}
 			return err
 		}

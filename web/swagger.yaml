@@ -6,10 +6,6 @@ basePath: /api/v1
 produces:
   - application/json
 securityDefinitions:
-  NoApiKey:
-    type: apiKey
-    in: header
-    name: X-User-Key
   OAuth2App:
     type: oauth2
     flow: application
@@ -1526,7 +1522,6 @@ paths:
       - $ref: '#/parameters/pathName'
     get:
       security:
-        - NoApiKey: []
         - OAuth2App: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "users:read" ]
@@ -1631,7 +1626,6 @@ paths:
         - $ref: '#/parameters/sort'
         - $ref: '#/parameters/query'
       security:
-        - NoApiKey: []
         - OAuth2App: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
@@ -1655,7 +1649,6 @@ paths:
         - $ref: '#/parameters/end'
         - $ref: '#/parameters/bigLimit'
       security:
-        - NoApiKey: []
         - OAuth2App: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
@@ -1721,7 +1714,7 @@ paths:
         - $ref: '#/parameters/pathName'
         - $ref: '#/parameters/limit'
       security:
-        - NoApiKey: []
+        - OAuth2App: [ ]
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -2349,8 +2342,7 @@ paths:
           enum: [entries, comments, waiting]
           default: entries
       security:
-        - NoApiKey: [ ]
-        - Oauth2App: [ ]
+        - OAuth2App: [ ]
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
@@ -2503,8 +2495,7 @@ paths:
       - $ref: '#/parameters/pathId'
     get:
       security:
-        - NoApiKey: [ ]
-        - Oauth2App: [ ]
+        - OAuth2App: [ ]
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:

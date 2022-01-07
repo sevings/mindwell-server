@@ -184,6 +184,8 @@ func (m *Friend) validateCounts(formats strfmt.Registry) error {
 		if err := m.Counts.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("counts")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("counts")
 			}
 			return err
 		}
@@ -202,6 +204,8 @@ func (m *Friend) validateCover(formats strfmt.Registry) error {
 		if err := m.Cover.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("cover")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("cover")
 			}
 			return err
 		}
@@ -320,6 +324,8 @@ func (m *Friend) contextValidateCounts(ctx context.Context, formats strfmt.Regis
 		if err := m.Counts.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("counts")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("counts")
 			}
 			return err
 		}
@@ -334,6 +340,8 @@ func (m *Friend) contextValidateCover(ctx context.Context, formats strfmt.Regist
 		if err := m.Cover.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("cover")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("cover")
 			}
 			return err
 		}

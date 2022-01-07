@@ -53,17 +53,6 @@ func scanUserID(tx *AutoTx) (*models.UserID, error) {
 	return &user, nil
 }
 
-func NoApiKeyAuth(string) (*models.UserID, error) {
-	return &models.UserID{
-		Ban: &models.UserIDBan{
-			Comment: true,
-			Invite:  true,
-			Live:    true,
-			Vote:    true,
-		},
-	}, nil
-}
-
 type AuthFlow uint8
 
 const (
@@ -193,7 +182,7 @@ WHERE lower(users.name) = lower($1)
 
 func NewOAuth2App(h TokenHash, db *sql.DB) func(string, []string) (*models.UserID, error) {
 	const query = `
-SELECT ban, AuthFlow
+SELECT ban, flow
 FROM app_tokens
 JOIN apps ON apps.id = app_id
 WHERE lower(apps.name) = lower($1) 

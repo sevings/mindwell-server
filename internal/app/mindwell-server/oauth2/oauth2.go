@@ -20,7 +20,6 @@ import (
 func ConfigureAPI(srv *utils.MindwellServer) {
 	webIP = srv.ConfigString("web.ip")
 
-	srv.API.NoAPIKeyAuth = utils.NoApiKeyAuth
 	srv.API.OAuth2PasswordAuth = utils.NewOAuth2User(srv.TokenHash(), srv.DB, utils.PasswordFlow)
 	srv.API.OAuth2CodeAuth = utils.NewOAuth2User(srv.TokenHash(), srv.DB, utils.CodeFlow)
 	srv.API.OAuth2AppAuth = utils.NewOAuth2App(srv.TokenHash(), srv.DB)

@@ -121,6 +121,8 @@ func (m *UserID) validateBan(formats strfmt.Registry) error {
 		if err := m.Ban.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("ban")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("ban")
 			}
 			return err
 		}
@@ -165,6 +167,8 @@ func (m *UserID) contextValidateBan(ctx context.Context, formats strfmt.Registry
 		if err := m.Ban.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("ban")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("ban")
 			}
 			return err
 		}

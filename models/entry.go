@@ -145,6 +145,8 @@ func (m *Entry) validateAuthor(formats strfmt.Registry) error {
 		if err := m.Author.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("author")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("author")
 			}
 			return err
 		}
@@ -162,6 +164,8 @@ func (m *Entry) validateComments(formats strfmt.Registry) error {
 		if err := m.Comments.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("comments")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("comments")
 			}
 			return err
 		}
@@ -196,6 +200,8 @@ func (m *Entry) validateImages(formats strfmt.Registry) error {
 			if err := m.Images[i].Validate(formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("images" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("images" + "." + strconv.Itoa(i))
 				}
 				return err
 			}
@@ -272,6 +278,8 @@ func (m *Entry) validateRating(formats strfmt.Registry) error {
 		if err := m.Rating.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("rating")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("rating")
 			}
 			return err
 		}
@@ -289,6 +297,8 @@ func (m *Entry) validateRights(formats strfmt.Registry) error {
 		if err := m.Rights.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("rights")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("rights")
 			}
 			return err
 		}
@@ -311,6 +321,8 @@ func (m *Entry) validateVisibleFor(formats strfmt.Registry) error {
 			if err := m.VisibleFor[i].Validate(formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("visibleFor" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("visibleFor" + "." + strconv.Itoa(i))
 				}
 				return err
 			}
@@ -361,6 +373,8 @@ func (m *Entry) contextValidateAuthor(ctx context.Context, formats strfmt.Regist
 		if err := m.Author.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("author")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("author")
 			}
 			return err
 		}
@@ -375,6 +389,8 @@ func (m *Entry) contextValidateComments(ctx context.Context, formats strfmt.Regi
 		if err := m.Comments.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("comments")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("comments")
 			}
 			return err
 		}
@@ -391,6 +407,8 @@ func (m *Entry) contextValidateImages(ctx context.Context, formats strfmt.Regist
 			if err := m.Images[i].ContextValidate(ctx, formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("images" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("images" + "." + strconv.Itoa(i))
 				}
 				return err
 			}
@@ -407,6 +425,8 @@ func (m *Entry) contextValidateRating(ctx context.Context, formats strfmt.Regist
 		if err := m.Rating.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("rating")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("rating")
 			}
 			return err
 		}
@@ -421,6 +441,8 @@ func (m *Entry) contextValidateRights(ctx context.Context, formats strfmt.Regist
 		if err := m.Rights.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("rights")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("rights")
 			}
 			return err
 		}
@@ -437,6 +459,8 @@ func (m *Entry) contextValidateVisibleFor(ctx context.Context, formats strfmt.Re
 			if err := m.VisibleFor[i].ContextValidate(ctx, formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("visibleFor" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("visibleFor" + "." + strconv.Itoa(i))
 				}
 				return err
 			}

@@ -65,6 +65,8 @@ func (m *Chat) validateLastMessage(formats strfmt.Registry) error {
 		if err := m.LastMessage.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("lastMessage")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("lastMessage")
 			}
 			return err
 		}
@@ -82,6 +84,8 @@ func (m *Chat) validatePartner(formats strfmt.Registry) error {
 		if err := m.Partner.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("partner")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("partner")
 			}
 			return err
 		}
@@ -99,6 +103,8 @@ func (m *Chat) validateRights(formats strfmt.Registry) error {
 		if err := m.Rights.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("rights")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("rights")
 			}
 			return err
 		}
@@ -135,6 +141,8 @@ func (m *Chat) contextValidateLastMessage(ctx context.Context, formats strfmt.Re
 		if err := m.LastMessage.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("lastMessage")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("lastMessage")
 			}
 			return err
 		}
@@ -149,6 +157,8 @@ func (m *Chat) contextValidatePartner(ctx context.Context, formats strfmt.Regist
 		if err := m.Partner.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("partner")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("partner")
 			}
 			return err
 		}
@@ -163,6 +173,8 @@ func (m *Chat) contextValidateRights(ctx context.Context, formats strfmt.Registr
 		if err := m.Rights.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("rights")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("rights")
 			}
 			return err
 		}
