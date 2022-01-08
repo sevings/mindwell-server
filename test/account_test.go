@@ -401,8 +401,8 @@ func TestRegister(t *testing.T) {
 	req.Equal(city, user.City)
 	req.Equal(country, user.Country)
 
-	req.Equal(int64(25), user.AgeLowerBound)
-	req.Equal(int64(29), user.AgeUpperBound)
+	req.Equal(int64(30), user.AgeLowerBound)
+	req.Equal(int64(34), user.AgeUpperBound)
 	req.Equal("1992-01-06T00:00:00Z", user.Birthday)
 
 	params = account.PostAccountRegisterParams{

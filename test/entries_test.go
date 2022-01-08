@@ -429,7 +429,7 @@ func TestLoadLive(t *testing.T) {
 	compareEntries(t, e1, feed.Entries[1], userIDs[0])
 	compareEntries(t, e2, feed.Entries[2], userIDs[0])
 
-	noAuthUser, _ := api.NoAPIKeyAuth("no auth")
+	noAuthUser := utils.NoAuthUser()
 	feed = checkLoadLive(t, noAuthUser, 10, "entries", "", "", 1)
 	compareEntries(t, e2, feed.Entries[0], noAuthUser)
 
@@ -562,7 +562,7 @@ func TestLoadTlog(t *testing.T) {
 	userIDs, profiles = registerTestUsers(db)
 	esm.Clear()
 
-	noAuthUser, _ := api.NoAPIKeyAuth("no auth")
+	noAuthUser := utils.NoAuthUser()
 
 	e3 := postEntry(userIDs[0], models.EntryPrivacyAll, true)
 	e2 := postEntry(userIDs[0], models.EntryPrivacyRegistered, true)
@@ -1020,7 +1020,7 @@ func TestLoadLiveComments(t *testing.T) {
 	req.False(feed.HasBefore)
 	req.False(feed.HasAfter)
 
-	noAuthUser, _ := api.NoAPIKeyAuth("no auth")
+	noAuthUser := utils.NoAuthUser()
 	feed = checkLoadLive(t, noAuthUser, 10, "comments", "", "", 1)
 	compareEntries(t, es[5], feed.Entries[0], noAuthUser)
 
@@ -1242,7 +1242,7 @@ func TestCanViewEntry(t *testing.T) {
 		req.Equal(res, utils.CanViewEntry(tx, userID, entryID))
 	}
 
-	noAuthUser, _ := api.NoAPIKeyAuth("no auth")
+	noAuthUser := utils.NoAuthUser()
 
 	e1 := createTlogEntry(t, userIDs[0], models.EntryPrivacyAll, true, true, true)
 	e2 := createTlogEntry(t, userIDs[0], models.EntryPrivacyMe, true, true, true)
@@ -1610,7 +1610,7 @@ func TestLoadTlogCalendar(t *testing.T) {
 
 	req := require.New(t)
 
-	load := func(userID *models.UserID, tlog *models.AuthProfile, start, end int64, count int) []*models.CalendarEntriesItems0 {
+	load := func(userID *models.UserID, tlog *models.AuthProfile, start, end int64, count int) []*models.CalendarEntry {
 		var limit int64 = 1000
 		params := users.GetUsersNameCalendarParams{
 			Name:  tlog.Name,
@@ -1647,7 +1647,7 @@ func TestLoadTlogCalendar(t *testing.T) {
 		return cal.Entries
 	}
 
-	noAuthUser, _ := api.NoAPIKeyAuth("no auth")
+	noAuthUser := utils.NoAuthUser()
 
 	now := time.Now().Unix()
 	load(userIDs[0], profiles[0], 0, now-10, 0)

@@ -25,7 +25,7 @@ func NewEmailChecker(srv *MindwellServer) *EmailChecker {
 	return &EmailChecker{
 		srv: srv,
 		client: &http.Client{
-			Timeout: time.Second,
+			Timeout: time.Second * 5,
 		},
 		trusted: srv.ConfigStrings("server.trust_email"),
 		banned:  srv.ConfigStrings("server.ban_email"),

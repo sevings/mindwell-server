@@ -13,16 +13,6 @@ import (
 	"github.com/sevings/mindwell-server/utils"
 )
 
-func TestNoKeyAuth(t *testing.T) {
-	auth := api.NoAPIKeyAuth
-	req := require.New(t)
-
-	id, err := auth("no auth")
-	req.Nil(err)
-	req.NotNil(id)
-	req.Zero(id.ID)
-}
-
 func TestGetMe(t *testing.T) {
 	req := require.New(t)
 
@@ -127,7 +117,7 @@ func TestGetUser(t *testing.T) {
 	_, ok := resp.(*users.GetUsersNameNotFound)
 	require.True(t, ok)
 
-	noAuthUser, _ := api.NoAPIKeyAuth("no auth")
+	noAuthUser := utils.NoAuthUser()
 	params.Name = userIDs[0].Name
 
 	setUserPrivacy(t, userIDs[0], "registered")
@@ -209,7 +199,7 @@ func TestIsOpenForMe(t *testing.T) {
 		req.Equal(res, utils.CanViewTlogName(tx, userID, name))
 	}
 
-	noAuthUser, _ := api.NoAPIKeyAuth("no auth")
+	noAuthUser := utils.NoAuthUser()
 
 	check(userIDs[0], userIDs[0].Name, true)
 	check(userIDs[1], userIDs[0].Name, true)

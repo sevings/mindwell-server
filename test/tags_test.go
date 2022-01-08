@@ -135,7 +135,7 @@ func TestUserTags(t *testing.T) {
 		return tags.Payload
 	}
 
-	noAuthUser, _ := api.NoAPIKeyAuth("no auth")
+	noAuthUser := utils.NoAuthUser()
 
 	load(userIDs[0], userIDs[1].Name, 10, true, nil)
 	load(userIDs[1], userIDs[0].Name, 10, true, []*models.TagListDataItems0{aaa, bbb, ccc})
