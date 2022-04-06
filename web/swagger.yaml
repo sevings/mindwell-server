@@ -463,22 +463,24 @@ definitions:
         type: string
       hasBefore:
         type: boolean
+  CalendarEntry:
+    type: object
+    properties:
+      id:
+        type: integer
+        format: int64
+      createdAt:
+        type: number
+        format: double
+      title:
+        type: string
   Calendar:
     type: object
     properties:
       entries:
         type: array
         items:
-          type: object
-          properties:
-            id:
-              type: integer
-              format: int64
-            createdAt:
-              type: number
-              format: double
-            title:
-              type: string
+          $ref: '#/definitions/CalendarEntry'
       start:
         type: number
         format: int64
@@ -487,6 +489,16 @@ definitions:
         format: int64
       limit:
         type: integer
+  AdjacentEntries:
+    type: object
+    properties:
+      older:
+        $ref: '#/definitions/CalendarEntry'
+      newer:
+        $ref: '#/definitions/CalendarEntry'
+      id:
+        type: integer
+        format: int64
   Rating:
     type: object
     properties:
@@ -2490,6 +2502,20 @@ paths:
           description: Entry data
           schema:
             $ref: '#/definitions/Entry'
+  /entries/tags:
+    get:
+      parameters:
+        - $ref: '#/parameters/limit'
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "entries:read" ]
+      tags:
+        - entries
+      responses:
+        200:
+          description: popular tags
+          schema:
+            $ref: '#/definitions/TagList'
   /entries/{id}:
     parameters:
       - $ref: '#/parameters/pathId'
@@ -2611,20 +2637,25 @@ paths:
           description: Entry not found
           schema:
             $ref: '#/definitions/Error'
-  /entries/tags:
+  /entries/{id}/adjacent:
+    parameters:
+      - $ref: '#/parameters/pathId'
     get:
-      parameters:
-        - $ref: '#/parameters/limit'
       security:
+        - OAuth2App: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
         - entries
       responses:
         200:
-          description: popular tags
+          description: Adjacent entries
           schema:
-            $ref: '#/definitions/TagList'
+            $ref: '#/definitions/AdjacentEntries'
+        404:
+          description: Entry not found
+          schema:
+            $ref: '#/definitions/Error'
   /entries/{id}/vote:
     parameters:
       - $ref: '#/parameters/pathId'

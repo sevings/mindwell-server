@@ -1688,3 +1688,100 @@ func TestLoadTlogCalendar(t *testing.T) {
 	checkDeleteEntry(t, e2, userIDs[0], true)
 	checkDeleteEntry(t, e3, userIDs[0], true)
 }
+
+func TestLoadAdjacentEntries(t *testing.T) {
+	post := func(title, content, privacy string, wc int64) int64 {
+		commentable := true
+		live := privacy == "all"
+		votable := false
+		params := me.PostMeTlogParams{
+			Content:       content,
+			IsCommentable: &commentable,
+			InLive:        &live,
+			IsVotable:     &votable,
+			Privacy:       privacy,
+			Title:         &title,
+		}
+
+		return checkPostEntry(t, params, profiles[0], userIDs[0], true, wc)
+	}
+
+	e1 := post("title", "content1", "all", 2)
+	time.Sleep(2 * time.Millisecond)
+	e2 := post("", "content2", "me", 1)
+	time.Sleep(2 * time.Millisecond)
+	e3 := post("title", "content3", "all", 2)
+
+	req := require.New(t)
+
+	load := func(userID *models.UserID, entryID int64) *models.AdjacentEntries {
+		params := entries.GetEntriesIDAdjacentParams{
+			ID: entryID,
+		}
+
+		get := api.EntriesGetEntriesIDAdjacentHandler.Handle
+		resp := get(params, userID)
+		body, ok := resp.(*entries.GetEntriesIDAdjacentOK)
+		if !ok {
+			return nil
+		}
+
+		adj := body.Payload
+		req.Equal(entryID, adj.ID)
+
+		return adj
+	}
+
+	adj := load(userIDs[0], e3+100)
+	req.Nil(adj)
+
+	adj = load(userIDs[0], e1)
+	req.Nil(adj.Older)
+	req.Equal(e2, adj.Newer.ID)
+
+	adj = load(userIDs[0], e2)
+	req.Equal(e1, adj.Older.ID)
+	req.Equal(e3, adj.Newer.ID)
+
+	adj = load(userIDs[0], e3)
+	req.Equal(e2, adj.Older.ID)
+	req.Nil(adj.Newer)
+
+	adj = load(userIDs[1], e1)
+	req.Nil(adj.Older)
+	req.Equal(e3, adj.Newer.ID)
+
+	adj = load(userIDs[1], e2)
+	req.Nil(adj)
+
+	adj = load(userIDs[1], e3)
+	req.Equal(e1, adj.Older.ID)
+	req.Nil(adj.Newer)
+
+	noAuthUser := utils.NoAuthUser()
+
+	adj = load(noAuthUser, e1)
+	req.Nil(adj.Older)
+	req.Equal(e3, adj.Newer.ID)
+
+	adj = load(noAuthUser, e2)
+	req.Nil(adj)
+
+	adj = load(noAuthUser, e3)
+	req.Equal(e1, adj.Older.ID)
+	req.Nil(adj.Newer)
+
+	setUserPrivacy(t, userIDs[0], "registered")
+
+	adj = load(userIDs[1], e1)
+	req.NotNil(adj)
+
+	adj = load(noAuthUser, e1)
+	req.Nil(adj)
+
+	setUserPrivacy(t, userIDs[0], "all")
+
+	checkDeleteEntry(t, e1, userIDs[0], true)
+	checkDeleteEntry(t, e2, userIDs[0], true)
+	checkDeleteEntry(t, e3, userIDs[0], true)
+}

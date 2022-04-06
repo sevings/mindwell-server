@@ -200,6 +200,16 @@ func AddRelationToTlogQuery(q *sqlf.Stmt, userID *models.UserID, tlog string) *s
 		LeftJoin("relations_from_me", "TRUE")
 }
 
+func AddRelationToQuery(q *sqlf.Stmt, userID *models.UserID, tlogID int64) *sqlf.Stmt {
+	return q.With("relations_from_me",
+		sqlf.Select("relation.type").
+			From("relations").
+			Join("relation", "relations.type = relation.id").
+			Where("relations.from_id = ?", userID.ID).
+			Where("relations.to_id = ?", tlogID)).
+		LeftJoin("relations_from_me", "TRUE")
+}
+
 func addTlogQuery(q *sqlf.Stmt, userID *models.UserID, tlog, tag string) *sqlf.Stmt {
 	q.Where("lower(users.name) = lower(?)", tlog)
 	addTagQuery(q, tag)

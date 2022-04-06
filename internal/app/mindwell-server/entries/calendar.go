@@ -6,6 +6,7 @@ import (
 	"github.com/leporo/sqlf"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/sevings/mindwell-server/models"
+	"github.com/sevings/mindwell-server/restapi/operations/entries"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"github.com/sevings/mindwell-server/utils"
@@ -76,28 +77,37 @@ func loadEmptyCalendar(tx *utils.AutoTx, q *sqlf.Stmt, start, end, limit int64) 
 	}
 }
 
+func loadCalendarEntry(tx *utils.AutoTx) *models.CalendarEntry {
+	var title, content string
+	var entry models.CalendarEntry
+	ok := tx.Scan(&entry.ID, &entry.CreatedAt,
+		&title, &content)
+	if !ok {
+		return nil
+	}
+
+	title = strings.TrimSpace(title)
+	if title != "" {
+		title = bluemonday.StrictPolicy().Sanitize(title)
+		entry.Title, _ = utils.CutText(title, 100)
+	} else {
+		content = strings.TrimSpace(content)
+		content = md.RenderToString([]byte(content))
+		content = utils.RemoveHTML(content)
+		entry.Title, _ = utils.CutHtml(content, 1, 100)
+	}
+
+	return &entry
+}
+
 func loadCalendar(tx *utils.AutoTx, cal *models.Calendar) {
 	for {
-		var title, content string
-		var entry models.CalendarEntriesItems0
-		ok := tx.Scan(&entry.ID, &entry.CreatedAt,
-			&title, &content)
-		if !ok {
+		entry := loadCalendarEntry(tx)
+		if entry == nil {
 			break
 		}
 
-		title = strings.TrimSpace(title)
-		if title != "" {
-			title = bluemonday.StrictPolicy().Sanitize(title)
-			entry.Title, _ = utils.CutText(title, 100)
-		} else {
-			content = strings.TrimSpace(content)
-			content = md.RenderToString([]byte(content))
-			content = utils.RemoveHTML(content)
-			entry.Title, _ = utils.CutHtml(content, 1, 100)
-		}
-
-		cal.Entries = append(cal.Entries, &entry)
+		cal.Entries = append(cal.Entries, entry)
 	}
 
 	if cal.Start > 0 {
@@ -172,6 +182,63 @@ func newMyCalendarLoader(srv *utils.MindwellServer) func(me.GetMeCalendarParams,
 			}
 
 			return me.NewGetMeCalendarOK().WithPayload(feed)
+		})
+	}
+}
+
+func loadAdjacent(tx *utils.AutoTx, userID *models.UserID, entryID int64) models.AdjacentEntries {
+	var createdAt time.Time
+	var authorID int64
+	curQuery := sqlf.Select("author_id, created_at").From("entries").Where("id = ?", entryID)
+	tx.QueryStmt(curQuery).Scan(&authorID, &createdAt)
+
+	q := sqlf.Select("entries.id, extract(epoch from entries.created_at) as created_at").
+		Select("entries.title, entries.edit_content").
+		From("entries").
+		Where("author_id = ?", authorID).
+		Limit(1)
+
+	if authorID != userID.ID {
+		q.Join("entry_privacy", "entries.visible_for = entry_privacy.id")
+		q = AddRelationToQuery(q, userID, authorID)
+		q = AddEntryOpenQuery(q, userID, false)
+	}
+
+	newerQuery := q.Clone().
+		Where("entries.created_at > ?", createdAt).
+		OrderBy("entries.created_at ASC")
+	tx.QueryStmt(newerQuery)
+	newer := loadCalendarEntry(tx)
+
+	olderQuery := q.Clone().
+		Where("entries.created_at < ?", createdAt).
+		OrderBy("entries.created_at DESC")
+	tx.QueryStmt(olderQuery)
+	older := loadCalendarEntry(tx)
+
+	return models.AdjacentEntries{
+		ID:    entryID,
+		Newer: newer,
+		Older: older,
+	}
+}
+
+func newAdjacentLoader(srv *utils.MindwellServer) func(entries.GetEntriesIDAdjacentParams, *models.UserID) middleware.Responder {
+	return func(params entries.GetEntriesIDAdjacentParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			canView := utils.CanViewEntry(tx, userID, params.ID)
+			if !canView {
+				err := srv.StandardError("no_entry")
+				return entries.NewGetEntriesIDAdjacentNotFound().WithPayload(err)
+			}
+
+			adj := loadAdjacent(tx, userID, params.ID)
+			if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
+				err := srv.NewError(nil)
+				return me.NewPutMeCoverBadRequest().WithPayload(err)
+			}
+
+			return entries.NewGetEntriesIDAdjacentOK().WithPayload(&adj)
 		})
 	}
 }
