@@ -160,15 +160,13 @@ func (tx *AutoTx) Scan(dest ...interface{}) bool {
 	return true
 }
 
-func (tx *AutoTx) QueryBool(query string, args ...interface{}) bool {
+func (tx *AutoTx) ScanBool() bool {
 	var result sql.NullBool
-	tx.Query(query, args...).Scan(&result)
+	tx.Scan(&result)
 	return result.Bool
 }
 
-func (tx *AutoTx) QueryBools(query string, args ...interface{}) []bool {
-	tx.Query(query, args...)
-
+func (tx *AutoTx) ScanBools() []bool {
 	var result []bool
 	var value bool
 	for tx.Scan(&value) {
@@ -178,15 +176,13 @@ func (tx *AutoTx) QueryBools(query string, args ...interface{}) []bool {
 	return result
 }
 
-func (tx *AutoTx) QueryInt64(query string, args ...interface{}) int64 {
+func (tx *AutoTx) ScanInt64() int64 {
 	var result sql.NullInt64
-	tx.Query(query, args...).Scan(&result)
+	tx.Scan(&result)
 	return result.Int64
 }
 
-func (tx *AutoTx) QueryInt64s(query string, args ...interface{}) []int64 {
-	tx.Query(query, args...)
-
+func (tx *AutoTx) ScanInt64s() []int64 {
 	var result []int64
 	var value int64
 	for tx.Scan(&value) {
@@ -196,21 +192,19 @@ func (tx *AutoTx) QueryInt64s(query string, args ...interface{}) []int64 {
 	return result
 }
 
-func (tx *AutoTx) QueryFloat64(query string, args ...interface{}) float64 {
+func (tx *AutoTx) ScanFloat64() float64 {
 	var result sql.NullFloat64
-	tx.Query(query, args...).Scan(&result)
+	tx.Scan(&result)
 	return result.Float64
 }
 
-func (tx *AutoTx) QueryString(query string, args ...interface{}) string {
+func (tx *AutoTx) ScanString() string {
 	var result sql.NullString
-	tx.Query(query, args...).Scan(&result)
+	tx.Scan(&result)
 	return result.String
 }
 
-func (tx *AutoTx) QueryStrings(query string, args ...interface{}) []string {
-	tx.Query(query, args...)
-
+func (tx *AutoTx) ScanStrings() []string {
 	var result []string
 	var value string
 	for tx.Scan(&value) {
@@ -218,6 +212,34 @@ func (tx *AutoTx) QueryStrings(query string, args ...interface{}) []string {
 	}
 
 	return result
+}
+
+func (tx *AutoTx) QueryBool(query string, args ...interface{}) bool {
+	return tx.Query(query, args...).ScanBool()
+}
+
+func (tx *AutoTx) QueryBools(query string, args ...interface{}) []bool {
+	return tx.Query(query, args...).ScanBools()
+}
+
+func (tx *AutoTx) QueryInt64(query string, args ...interface{}) int64 {
+	return tx.Query(query, args...).ScanInt64()
+}
+
+func (tx *AutoTx) QueryInt64s(query string, args ...interface{}) []int64 {
+	return tx.Query(query, args...).ScanInt64s()
+}
+
+func (tx *AutoTx) QueryFloat64(query string, args ...interface{}) float64 {
+	return tx.Query(query, args...).ScanFloat64()
+}
+
+func (tx *AutoTx) QueryString(query string, args ...interface{}) string {
+	return tx.Query(query, args...).ScanString()
+}
+
+func (tx *AutoTx) QueryStrings(query string, args ...interface{}) []string {
+	return tx.Query(query, args...).ScanStrings()
 }
 
 func (tx *AutoTx) Close() {
