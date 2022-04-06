@@ -180,6 +180,17 @@ WHERE lower(users.name) = lower($1)
 	}
 }
 
+func NoAuthUser() *models.UserID {
+	return &models.UserID{
+		Ban: &models.UserIDBan{
+			Comment: true,
+			Invite:  true,
+			Live:    true,
+			Vote:    true,
+		},
+	}
+}
+
 func NewOAuth2App(h TokenHash, db *sql.DB) func(string, []string) (*models.UserID, error) {
 	const query = `
 SELECT ban, flow
@@ -219,15 +230,6 @@ WHERE lower(apps.name) = lower($1)
 			return nil, errAccessDenied
 		}
 
-		userID := &models.UserID{
-			Ban: &models.UserIDBan{
-				Comment: true,
-				Invite:  true,
-				Live:    true,
-				Vote:    true,
-			},
-		}
-
-		return userID, nil
+		return NoAuthUser(), nil
 	}
 }
