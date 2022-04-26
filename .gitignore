@@ -1,3 +1,4 @@
+/cmd/mindwell-server/
 /configs/server.toml
 /internal/app/mindwell-server/app/avatars/
 /avatars/
@@ -6,3 +7,10 @@
 /restapi/doc.go
 /restapi/embedded_spec.go
 /restapi/server.go
+
+/cmd/mindwell-images-server/
+/configs/images.toml
+/restapi_images/operations/
+/restapi_images/doc.go
+/restapi_images/embedded_spec.go
+/restapi_images/server.go
