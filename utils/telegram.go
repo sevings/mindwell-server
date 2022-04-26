@@ -597,7 +597,7 @@ func (bot *TelegramBot) info(upd *tgbotapi.Update) string {
 
 	const q = `
 SELECT users.id, users.name, users.show_name, created_at, 
-	email, verified, valid_thru, rank, karma,
+	email, verified, rank, karma,
 	invited.name, invited.show_name,
 	entries_count, followers_count, followings_count, comments_count, invited_count,
 	invite_ban, vote_ban, comment_ban, live_ban, adm_ban
@@ -611,14 +611,14 @@ WHERE lower(users.email) = lower($1) OR lower(users.name) = lower($1)`
 	var name, showName, email string
 	var invitedByName, invitedByShowName sql.NullString
 	var verified bool
-	var createdAt, validThru time.Time
+	var createdAt time.Time
 	var rank int64
 	var karma float64
 	var entries, followers, followings, comments, invited int64
 	var inviteBan, voteBan, commentBan, liveBan time.Time
 	var admBan bool
 	atx.Scan(&id, &name, &showName, &createdAt,
-		&email, &verified, &validThru, &rank, &karma,
+		&email, &verified, &rank, &karma,
 		&invitedByName, &invitedByShowName,
 		&entries, &followers, &followings, &comments, &invited,
 		&inviteBan, &voteBan, &commentBan, &liveBan, &admBan)
@@ -642,7 +642,6 @@ WHERE lower(users.email) = lower($1) OR lower(users.name) = lower($1)`
 	text += "\n<b>email</b>: " + email
 	text += "\n<b>verified</b>: " + strconv.FormatBool(verified)
 	text += "\n<b>created at</b>: " + createdAt.Format("15:04:05 02 Jan 2006 MST")
-	text += "\n<b>valid thru</b>: " + validThru.Format("15:04:05 02 Jan 2006 MST")
 	text += "\n<b>rank</b>: " + strconv.FormatInt(rank, 10)
 	text += "\n<b>karma</b>: " + strconv.FormatFloat(karma, 'f', 2, 64)
 	text += "\n<b>invited by</b>: " + invitedByLink
