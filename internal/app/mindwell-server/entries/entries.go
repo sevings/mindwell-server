@@ -151,6 +151,8 @@ func myEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID,
 	if privacy == models.EntryPrivacyMe {
 		isVotable = false
 		inLive = false
+	} else if privacy == models.EntryPrivacyFollowers {
+		inLive = false
 	}
 
 	entry := &models.Entry{
