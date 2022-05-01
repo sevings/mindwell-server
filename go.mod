@@ -7,7 +7,6 @@ require (
 	github.com/Workiva/go-datastructures v1.0.53
 	github.com/carlescere/scheduler v0.0.0-20170109141437-ee74d2f83d82
 	github.com/centrifugal/gocent v2.2.0+incompatible
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/didip/tollbooth v4.0.2+incompatible
 	github.com/disintegration/imaging v1.6.2
 	github.com/go-openapi/errors v0.20.1
@@ -18,6 +17,7 @@ require (
 	github.com/go-openapi/swag v0.19.15
 	github.com/go-openapi/validate v0.20.2
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible
+	github.com/golang-jwt/jwt/v4 v4.4.1
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/leporo/sqlf v1.1.1
 	github.com/lib/pq v1.10.3

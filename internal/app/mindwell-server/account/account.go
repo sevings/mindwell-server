@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 
 	"github.com/disintegration/imaging"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
