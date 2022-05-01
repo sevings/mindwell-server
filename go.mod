@@ -23,7 +23,7 @@ require (
 	github.com/lib/pq v1.10.3
 	github.com/mailgun/mailgun-go/v4 v4.5.3
 	github.com/matcornic/hermes/v2 v2.1.0
-	github.com/microcosm-cc/bluemonday v1.0.15
+	github.com/microcosm-cc/bluemonday v1.0.18
 	github.com/nicksnyder/go-i18n/v2 v2.1.2
 	github.com/o1egl/govatar v0.4.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
