@@ -197,6 +197,8 @@ func (bot *TelegramBot) command(upd tgbotapi.Update) {
 		reply = bot.info(&upd)
 	case "alts":
 		reply = bot.alts(&upd)
+	case "votes":
+		reply = bot.votes(&upd)
 	case "stat":
 		reply = bot.stat(&upd)
 	default:
@@ -845,6 +847,68 @@ func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB string) string {
 	text += "\n<b>IPs used only by " + userB + "</b>:\n" + diffIpsB
 	text += "\n<b>Apps used only by " + userA + "</b>:\n" + diffAppsA
 	text += "\n<b>Apps used only by " + userB + "</b>:\n" + diffAppsB
+
+	return text
+}
+
+func (bot *TelegramBot) votes(upd *tgbotapi.Update) string {
+	if !bot.isAdmin(upd) {
+		return unrecognisedText
+	}
+
+	if upd.Message.From == nil {
+		return errorText
+	}
+
+	url := upd.Message.CommandArguments()
+	strID := idRe.FindString(url)
+	if strID == "" {
+		return "Укажи ID записи."
+	}
+
+	id, err := strconv.ParseInt(strID, 10, 64)
+	if err != nil {
+		return err.Error()
+	}
+
+	atx := NewAutoTx(bot.srv.DB)
+	defer atx.Finish()
+
+	const entryQuery = `SELECT name
+FROM entries
+JOIN users on author_id = users.id
+WHERE entries.id = $1`
+
+	author := atx.QueryString(entryQuery, id)
+	if author == "" {
+		return fmt.Sprintf("Запись %d не найдена.", id)
+	}
+
+	text := fmt.Sprintf("Голоса за запись %d автора <a href=\"%susers/%s\">%s</a>\n", id, bot.url, author, author)
+
+	const votesQuery = `SELECT name, vote > 0, entry_votes.created_at
+FROM entry_votes
+JOIN users ON user_id = users.id
+WHERE entry_id = $1
+ORDER BY created_at DESC`
+
+	atx.Query(votesQuery, id)
+	for {
+		var name string
+		var positive bool
+		var createdAt time.Time
+		if !atx.Scan(&name, &positive, &createdAt) {
+			break
+		}
+
+		vote := "за"
+		if !positive {
+			vote = "против"
+		}
+		at := createdAt.Format("02.01.2006 15:04")
+		text += fmt.Sprintf(`<a href="%susers/%s">%s</a> %s (%s)`, bot.url, name, name, vote, at)
+		text += "\n"
+	}
 
 	return text
 }
