@@ -32,7 +32,7 @@ const invitedUsersQuery = usersQuerySelect + `, users.id FROM users, gender, use
 
 func newFollowersLoader(srv *utils.MindwellServer) func(users.GetUsersNameFollowersParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameFollowersParams, userID *models.UserID) middleware.Responder {
-		return loadRelatedUsers(srv, userID, usersQueryToName, usersToNameQueryWhere,
+		return loadTlogRelatedUsers(srv, userID, usersQueryToName, usersToNameQueryWhere,
 			models.RelationshipRelationFollowed, params.Name, models.FriendListRelationFollowers,
 			*params.After, *params.Before, *params.Limit)
 	}
@@ -40,7 +40,7 @@ func newFollowersLoader(srv *utils.MindwellServer) func(users.GetUsersNameFollow
 
 func newFollowingsLoader(srv *utils.MindwellServer) func(users.GetUsersNameFollowingsParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameFollowingsParams, userID *models.UserID) middleware.Responder {
-		return loadRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
+		return loadTlogRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
 			models.RelationshipRelationFollowed, params.Name, models.FriendListRelationFollowings,
 			*params.After, *params.Before, *params.Limit)
 	}

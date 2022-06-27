@@ -574,7 +574,7 @@ func newThemeLoader(srv *utils.MindwellServer) func(themes.GetThemesNameTlogPara
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			canView := utils.CanViewTlogName(tx, userID, params.Name)
 			if !canView {
-				err := srv.StandardError("no_tlog")
+				err := srv.StandardError("no_theme")
 				return themes.NewGetThemesNameFeedNotFound().WithPayload(err)
 			}
 

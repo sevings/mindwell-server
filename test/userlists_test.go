@@ -111,7 +111,7 @@ func checkMyInvited(t *testing.T, user *models.UserID, after, before string, lim
 	return list
 }
 
-func checkNameFollowersForbidden(t *testing.T, user *models.UserID, name string) {
+func checkNameFollowersNotFound(t *testing.T, user *models.UserID, name string) {
 	get := api.UsersGetUsersNameFollowersHandler.Handle
 	params := users.GetUsersNameFollowersParams{
 		After:  new(string),
@@ -120,7 +120,7 @@ func checkNameFollowersForbidden(t *testing.T, user *models.UserID, name string)
 		Name:   name,
 	}
 	resp := get(params, user)
-	_, ok := resp.(*users.GetUsersNameFollowersForbidden)
+	_, ok := resp.(*users.GetUsersNameFollowersNotFound)
 
 	require.True(t, ok)
 }
@@ -313,7 +313,7 @@ func TestPrivateFriendLists(t *testing.T) {
 	checkUnfollow(t, userIDs[0], userIDs[2])
 	checkUnfollow(t, userIDs[1], userIDs[2])
 
-	checkNameFollowersForbidden(t, userIDs[0], userIDs[2].Name)
+	checkNameFollowersNotFound(t, userIDs[0], userIDs[2].Name)
 
 	setUserPrivacy(t, userIDs[2], "all")
 }

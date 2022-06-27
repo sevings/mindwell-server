@@ -420,10 +420,12 @@ func newMyTlogPoster(srv *utils.MindwellServer) func(me.PostMeTlogParams, *model
 }
 
 func newThemePoster(srv *utils.MindwellServer) func(themes.PostThemesNameTlogParams, *models.UserID) middleware.Responder {
+	postThemeErr := srv.NewError(&i18n.Message{ID: "post_in_theme", Other: "You're not allowed to post in this theme."})
+
 	return func(params themes.PostThemesNameTlogParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			if !userID.IsInvited {
-				return themes.NewPostThemesNameTlogForbidden()
+				return themes.NewPostThemesNameTlogForbidden().WithPayload(postThemeErr)
 			}
 
 			const themeQ = `SELECT id FROM users WHERE lower(name) = lower($1) AND creator_id IS NOT NULL`
@@ -431,12 +433,12 @@ func newThemePoster(srv *utils.MindwellServer) func(themes.PostThemesNameTlogPar
 
 			relationTo := utils.LoadRelation(tx, userID.ID, themeID)
 			if relationTo != models.RelationshipRelationFollowed {
-				return themes.NewPostThemesNameTlogForbidden()
+				return themes.NewPostThemesNameTlogForbidden().WithPayload(postThemeErr)
 			}
 
 			relationFrom := utils.LoadRelation(tx, themeID, userID.ID)
 			if relationFrom == models.RelationshipRelationIgnored {
-				return themes.NewPostThemesNameTlogForbidden()
+				return themes.NewPostThemesNameTlogForbidden().WithPayload(postThemeErr)
 			}
 
 			entry := &models.Entry{
@@ -599,7 +601,7 @@ func newEntryEditor(srv *utils.MindwellServer) func(entries.PutEntriesIDParams, 
 			}
 
 			if !editEntry(srv, tx, uID, entry, len(params.Images) > 0) {
-				return entries.NewPutEntriesIDForbidden()
+				return entries.NewPutEntriesIDBadRequest()
 			}
 
 			reattachImages(srv, tx, entry, params.Images)

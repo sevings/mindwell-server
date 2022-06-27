@@ -3,6 +3,7 @@ package users
 import (
 	"fmt"
 	"github.com/go-openapi/runtime/middleware"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/utils"
@@ -76,21 +77,24 @@ func createTheme(tx *utils.AutoTx, userID *models.UserID, name, showName string)
 func newThemeCreator(srv *utils.MindwellServer) func(themes.PostThemesParams, *models.UserID) middleware.Responder {
 	return func(params themes.PostThemesParams, userID *models.UserID) middleware.Responder {
 		if userID.Authority != models.UserIDAuthorityAdmin {
-			return themes.NewPostThemesForbidden()
+			err := srv.NewError(&i18n.Message{ID: "cant_create_theme", Other: "You are not allowed to create themes."})
+			return themes.NewPostThemesForbidden().WithPayload(err)
 		}
 
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			const idQ = "SELECT id FROM users WHERE lower(name) = lower($1)"
 			oldID := tx.QueryInt64(idQ, params.Name)
 			if oldID > 0 {
-				return themes.NewPostThemesBadRequest()
+				err := srv.NewError(&i18n.Message{ID: "theme_name_is_not_free", Other: "Theme name is not free."})
+				return themes.NewPostThemesBadRequest().WithPayload(err)
 			}
 
 			const query = profileQuery + "WHERE users.id = $1 AND users.creator_id IS NOT NULL"
 			themeID := createTheme(tx, userID, params.Name, params.ShowName)
 			theme := loadUserProfile(srv, tx, query, userID, themeID)
 			if theme.ID == 0 {
-				return themes.NewPostThemesBadRequest()
+				err := srv.NewError(nil)
+				return themes.NewPostThemesBadRequest().WithPayload(err)
 			}
 
 			return themes.NewPostThemesOK().WithPayload(theme)
@@ -135,14 +139,14 @@ func newThemeEditor(srv *utils.MindwellServer) func(themes.PutThemesNameParams, 
 	return func(params themes.PutThemesNameParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			if !checkThemeAdmin(tx, userID, params.Name) {
-				err := srv.StandardError("no_tlog")
+				err := srv.StandardError("no_theme")
 				return themes.NewPutThemesNameForbidden().WithPayload(err)
 			}
 
 			theme := editThemeProfile(srv, tx, userID, params)
 
 			if tx.Error() != nil {
-				err := srv.StandardError("no_tlog")
+				err := srv.StandardError("no_theme")
 				return themes.NewPutThemesNameForbidden().WithPayload(err)
 			}
 
@@ -153,8 +157,15 @@ func newThemeEditor(srv *utils.MindwellServer) func(themes.PutThemesNameParams, 
 
 func newThemeFollowersLoader(srv *utils.MindwellServer) func(themes.GetThemesNameFollowersParams, *models.UserID) middleware.Responder {
 	return func(params themes.GetThemesNameFollowersParams, userID *models.UserID) middleware.Responder {
-		return loadRelatedUsers(srv, userID, usersQueryToName, usersToNameQueryWhere,
+		list := loadRelatedUsers(srv, userID, usersQueryToName, usersToNameQueryWhere,
 			models.RelationshipRelationFollowed, userID.Name, models.FriendListRelationFollowers,
 			*params.After, *params.Before, *params.Limit)
+
+		if list == nil {
+			err := srv.StandardError("no_theme")
+			return themes.NewGetThemesNameFollowersNotFound().WithPayload(err)
+		}
+
+		return themes.NewGetThemesNameFollowersOK().WithPayload(list)
 	}
 }

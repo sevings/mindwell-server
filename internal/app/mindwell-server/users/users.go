@@ -252,62 +252,72 @@ func loadUserList(srv *utils.MindwellServer, tx *utils.AutoTx, reverse bool) ([]
 }
 
 func loadRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, queryWhere, related, name,
-	relation, afterS, beforeS string, limit int64) middleware.Responder {
-	return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-		open := utils.CanViewTlogName(tx, userID, name)
-		if !open {
-			err := srv.StandardError("no_tlog")
-			return users.NewGetUsersNameFollowersForbidden().WithPayload(err)
-		}
+	relation, afterS, beforeS string, limit int64) *models.FriendList {
+	tx := utils.NewAutoTx(srv.DB)
+	defer tx.Finish()
 
-		before := utils.ParseFloat(beforeS)
-		after := utils.ParseFloat(afterS)
+	open := utils.CanViewTlogName(tx, userID, name)
+	if !open {
+		return nil
+	}
 
-		if after > 0 {
-			q := query + " AND relations.changed_at > to_timestamp($3) ORDER BY relations.changed_at ASC LIMIT $4"
-			tx.Query(q, name, related, after, limit)
-		} else if before > 0 {
-			q := query + " AND relations.changed_at < to_timestamp($3) ORDER BY relations.changed_at DESC LIMIT $4"
-			tx.Query(q, name, related, before, limit)
-		} else {
-			q := query + " ORDER BY relations.changed_at DESC LIMIT $3"
-			tx.Query(q, name, related, limit)
-		}
+	before := utils.ParseFloat(beforeS)
+	after := utils.ParseFloat(afterS)
 
-		var list models.FriendList
-		var nextBefore, nextAfter interface{}
-		list.Users, nextBefore, nextAfter = loadUserList(srv, tx, after > 0)
+	if after > 0 {
+		q := query + " AND relations.changed_at > to_timestamp($3) ORDER BY relations.changed_at ASC LIMIT $4"
+		tx.Query(q, name, related, after, limit)
+	} else if before > 0 {
+		q := query + " AND relations.changed_at < to_timestamp($3) ORDER BY relations.changed_at DESC LIMIT $4"
+		tx.Query(q, name, related, before, limit)
+	} else {
+		q := query + " ORDER BY relations.changed_at DESC LIMIT $3"
+		tx.Query(q, name, related, limit)
+	}
 
-		list.Subject = loadUser(srv, tx, loadUserQueryName, name)
-		list.Relation = relation
+	var list models.FriendList
+	var nextBefore, nextAfter interface{}
+	list.Users, nextBefore, nextAfter = loadUserList(srv, tx, after > 0)
 
-		if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
-			err := srv.StandardError("no_tlog")
-			return users.NewGetUsersNameFollowersNotFound().WithPayload(err)
-		}
+	list.Subject = loadUser(srv, tx, loadUserQueryName, name)
+	list.Relation = relation
 
-		if len(list.Users) == 0 {
-			return users.NewGetUsersNameFollowersOK().WithPayload(&list)
-		}
+	if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
+		return nil
+	}
 
-		beforeQuery := `SELECT EXISTS(
+	if len(list.Users) == 0 {
+		return &list
+	}
+
+	beforeQuery := `SELECT EXISTS(
 		SELECT 1 
 		FROM users, relation, relations, gender, user_privacy
 		WHERE ` + queryWhere + " AND relations.changed_at < to_timestamp($3))"
 
-		list.NextBefore = utils.FormatFloat(nextBefore.(float64))
-		list.HasBefore = tx.QueryBool(beforeQuery, name, related, nextBefore)
+	list.NextBefore = utils.FormatFloat(nextBefore.(float64))
+	list.HasBefore = tx.QueryBool(beforeQuery, name, related, nextBefore)
 
-		afterQuery := `SELECT EXISTS(
+	afterQuery := `SELECT EXISTS(
 		SELECT 1 
 		FROM users, relation, relations, gender, user_privacy
 		WHERE ` + queryWhere + " AND relations.changed_at > to_timestamp($3))"
 
-		list.NextAfter = utils.FormatFloat(nextAfter.(float64))
-		list.HasAfter = tx.QueryBool(afterQuery, name, related, nextAfter)
+	list.NextAfter = utils.FormatFloat(nextAfter.(float64))
+	list.HasAfter = tx.QueryBool(afterQuery, name, related, nextAfter)
 
-		return users.NewGetUsersNameFollowersOK().WithPayload(&list)
-	})
+	return &list
+}
+
+func loadTlogRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, queryWhere, related, name,
+	relation, afterS, beforeS string, limit int64) middleware.Responder {
+	list := loadRelatedUsers(srv, userID, query, queryWhere, related, name, relation, afterS, beforeS, limit)
+	if list == nil {
+		err := srv.StandardError("no_tlog")
+		return users.NewGetUsersNameFollowersNotFound().WithPayload(err)
+	}
+
+	return users.NewGetUsersNameFollowersOK().WithPayload(list)
 }
 
 func loadInvitedUsers(srv *utils.MindwellServer, userID *models.UserID, query, queryWhere, name,

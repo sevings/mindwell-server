@@ -2928,6 +2928,10 @@ paths:
           description: Entry data
           schema:
             $ref: '#/definitions/Entry'
+        400:
+          description: bad request
+          schema:
+            $ref: '#/definitions/Error'
         403:
           description: access denied or post in live restriction
           schema:

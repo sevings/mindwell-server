@@ -115,7 +115,7 @@ func newThemeTagsLoader(srv *utils.MindwellServer) func(themes.GetThemesNameTags
 	return func(params themes.GetThemesNameTagsParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			if !utils.CanViewTlogName(tx, userID, params.Name) {
-				err := srv.StandardError("no_tlog")
+				err := srv.StandardError("no_theme")
 				return themes.NewGetThemesNameTagsNotFound().WithPayload(err)
 			}
 
