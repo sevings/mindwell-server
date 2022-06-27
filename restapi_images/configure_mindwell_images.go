@@ -17,6 +17,7 @@ import (
 	"github.com/sevings/mindwell-server/restapi_images/operations"
 	"github.com/sevings/mindwell-server/restapi_images/operations/images"
 	"github.com/sevings/mindwell-server/restapi_images/operations/me"
+	"github.com/sevings/mindwell-server/restapi_images/operations/themes"
 	"github.com/sevings/mindwell-server/utils"
 )
 
@@ -47,6 +48,9 @@ func configureAPI(api *operations.MindwellImagesAPI) http.Handler {
 
 	api.MePutMeAvatarHandler = me.PutMeAvatarHandlerFunc(imagesImpl.NewAvatarUpdater(mi))
 	api.MePutMeCoverHandler = me.PutMeCoverHandlerFunc(imagesImpl.NewCoverUpdater(mi))
+
+	api.ThemesPutThemesNameAvatarHandler = themes.PutThemesNameAvatarHandlerFunc(imagesImpl.NewThemeAvatarUpdater(mi))
+	api.ThemesPutThemesNameCoverHandler = themes.PutThemesNameCoverHandlerFunc(imagesImpl.NewThemeCoverUpdater(mi))
 
 	api.ImagesPostImagesHandler = images.PostImagesHandlerFunc(imagesImpl.NewImageUploader(mi))
 	api.ImagesGetImagesIDHandler = images.GetImagesIDHandlerFunc(imagesImpl.NewImageLoader(mi))
