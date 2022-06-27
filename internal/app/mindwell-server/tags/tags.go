@@ -7,6 +7,7 @@ import (
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/entries"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"github.com/sevings/mindwell-server/utils"
 )
@@ -15,6 +16,7 @@ import (
 func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.MeGetMeTagsHandler = me.GetMeTagsHandlerFunc(newMyTagsLoader(srv))
 	srv.API.UsersGetUsersNameTagsHandler = users.GetUsersNameTagsHandlerFunc(newUserTagsLoader(srv))
+	srv.API.ThemesGetThemesNameTagsHandler = themes.GetThemesNameTagsHandlerFunc(newThemeTagsLoader(srv))
 	srv.API.EntriesGetEntriesTagsHandler = entries.GetEntriesTagsHandlerFunc(newLiveTagsLoader(srv))
 }
 
@@ -105,6 +107,24 @@ func newUserTagsLoader(srv *utils.MindwellServer) func(users.GetUsersNameTagsPar
 			tags := loadTags(tx)
 
 			return users.NewGetUsersNameTagsOK().WithPayload(tags)
+		})
+	}
+}
+
+func newThemeTagsLoader(srv *utils.MindwellServer) func(themes.GetThemesNameTagsParams, *models.UserID) middleware.Responder {
+	return func(params themes.GetThemesNameTagsParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			if !utils.CanViewTlogName(tx, userID, params.Name) {
+				err := srv.StandardError("no_tlog")
+				return themes.NewGetThemesNameTagsNotFound().WithPayload(err)
+			}
+
+			query := tlogTagsQuery(userID, *params.Limit, params.Name)
+
+			tx.QueryStmt(query)
+			tags := loadTags(tx)
+
+			return themes.NewGetThemesNameTagsOK().WithPayload(tags)
 		})
 	}
 }

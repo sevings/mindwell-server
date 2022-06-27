@@ -9,7 +9,7 @@ import (
 
 func newUserLoader(srv *utils.MindwellServer) func(users.GetUsersNameParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameParams, userID *models.UserID) middleware.Responder {
-		const query = profileQuery + "WHERE lower(users.name) = lower($1)"
+		const query = profileQuery + "WHERE lower(users.name) = lower($1) AND users.creator_id IS NULL"
 
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			profile := loadUserProfile(srv, tx, query, userID, params.Name)

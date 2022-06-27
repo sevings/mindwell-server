@@ -7,6 +7,7 @@ import (
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/entries"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"github.com/sevings/mindwell-server/utils"
 	"strings"
@@ -422,15 +423,6 @@ func newLiveLoader(srv *utils.MindwellServer) func(entries.GetEntriesLiveParams,
 	}
 }
 
-func newAnonymousLoader(srv *utils.MindwellServer) func(entries.GetEntriesAnonymousParams, *models.UserID) middleware.Responder {
-	return func(params entries.GetEntriesAnonymousParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			feed := &models.Feed{}
-			return entries.NewGetEntriesAnonymousOK().WithPayload(feed)
-		})
-	}
-}
-
 func loadBestFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, category, tag, search string, limit int64) *models.Feed {
 	var interval string
 	if category == "month" {
@@ -573,6 +565,21 @@ func newTlogLoader(srv *utils.MindwellServer) func(users.GetUsersNameTlogParams,
 
 			feed := loadTlogFeed(srv, tx, userID, params.Name, *params.Before, *params.After, *params.Tag, *params.Sort, *params.Query, *params.Limit)
 			return users.NewGetUsersNameTlogOK().WithPayload(feed)
+		})
+	}
+}
+
+func newThemeLoader(srv *utils.MindwellServer) func(themes.GetThemesNameTlogParams, *models.UserID) middleware.Responder {
+	return func(params themes.GetThemesNameTlogParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			canView := utils.CanViewTlogName(tx, userID, params.Name)
+			if !canView {
+				err := srv.StandardError("no_tlog")
+				return themes.NewGetThemesNameFeedNotFound().WithPayload(err)
+			}
+
+			feed := loadTlogFeed(srv, tx, userID, params.Name, *params.Before, *params.After, *params.Tag, *params.Sort, *params.Query, *params.Limit)
+			return themes.NewGetThemesNameFeedOK().WithPayload(feed)
 		})
 	}
 }

@@ -362,54 +362,51 @@ func newEntryCommentsLoader(srv *utils.MindwellServer) func(comments.GetEntriesI
 	}
 }
 
-func canPostComment(tx *utils.AutoTx, userID *models.UserID, entryID int64) bool {
+func canPostComment(tx *utils.AutoTx, userID *models.UserID, entryID int64) (bool, int64) {
 	const q = `
-		SELECT author_id, is_commentable
+		SELECT author_id, user_id, is_commentable, is_anonymous
 		FROM entries
 		WHERE id = $1
 	`
 
-	var authorID int64
-	var commentable bool
-	tx.Query(q, entryID).Scan(&authorID, &commentable)
-	if authorID == userID.ID {
-		return true
+	var entryAuthorID, entryUserID int64
+	var commentable, anonymous bool
+	tx.Query(q, entryID).Scan(&entryAuthorID, &entryUserID, &commentable, &anonymous)
+	if entryUserID == userID.ID {
+		if anonymous {
+			return true, entryAuthorID
+		}
+
+		return true, entryUserID
 	}
 
 	if !commentable || userID.Ban.Comment {
-		return false
+		return false, userID.ID
 	}
 
-	return utils.CanViewEntry(tx, userID, entryID)
+	return utils.CanViewEntry(tx, userID, entryID), userID.ID
 }
 
-func postComment(tx *utils.AutoTx, author *models.User, entryID int64, content string) *models.Comment {
+func postComment(tx *utils.AutoTx, userID *models.UserID, comment *models.Comment) {
 	const q = `
-		INSERT INTO comments (author_id, entry_id, edit_content)
-		VALUES ($1, $2, $3)
+		INSERT INTO comments (user_id, author_id, entry_id, edit_content)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, extract(epoch from created_at)`
 
-	comment := models.Comment{
-		Author:      author,
-		Content:     HtmlContent(content),
-		EditContent: content,
-		EntryID:     entryID,
-		Rating: &models.Rating{
-			IsVotable: true,
-		},
-		Rights: &models.CommentRights{
-			Edit:   true,
-			Delete: true,
-			Vote:   false,
-		},
+	comment.Content = HtmlContent(comment.EditContent)
+	comment.Rating = &models.Rating{
+		IsVotable: true,
+	}
+	comment.Rights = &models.CommentRights{
+		Edit:   true,
+		Delete: true,
+		Vote:   false,
 	}
 
-	tx.Query(q, author.ID, entryID, comment.EditContent)
+	tx.Query(q, userID.ID, comment.Author.ID, comment.EntryID, comment.EditContent)
 	tx.Scan(&comment.ID, &comment.CreatedAt)
 
 	comment.Rating.ID = comment.ID
-
-	return &comment
 }
 
 func newCommentPoster(srv *utils.MindwellServer) func(comments.PostEntriesIDCommentsParams, *models.UserID) middleware.Responder {
@@ -420,14 +417,19 @@ func newCommentPoster(srv *utils.MindwellServer) func(comments.PostEntriesIDComm
 				return comments.NewPostEntriesIDCommentsCreated().WithPayload(prev)
 			}
 
-			allowed := canPostComment(tx, userID, params.ID)
+			allowed, authorID := canPostComment(tx, userID, params.ID)
 			if !allowed {
 				err := srv.NewError(&i18n.Message{ID: "cant_comment", Other: "You can't comment this entry."})
 				return comments.NewPostEntriesIDCommentsNotFound().WithPayload(err)
 			}
 
-			user := users.LoadUserByID(srv, tx, userID.ID)
-			comment := postComment(tx, user, params.ID, params.Content)
+			comment := &models.Comment{
+				Author:      users.LoadUserByID(srv, tx, authorID),
+				EditContent: params.Content,
+				EntryID:     params.ID,
+			}
+
+			postComment(tx, userID, comment)
 			if tx.Error() != nil {
 				err := srv.NewError(nil)
 				return comments.NewPostEntriesIDCommentsNotFound().WithPayload(err)

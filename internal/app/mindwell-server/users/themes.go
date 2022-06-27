@@ -1,0 +1,160 @@
+package users
+
+import (
+	"fmt"
+	"github.com/go-openapi/runtime/middleware"
+	"github.com/sevings/mindwell-server/models"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
+	"github.com/sevings/mindwell-server/utils"
+	"strings"
+)
+
+func loadTopThemes(srv *utils.MindwellServer, tx *utils.AutoTx, top string) []*models.Friend {
+	query := usersQuerySelect + ", false "
+
+	if top == "rank" {
+		query += "FROM users, gender, user_privacy WHERE creator_id IS NOT NULL" + usersQueryJoins + "ORDER BY rank ASC"
+		query += " LIMIT 50"
+		tx.Query(query)
+	} else if top == "new" {
+		query += "FROM users, gender, user_privacy WHERE creator_id IS NOT NULL" + usersQueryJoins + " ORDER BY created_at DESC"
+		query += " LIMIT 50"
+		tx.Query(query)
+	} else {
+		fmt.Printf("Unknown themes top: %s\n", top)
+		return nil
+	}
+
+	list, _, _ := loadUserList(srv, tx, false)
+	return list
+}
+
+func newThemesLoader(srv *utils.MindwellServer) func(themes.GetThemesParams, *models.UserID) middleware.Responder {
+	return func(params themes.GetThemesParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			body := &themes.GetThemesOKBody{}
+
+			if params.Query != nil {
+				body.Themes = searchUsers(srv, tx, "creator_id IS NOT NULL", *params.Query)
+				body.Query = *params.Query
+			} else {
+				body.Themes = loadTopThemes(srv, tx, *params.Top)
+				body.Top = *params.Top
+			}
+
+			return themes.NewGetThemesOK().WithPayload(body)
+		})
+	}
+}
+
+func newThemeLoader(srv *utils.MindwellServer) func(themes.GetThemesNameParams, *models.UserID) middleware.Responder {
+	return func(params themes.GetThemesNameParams, userID *models.UserID) middleware.Responder {
+		const query = profileQuery + "WHERE lower(users.name) = lower($1) AND users.creator_id IS NOT NULL"
+
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			theme := loadUserProfile(srv, tx, query, userID, params.Name)
+			if theme.ID == 0 {
+				return themes.NewGetThemesNameNotFound()
+			}
+
+			return themes.NewGetThemesNameOK().WithPayload(theme)
+		})
+	}
+}
+
+func createTheme(tx *utils.AutoTx, userID *models.UserID, name, showName string) int64 {
+	const q = `
+		INSERT INTO users 
+		(name, show_name, email, password_hash, creator_id)
+		values($1, $2, '', '', $3, $4)
+		RETURNING id`
+
+	user := tx.QueryInt64(q, name, showName, userID.ID)
+	return user
+}
+
+func newThemeCreator(srv *utils.MindwellServer) func(themes.PostThemesParams, *models.UserID) middleware.Responder {
+	return func(params themes.PostThemesParams, userID *models.UserID) middleware.Responder {
+		if userID.Authority != models.UserIDAuthorityAdmin {
+			return themes.NewPostThemesForbidden()
+		}
+
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			const idQ = "SELECT id FROM users WHERE lower(name) = lower($1)"
+			oldID := tx.QueryInt64(idQ, params.Name)
+			if oldID > 0 {
+				return themes.NewPostThemesBadRequest()
+			}
+
+			const query = profileQuery + "WHERE users.id = $1 AND users.creator_id IS NOT NULL"
+			themeID := createTheme(tx, userID, params.Name, params.ShowName)
+			theme := loadUserProfile(srv, tx, query, userID, themeID)
+			if theme.ID == 0 {
+				return themes.NewPostThemesBadRequest()
+			}
+
+			return themes.NewPostThemesOK().WithPayload(theme)
+		})
+	}
+}
+
+func checkThemeAdmin(tx *utils.AutoTx, userID *models.UserID, name string) bool {
+	const q = `SELECT creator_id = $1 FROM users WHERE lower(name) = lower($2)`
+
+	return tx.QueryBool(q, userID.ID, name)
+}
+
+func editThemeProfile(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, params themes.PutThemesNameParams) *models.Profile {
+	name := params.Name
+
+	if params.IsDaylog != nil {
+		const q = "update users set is_daylog = $2 where lower(name) = lower($1)"
+		tx.Exec(q, name, *params.IsDaylog)
+	}
+
+	const q = "update users set privacy = (select id from user_privacy where type = $2), show_name = $3 where lower(name) = lower($1)"
+	showName := strings.TrimSpace(params.ShowName)
+	tx.Exec(q, name, params.Privacy, showName)
+
+	if params.ShowInTops != nil {
+		const q = "update users set show_in_tops = $2 where lower(name) = lower($1)"
+		tx.Exec(q, name, *params.ShowInTops)
+	}
+
+	if params.Title != nil {
+		const q = "update users set title = $2 where lower(name) = lower($1)"
+		title := strings.TrimSpace(*params.Title)
+		tx.Exec(q, name, title)
+	}
+
+	const loadQuery = profileQuery + "WHERE lower(users.name) = lower($1)"
+	return loadUserProfile(srv, tx, loadQuery, userID, name)
+}
+
+func newThemeEditor(srv *utils.MindwellServer) func(themes.PutThemesNameParams, *models.UserID) middleware.Responder {
+	return func(params themes.PutThemesNameParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			if !checkThemeAdmin(tx, userID, params.Name) {
+				err := srv.StandardError("no_tlog")
+				return themes.NewPutThemesNameForbidden().WithPayload(err)
+			}
+
+			theme := editThemeProfile(srv, tx, userID, params)
+
+			if tx.Error() != nil {
+				err := srv.StandardError("no_tlog")
+				return themes.NewPutThemesNameForbidden().WithPayload(err)
+			}
+
+			return themes.NewPutThemesNameOK().WithPayload(theme)
+		})
+	}
+}
+
+func newThemeFollowersLoader(srv *utils.MindwellServer) func(themes.GetThemesNameFollowersParams, *models.UserID) middleware.Responder {
+	return func(params themes.GetThemesNameFollowersParams, userID *models.UserID) middleware.Responder {
+		return loadRelatedUsers(srv, userID, usersQueryToName, usersToNameQueryWhere,
+			models.RelationshipRelationFollowed, userID.Name, models.FriendListRelationFollowers,
+			*params.After, *params.Before, *params.Limit)
+	}
+}

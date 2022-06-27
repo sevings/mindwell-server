@@ -77,7 +77,7 @@ func canVoteForEntry(tx *utils.AutoTx, userID *models.UserID, entryID int64) boo
 	`
 
 	tx.Query(q, entryID).Scan(&authorID, &votable, &privacy)
-	if authorID == userID.ID || !votable || privacy == models.EntryPrivacyAnonymous {
+	if authorID == userID.ID || !votable {
 		return false
 	}
 

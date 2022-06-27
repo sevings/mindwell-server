@@ -1246,38 +1246,33 @@ func TestCanViewEntry(t *testing.T) {
 
 	e1 := createTlogEntry(t, userIDs[0], models.EntryPrivacyAll, true, true, true)
 	e2 := createTlogEntry(t, userIDs[0], models.EntryPrivacyMe, true, true, true)
-	e3 := createTlogEntry(t, userIDs[0], models.EntryPrivacyAnonymous, true, true, true)
-	e4 := createTlogEntry(t, userIDs[0], models.EntryPrivacyRegistered, true, true, true)
-	e5 := createTlogEntry(t, userIDs[0], models.EntryPrivacyInvited, true, true, true)
-	e6 := createTlogEntry(t, userIDs[0], models.EntryPrivacyFollowers, true, true, true)
+	e3 := createTlogEntry(t, userIDs[0], models.EntryPrivacyRegistered, true, true, true)
+	e4 := createTlogEntry(t, userIDs[0], models.EntryPrivacyInvited, true, true, true)
+	e5 := createTlogEntry(t, userIDs[0], models.EntryPrivacyFollowers, true, true, true)
 
 	check(userIDs[0], e1.ID, true)
 	check(userIDs[0], e2.ID, true)
 	check(userIDs[0], e3.ID, true)
 	check(userIDs[0], e4.ID, true)
 	check(userIDs[0], e5.ID, true)
-	check(userIDs[0], e6.ID, true)
 
 	check(userIDs[1], e1.ID, true)
 	check(userIDs[1], e2.ID, false)
 	check(userIDs[1], e3.ID, true)
 	check(userIDs[1], e4.ID, true)
-	check(userIDs[1], e5.ID, true)
-	check(userIDs[1], e6.ID, false)
+	check(userIDs[1], e5.ID, false)
 
 	check(userIDs[3], e1.ID, true)
 	check(userIDs[3], e2.ID, false)
 	check(userIDs[3], e3.ID, true)
-	check(userIDs[3], e4.ID, true)
+	check(userIDs[3], e4.ID, false)
 	check(userIDs[3], e5.ID, false)
-	check(userIDs[3], e6.ID, false)
 
 	check(noAuthUser, e1.ID, true)
 	check(noAuthUser, e2.ID, false)
 	check(noAuthUser, e3.ID, false)
 	check(noAuthUser, e4.ID, false)
 	check(noAuthUser, e5.ID, false)
-	check(noAuthUser, e6.ID, false)
 
 	setUserPrivacy(t, userIDs[0], "followers")
 
@@ -1286,109 +1281,89 @@ func TestCanViewEntry(t *testing.T) {
 	check(userIDs[0], e3.ID, true)
 	check(userIDs[0], e4.ID, true)
 	check(userIDs[0], e5.ID, true)
-	check(userIDs[0], e6.ID, true)
 
 	check(userIDs[1], e1.ID, false)
 	check(userIDs[1], e2.ID, false)
-	check(userIDs[1], e3.ID, true)
+	check(userIDs[1], e3.ID, false)
 	check(userIDs[1], e4.ID, false)
 	check(userIDs[1], e5.ID, false)
-	check(userIDs[1], e6.ID, false)
 
 	check(userIDs[3], e1.ID, false)
 	check(userIDs[3], e2.ID, false)
-	check(userIDs[3], e3.ID, true)
+	check(userIDs[3], e3.ID, false)
 	check(userIDs[3], e4.ID, false)
 	check(userIDs[3], e5.ID, false)
-	check(userIDs[3], e6.ID, false)
 
 	check(noAuthUser, e1.ID, false)
 	check(noAuthUser, e2.ID, false)
 	check(noAuthUser, e3.ID, false)
 	check(noAuthUser, e4.ID, false)
 	check(noAuthUser, e5.ID, false)
-	check(noAuthUser, e6.ID, false)
 
 	checkFollow(t, userIDs[1], userIDs[0], profiles[0], models.RelationshipRelationRequested, true)
 	checkPermitFollow(t, userIDs[0], userIDs[1], true)
 
 	check(userIDs[1], e1.ID, true)
 	check(userIDs[1], e2.ID, false)
-	check(userIDs[1], e3.ID, true)
-	check(userIDs[1], e6.ID, true)
+	check(userIDs[1], e5.ID, true)
 
 	setUserPrivacy(t, userIDs[0], "invited")
 
 	check(userIDs[1], e1.ID, true)
 	check(userIDs[1], e2.ID, false)
-	check(userIDs[1], e3.ID, true)
-	check(userIDs[1], e6.ID, true)
+	check(userIDs[1], e5.ID, true)
 
 	check(userIDs[2], e1.ID, true)
 	check(userIDs[2], e2.ID, false)
-	check(userIDs[2], e3.ID, true)
-	check(userIDs[2], e6.ID, false)
+	check(userIDs[2], e5.ID, false)
 
 	check(userIDs[3], e1.ID, false)
 	check(userIDs[3], e2.ID, false)
-	check(userIDs[3], e3.ID, true)
-	check(userIDs[3], e6.ID, false)
+	check(userIDs[3], e5.ID, false)
 
 	check(noAuthUser, e1.ID, false)
 	check(noAuthUser, e2.ID, false)
-	check(noAuthUser, e3.ID, false)
-	check(noAuthUser, e6.ID, false)
+	check(noAuthUser, e5.ID, false)
 
 	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationIgnored, true)
 
 	check(userIDs[1], e1.ID, false)
 	check(userIDs[1], e2.ID, false)
-	check(userIDs[1], e3.ID, true)
-	check(userIDs[1], e6.ID, false)
+	check(userIDs[1], e5.ID, false)
 
 	setUserPrivacy(t, userIDs[0], "registered")
 
 	check(userIDs[0], e1.ID, true)
 	check(userIDs[0], e2.ID, true)
-	check(userIDs[0], e3.ID, true)
 
 	check(userIDs[1], e1.ID, false)
 	check(userIDs[1], e2.ID, false)
-	check(userIDs[1], e3.ID, true)
 
 	check(userIDs[2], e1.ID, true)
 	check(userIDs[2], e2.ID, false)
-	check(userIDs[2], e3.ID, true)
 
 	check(userIDs[3], e1.ID, true)
 	check(userIDs[3], e2.ID, false)
-	check(userIDs[3], e3.ID, true)
 
 	check(noAuthUser, e1.ID, false)
 	check(noAuthUser, e2.ID, false)
-	check(noAuthUser, e3.ID, false)
 
 	setUserPrivacy(t, userIDs[0], "all")
 
 	check(userIDs[0], e1.ID, true)
 	check(userIDs[0], e2.ID, true)
-	check(userIDs[0], e3.ID, true)
 
 	check(userIDs[1], e1.ID, false)
 	check(userIDs[1], e2.ID, false)
-	check(userIDs[1], e3.ID, true)
 
 	check(userIDs[2], e1.ID, true)
 	check(userIDs[2], e2.ID, false)
-	check(userIDs[2], e3.ID, true)
 
 	check(userIDs[3], e1.ID, true)
 	check(userIDs[3], e2.ID, false)
-	check(userIDs[3], e3.ID, true)
 
 	check(noAuthUser, e1.ID, true)
 	check(noAuthUser, e2.ID, false)
-	check(noAuthUser, e3.ID, false)
 
 	utils.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)

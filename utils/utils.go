@@ -43,7 +43,7 @@ func LoadConfig(fileName string) *goconf.Config {
 	return config
 }
 
-func loadRelation(tx *AutoTx, from, to int64) string {
+func LoadRelation(tx *AutoTx, from, to int64) string {
 	if from == 0 || to == 0 {
 		return models.RelationshipRelationNone
 	}
@@ -111,7 +111,7 @@ func CanViewTlog(tx *AutoTx, userID *models.UserID, tlogID int64, privacy string
 		return true
 	}
 
-	relationFrom := loadRelation(tx, tlogID, userID.ID)
+	relationFrom := LoadRelation(tx, tlogID, userID.ID)
 	if relationFrom == models.RelationshipRelationIgnored {
 		return false
 	}
@@ -124,7 +124,7 @@ func CanViewTlog(tx *AutoTx, userID *models.UserID, tlogID int64, privacy string
 	case models.EntryPrivacyInvited:
 		return userID.IsInvited
 	case models.EntryPrivacyFollowers:
-		relationTo := loadRelation(tx, userID.ID, tlogID)
+		relationTo := LoadRelation(tx, userID.ID, tlogID)
 		return relationTo == models.RelationshipRelationFollowed
 	}
 
@@ -150,10 +150,6 @@ func CanViewEntry(tx *AutoTx, userID *models.UserID, entryID int64) bool {
 		return true
 	}
 
-	if privacy == models.EntryPrivacyAnonymous {
-		return userID.ID > 0
-	}
-
 	if !CanViewTlogID(tx, userID, tlogID) {
 		return false
 	}
@@ -166,7 +162,7 @@ func CanViewEntry(tx *AutoTx, userID *models.UserID, entryID int64) bool {
 	case models.EntryPrivacyInvited:
 		return userID.IsInvited
 	case models.EntryPrivacyFollowers:
-		relationTo := loadRelation(tx, userID.ID, tlogID)
+		relationTo := LoadRelation(tx, userID.ID, tlogID)
 		return relationTo == models.RelationshipRelationFollowed
 	case models.EntryPrivacySome:
 		if userID.ID == 0 {

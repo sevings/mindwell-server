@@ -5,6 +5,7 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"github.com/sevings/mindwell-server/utils"
 	"strconv"
@@ -33,6 +34,14 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.MePutMeOnlineHandler = me.PutMeOnlineHandlerFunc(newMyOnlineSetter(srv))
 
 	srv.API.UsersGetUsersHandler = users.GetUsersHandlerFunc(newUsersLoader(srv))
+
+	srv.API.ThemesGetThemesHandler = themes.GetThemesHandlerFunc(newThemesLoader(srv))
+	srv.API.ThemesPostThemesHandler = themes.PostThemesHandlerFunc(newThemeCreator(srv))
+
+	srv.API.ThemesGetThemesNameHandler = themes.GetThemesNameHandlerFunc(newThemeLoader(srv))
+	srv.API.ThemesPutThemesNameHandler = themes.PutThemesNameHandlerFunc(newThemeEditor(srv))
+
+	srv.API.ThemesGetThemesNameFollowersHandler = themes.GetThemesNameFollowersHandlerFunc(newThemeFollowersLoader(srv))
 }
 
 const profileQuery = `

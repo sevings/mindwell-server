@@ -37,6 +37,8 @@ securityDefinitions:
       "relations:write": follow, block, hide tlogs, accept followers, invite people
       "settings:read": read account settings
       "settings:write": change account settings
+      "themes:read": read theme info, followers
+      "themes:write": create, edit themes
       "users:read": read profile info, relations
       "users:write": change profile info, avatar, etc.
       "votes:write": vote and unvote entries and comments
@@ -249,12 +251,16 @@ definitions:
       - $ref: '#/definitions/Friend'
       - type: object
         properties:
+          isTheme:
+            type: boolean
           isDaylog:
             type: boolean
           createdAt:
             type: number
             format: double
           invitedBy:
+            $ref: '#/definitions/User'
+          createdBy:
             $ref: '#/definitions/User'
           ageLowerBound:
             type: integer
@@ -367,6 +373,8 @@ definitions:
         minimum: 1
       author:
         $ref: '#/definitions/User'
+      user:
+        $ref: '#/definitions/User'
       createdAt:
         type: number
         format: double
@@ -396,7 +404,7 @@ definitions:
         type: integer
       privacy:
         type: string
-        enum: [all, registered, invited, followers, some, me, anonymous]
+        enum: [all, registered, invited, followers, some, me]
       visibleFor:
         type: array
         items:
@@ -404,6 +412,8 @@ definitions:
       isCommentable:
         type: boolean
       inLive:
+        type: boolean
+      isAnonymous:
         type: boolean
       commentCount:
         type: integer
@@ -1740,6 +1750,371 @@ paths:
           description: User not found
           schema:
             $ref: '#/definitions/Error'
+  /themes:
+    get:
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "themes:read" ]
+      parameters:
+        - in: query
+          name: top
+          type: string
+          enum: [new, rank]
+          default: new
+        - in: query
+          name: query
+          type: string
+          minLength: 1
+          maxLength: 50
+      tags:
+        - themes
+      responses:
+        200:
+          description: OK
+          schema:
+            type: object
+            properties:
+              top:
+                type: string
+              query:
+                type: string
+              themes:
+                type: array
+                items:
+                  $ref: '#/definitions/Friend'
+    post:
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "themes:write" ]
+      tags:
+        - themes
+      consumes:
+        - multipart/form-data
+        - application/x-www-form-urlencoded
+      parameters:
+        - in: formData
+          name: name
+          type: string
+          minLength: 1
+          maxLength: 20
+          required: true
+          pattern: "^[a-zA-Z][a-zA-Z0-9\\-_]*$"
+        - in: formData
+          name: showName
+          type: string
+          minLength: 1
+          maxLength: 20
+          required: true
+          pattern: "\\s*\\S+.*"
+      responses:
+        200:
+          description: theme data
+          schema:
+            $ref: '#/definitions/Profile'
+        400:
+          description: name already exists
+          schema:
+            $ref: '#/definitions/Error'
+        403:
+          description: access denied
+          schema:
+            $ref: '#/definitions/Error'
+  /themes/{name}:
+    parameters:
+      - $ref: '#/parameters/pathName'
+    get:
+      security:
+        - OAuth2App: []
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "themes:read" ]
+      tags:
+        - themes
+      responses:
+        200:
+          description: Theme data
+          schema:
+            $ref: '#/definitions/Profile'
+        404:
+          description: Theme not found
+          schema:
+            $ref: '#/definitions/Error'
+    put:
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "themes:write" ]
+      tags:
+        - themes
+      consumes:
+        - multipart/form-data
+        - application/x-www-form-urlencoded
+      parameters:
+        - in: formData
+          name: showName
+          type: string
+          minLength: 1
+          maxLength: 20
+          required: true
+          pattern: "\\s*\\S+.*"
+        - in: formData
+          name: isDaylog
+          type: boolean
+          default: false
+        - in: formData
+          name: privacy
+          type: string
+          enum: [all, invited, registered]
+          required: true
+        - in: formData
+          name: title
+          type: string
+          maxLength: 500
+          default: ''
+        - in: formData
+          name: showInTops
+          type: boolean
+          default: false
+      responses:
+        200:
+          description: theme data
+          schema:
+            $ref: '#/definitions/Profile'
+        403:
+          description: access denied
+          schema:
+            $ref: '#/definitions/Error'
+  /themes/{name}/avatar:
+    parameters:
+      - $ref: '#/parameters/pathName'
+    put:
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "themes:write" ]
+      tags:
+        - themes
+      consumes:
+        - multipart/form-data
+      parameters:
+        - in: formData
+          name: file
+          type: file
+          required: true
+      responses:
+        204:
+          description: OK
+        400:
+          description: bad request
+          schema:
+            $ref: '#/definitions/Error'
+  /themes/{name}/cover:
+    parameters:
+      - $ref: '#/parameters/pathName'
+    put:
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "themes:write" ]
+      tags:
+        - themes
+      consumes:
+        - multipart/form-data
+      parameters:
+        - in: formData
+          name: file
+          type: file
+          required: true
+      responses:
+        204:
+          description: OK
+        400:
+          description: bad request
+          schema:
+            $ref: '#/definitions/Error'
+  /themes/{name}/followers:
+    parameters:
+      - $ref: '#/parameters/pathName'
+    get:
+      parameters:
+        - $ref: '#/parameters/limit'
+        - $ref: '#/parameters/after'
+        - $ref: '#/parameters/before'
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "themes:read" ]
+      tags:
+        - themes
+      responses:
+        200:
+          description: Theme list
+          schema:
+            $ref: '#/definitions/FriendList'
+        403:
+          description: access denied
+          schema:
+            $ref: '#/definitions/Error'
+        404:
+          description: Theme not found
+          schema:
+            $ref: '#/definitions/Error'
+  /themes/{name}/tlog:
+    parameters:
+      - $ref: '#/parameters/pathName'
+    get:
+      parameters:
+        - $ref: '#/parameters/limit'
+        - $ref: '#/parameters/after'
+        - $ref: '#/parameters/before'
+        - $ref: '#/parameters/tag'
+        - $ref: '#/parameters/sort'
+        - $ref: '#/parameters/query'
+      security:
+        - OAuth2App: []
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "entries:read" ]
+      tags:
+        - themes
+      responses:
+        200:
+          description: Entry list
+          schema:
+            $ref: '#/definitions/Feed'
+        404:
+          description: Theme not found
+          schema:
+            $ref: '#/definitions/Error'
+    post:
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "entries:write" ]
+      tags:
+        - themes
+      consumes:
+        - multipart/form-data
+        - application/x-www-form-urlencoded
+      parameters:
+        - in: formData
+          name: title
+          type: string
+          maxLength: 500
+          default: ''
+        - in: formData
+          name: content
+          type: string
+          required: true
+          minLength: 1
+          maxLength: 30000
+          pattern: "\\s*\\S+.*"
+        - in: formData
+          name: images
+          type: array
+          maxItems: 10
+          uniqueItems: true
+          items:
+            type: integer
+            format: int64
+            minimum: 1
+        - in: formData
+          name: tags
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
+        - in: formData
+          name: privacy
+          type: string
+          enum: [all, registered, invited, followers]
+          required: true
+        - in: formData
+          name: isCommentable
+          type: boolean
+          default: true
+        - in: formData
+          name: isVotable
+          type: boolean
+          default: false
+        - in: formData
+          name: inLive
+          type: boolean
+          default: false
+        - in: formData
+          name: isAnonymous
+          type: boolean
+          default: false
+      responses:
+        201:
+          description: Entry data
+          schema:
+            $ref: '#/definitions/Entry'
+        403:
+          description: access denied or post in live restriction
+          schema:
+            $ref: '#/definitions/Error'
+  /themes/{name}/calendar:
+    parameters:
+      - $ref: '#/parameters/pathName'
+    get:
+      parameters:
+        - $ref: '#/parameters/start'
+        - $ref: '#/parameters/end'
+        - $ref: '#/parameters/bigLimit'
+      security:
+        - OAuth2App: []
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "entries:read" ]
+      tags:
+        - themes
+      responses:
+        200:
+          description: Entry list
+          schema:
+            $ref: '#/definitions/Calendar'
+        404:
+          description: Theme not found
+          schema:
+            $ref: '#/definitions/Error'
+  /themes/{name}/images:
+    parameters:
+      - $ref: '#/parameters/pathName'
+    get:
+      parameters:
+        - $ref: '#/parameters/limit'
+        - $ref: '#/parameters/after'
+        - $ref: '#/parameters/before'
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "images:read" ]
+      tags:
+        - themes
+      responses:
+        200:
+          description: Image list
+          schema:
+            $ref: '#/definitions/ImageList'
+        404:
+          description: Theme not found
+          schema:
+            $ref: '#/definitions/Error'
+  /themes/{name}/tags:
+    get:
+      parameters:
+        - $ref: '#/parameters/pathName'
+        - $ref: '#/parameters/limit'
+      security:
+        - OAuth2App: [ ]
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "entries:read" ]
+      tags:
+        - themes
+      responses:
+        200:
+          description: Theme tags
+          schema:
+            $ref: '#/definitions/TagList'
+        404:
+          description: Theme not found
+          schema:
+            $ref: '#/definitions/Error'
   /me:
     get:
       security:
@@ -2435,73 +2810,6 @@ paths:
           description: No entries found
           schema:
             $ref: '#/definitions/Error'
-  /entries/anonymous:
-    get:
-      parameters:
-        - $ref: '#/parameters/limit'
-        - $ref: '#/parameters/after'
-        - $ref: '#/parameters/before'
-        - $ref: '#/parameters/tag'
-        - $ref: '#/parameters/query'
-      security:
-        - OAuth2Password: [ ]
-        - OAuth2Code: [ "entries:read" ]
-      tags:
-        - entries
-      responses:
-        200:
-          description: Entry list
-          schema:
-            $ref: '#/definitions/Feed'
-    post:
-      security:
-        - OAuth2Password: [ ]
-        - OAuth2Code: [ "entries:write" ]
-      tags:
-        - entries
-      consumes:
-        - multipart/form-data
-        - application/x-www-form-urlencoded
-      parameters:
-        - in: formData
-          name: title
-          type: string
-          default: ''
-          maxLength: 500
-        - in: formData
-          name: content
-          type: string
-          minLength: 1
-          maxLength: 30000
-          required: true
-          pattern: "\\s*\\S+.*"
-        - in: formData
-          name: images
-          type: array
-          maxItems: 5
-          uniqueItems: true
-          items:
-            type: integer
-            format: int64
-            minimum: 1
-        - in: formData
-          name: tags
-          type: array
-          maxItems: 5
-          uniqueItems: true
-          items:
-            type: string
-            minLength: 1
-            maxLength: 50
-        - in: formData
-          name: anonymous_comments
-          type: boolean
-          default: false
-      responses:
-        201:
-          description: Entry data
-          schema:
-            $ref: '#/definitions/Entry'
   /entries/tags:
     get:
       parameters:
@@ -2582,7 +2890,7 @@ paths:
         - in: formData
           name: privacy
           type: string
-          enum: [all, registered, invited, followers, some, me, anonymous]
+          enum: [all, registered, invited, followers, some, me]
           required: true
         - in: formData
           name: visibleFor
