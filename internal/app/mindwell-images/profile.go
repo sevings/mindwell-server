@@ -61,7 +61,7 @@ func NewThemeAvatarUpdater(mi *MindwellImages) func(themes.PutThemesNameAvatarPa
 
 		themeID, allowed := checkThemeAdmin(tx, userID, params.Name)
 		if !allowed {
-			return themes.NewPutThemesNameAvatarBadRequest()
+			return themes.NewPutThemesNameAvatarForbidden()
 		}
 
 		ok := updateProfilePhoto(mi, themeID, params.File, ActionAvatar)
@@ -80,7 +80,7 @@ func NewThemeCoverUpdater(mi *MindwellImages) func(themes.PutThemesNameCoverPara
 
 		themeID, allowed := checkThemeAdmin(tx, userID, params.Name)
 		if !allowed {
-			return themes.NewPutThemesNameCoverBadRequest()
+			return themes.NewPutThemesNameCoverForbidden()
 		}
 
 		ok := updateProfilePhoto(mi, themeID, params.File, ActionCover)
