@@ -3137,6 +3137,24 @@ paths:
           description: Entry not found
           schema:
             $ref: '#/definitions/Error'
+  /entries/{id}/commentator:
+    parameters:
+      - $ref: '#/parameters/pathId'
+    get:
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "comments:write" ]
+      tags:
+        - comments
+      responses:
+        200:
+          description: your profile as a comment author
+          schema:
+            $ref: '#/definitions/User'
+        404:
+          description: Entry not found
+          schema:
+            $ref: '#/definitions/Error'
   /entries/{id}/comments:
     parameters:
       - $ref: '#/parameters/pathId'

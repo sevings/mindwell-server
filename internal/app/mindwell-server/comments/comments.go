@@ -25,6 +25,8 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 
 	srv.API.CommentsGetEntriesIDCommentsHandler = comments.GetEntriesIDCommentsHandlerFunc(newEntryCommentsLoader(srv))
 	srv.API.CommentsPostEntriesIDCommentsHandler = comments.PostEntriesIDCommentsHandlerFunc(newCommentPoster(srv))
+
+	srv.API.CommentsGetEntriesIDCommentatorHandler = comments.GetEntriesIDCommentatorHandlerFunc(newCommentatorLoader(srv))
 }
 
 var imgRe *regexp.Regexp
@@ -362,7 +364,7 @@ func newEntryCommentsLoader(srv *utils.MindwellServer) func(comments.GetEntriesI
 	}
 }
 
-func canPostComment(tx *utils.AutoTx, userID *models.UserID, entryID int64) (bool, int64) {
+func commentatorID(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entryID int64) (int64, *models.Error) {
 	const q = `
 		SELECT author_id, user_id, is_commentable, is_anonymous
 		FROM entries
@@ -374,17 +376,18 @@ func canPostComment(tx *utils.AutoTx, userID *models.UserID, entryID int64) (boo
 	tx.Query(q, entryID).Scan(&entryAuthorID, &entryUserID, &commentable, &anonymous)
 	if entryUserID == userID.ID {
 		if anonymous {
-			return true, entryAuthorID
+			return entryAuthorID, nil
 		}
 
-		return true, entryUserID
+		return entryUserID, nil
 	}
 
-	if !commentable || userID.Ban.Comment {
-		return false, userID.ID
+	if !commentable || userID.Ban.Comment || !utils.CanViewEntry(tx, userID, entryID) {
+		err := srv.NewError(&i18n.Message{ID: "cant_comment", Other: "You can't comment this entry."})
+		return 0, err
 	}
 
-	return utils.CanViewEntry(tx, userID, entryID), userID.ID
+	return userID.ID, nil
 }
 
 func postComment(tx *utils.AutoTx, userID *models.UserID, comment *models.Comment) {
@@ -417,9 +420,8 @@ func newCommentPoster(srv *utils.MindwellServer) func(comments.PostEntriesIDComm
 				return comments.NewPostEntriesIDCommentsCreated().WithPayload(prev)
 			}
 
-			allowed, authorID := canPostComment(tx, userID, params.ID)
-			if !allowed {
-				err := srv.NewError(&i18n.Message{ID: "cant_comment", Other: "You can't comment this entry."})
+			authorID, err := commentatorID(srv, tx, userID, params.ID)
+			if err != nil {
 				return comments.NewPostEntriesIDCommentsNotFound().WithPayload(err)
 			}
 
@@ -440,6 +442,20 @@ func newCommentPoster(srv *utils.MindwellServer) func(comments.PostEntriesIDComm
 			setPrev(comment, userID)
 
 			return comments.NewPostEntriesIDCommentsCreated().WithPayload(comment)
+		})
+	}
+}
+
+func newCommentatorLoader(srv *utils.MindwellServer) func(comments.GetEntriesIDCommentatorParams, *models.UserID) middleware.Responder {
+	return func(params comments.GetEntriesIDCommentatorParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			authorID, err := commentatorID(srv, tx, userID, params.ID)
+			if err != nil {
+				return comments.NewGetEntriesIDCommentatorNotFound().WithPayload(err)
+			}
+
+			author := users.LoadUserByID(srv, tx, authorID)
+			return comments.NewGetEntriesIDCommentatorOK().WithPayload(author)
 		})
 	}
 }
