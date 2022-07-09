@@ -47,7 +47,7 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 const profileQuery = `
 SELECT users.id, users.name, users.show_name,
 users.avatar,
-gender.type, users.is_daylog,
+gender.type, users.is_daylog, users.creator_id IS NOT NULL,
 user_privacy.type,
 users.title, users.rank, 
 extract(epoch from users.created_at), extract(epoch from users.last_seen_at), is_online(users.last_seen_at),
@@ -89,7 +89,7 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 	tx.Query(query, arg)
 	tx.Scan(&profile.ID, &profile.Name, &profile.ShowName,
 		&avatar,
-		&profile.Gender, &profile.IsDaylog,
+		&profile.Gender, &profile.IsDaylog, &profile.IsTheme,
 		&profile.Privacy,
 		&profile.Title, &profile.Rank,
 		&profile.CreatedAt, &profile.LastSeenAt, &profile.IsOnline,
@@ -194,7 +194,7 @@ func relationship(tx *utils.AutoTx, query string, from, to int64) string {
 }
 
 const usersQuerySelect = `
-SELECT users.id, users.name, users.show_name, gender.type,
+SELECT users.id, users.name, users.show_name, gender.type, users.creator_id IS NOT NULL,
 is_online(users.last_seen_at), extract(epoch from users.last_seen_at), users.title, users.rank,
 user_privacy.type, users.avatar, users.cover,
 users.entries_count, users.followings_count, users.followers_count, 
@@ -221,7 +221,7 @@ func loadUserList(srv *utils.MindwellServer, tx *utils.AutoTx, reverse bool) ([]
 		user.Counts = &models.FriendAO1Counts{}
 		var avatar, cover string
 
-		ok := tx.Scan(&user.ID, &user.Name, &user.ShowName, &user.Gender,
+		ok := tx.Scan(&user.ID, &user.Name, &user.ShowName, &user.Gender, &user.IsTheme,
 			&user.IsOnline, &user.LastSeenAt, &user.Title, &user.Rank,
 			&user.Privacy, &avatar, &cover,
 			&user.Counts.Entries, &user.Counts.Followings, &user.Counts.Followers,

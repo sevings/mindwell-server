@@ -67,7 +67,7 @@ func createTheme(tx *utils.AutoTx, userID *models.UserID, name, showName string)
 	const q = `
 		INSERT INTO users 
 		(name, show_name, email, password_hash, creator_id)
-		values($1, $2, '', '', $3, $4)
+		values($1, $2, $1, '', $3)
 		RETURNING id`
 
 	user := tx.QueryInt64(q, name, showName, userID.ID)

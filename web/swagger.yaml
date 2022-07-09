@@ -188,6 +188,8 @@ definitions:
       - $ref: '#/definitions/User'
       - type: object
         properties:
+          isTheme:
+            type: boolean
           gender:
             type: string
             enum: [male, female, not set]
@@ -251,8 +253,6 @@ definitions:
       - $ref: '#/definitions/Friend'
       - type: object
         properties:
-          isTheme:
-            type: boolean
           isDaylog:
             type: boolean
           createdAt:
