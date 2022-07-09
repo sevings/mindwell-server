@@ -142,6 +142,11 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 		return &profile
 	}
 
+	if profile.IsTheme {
+		profile.LastSeenAt = 0
+		profile.IsOnline = false
+	}
+
 	const relationQuery = `
 			SELECT relation.type
 			FROM relations, relation
@@ -230,6 +235,11 @@ func loadUserList(srv *utils.MindwellServer, tx *utils.AutoTx, reverse bool) ([]
 			&nextBefore)
 		if !ok {
 			break
+		}
+
+		if user.IsTheme {
+			user.LastSeenAt = 0
+			user.IsOnline = false
 		}
 
 		user.Avatar = srv.NewAvatar(avatar)

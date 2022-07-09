@@ -327,3 +327,9 @@ CREATE OR REPLACE FUNCTION mindwell.recalc_karma() RETURNS VOID AS $$
     FROM upd
     WHERE users.id = upd.id AND users.rank <> upd.rank;
 $$ LANGUAGE SQL;
+
+ALTER TABLE users
+ALTER COLUMN rank
+DROP DEFAULT;
+
+DROP FUNCTION next_user_rank();

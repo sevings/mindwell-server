@@ -65,19 +65,6 @@ INSERT INTO "mindwell"."alignment" VALUES(3, 'justify');
 -- -------------------------------------------------------------
 
 
-CREATE OR REPLACE FUNCTION next_user_rank() RETURNS INTEGER AS $$
-    DECLARE
-        pos INTEGER;
-    BEGIN
-        pos = (
-            SELECT COUNT(*) + 1
-            FROM users
-            WHERE karma >= 0
-        );
-        RETURN pos;
-    END;
-$$ language plpgsql;
-
 CREATE OR REPLACE FUNCTION to_search_string(name TEXT, show_name TEXT, country TEXT, city TEXT)
    RETURNS TEXT AS $$
 BEGIN
@@ -97,7 +84,7 @@ CREATE TABLE "mindwell"."users" (
 	"privacy" Integer DEFAULT 0 NOT NULL,
 	"title" Text DEFAULT '' NOT NULL,
 	"last_seen_at" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "rank" Integer DEFAULT next_user_rank() NOT NULL,
+    "rank" Integer NOT NULL,
 	"karma" Real DEFAULT 0 NOT NULL,
 	"created_at" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	"last_invite" Date DEFAULT CURRENT_DATE NOT NULL,

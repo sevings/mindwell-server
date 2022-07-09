@@ -64,13 +64,16 @@ func newThemeLoader(srv *utils.MindwellServer) func(themes.GetThemesNameParams, 
 }
 
 func createTheme(tx *utils.AutoTx, userID *models.UserID, name, showName string) int64 {
+	const rankQ = "SELECT COUNT(*) + 1 FROM users WHERE creator_id IS NOT NULL AND karma >= 0"
+	rank := tx.QueryInt64(rankQ)
+
 	const q = `
 		INSERT INTO users 
-		(name, show_name, email, password_hash, creator_id)
-		values($1, $2, $1, '', $3)
+		(name, show_name, email, password_hash, creator_id, rank)
+		values($1, $2, $1, '', $3, $4)
 		RETURNING id`
 
-	user := tx.QueryInt64(q, name, showName, userID.ID)
+	user := tx.QueryInt64(q, name, showName, userID.ID, rank)
 	return user
 }
 
