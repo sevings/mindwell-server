@@ -62,13 +62,18 @@ font_family.type, users.font_size, alignment.type,
 users.invited_by, 
 invited_by.name, invited_by.show_name,
 is_online(invited_by.last_seen_at), 
-invited_by.avatar
+invited_by.avatar, 
+users.creator_id, 
+created_by.name, created_by.show_name,
+is_online(created_by.last_seen_at), 
+created_by.avatar
 FROM users 
 INNER JOIN gender ON gender.id = users.gender
 INNER JOIN user_privacy ON users.privacy = user_privacy.id
 INNER JOIN font_family ON users.font_family = font_family.id
 INNER JOIN alignment ON users.text_alignment = alignment.id
-LEFT JOIN users AS invited_by ON users.invited_by = invited_by.id `
+LEFT JOIN users AS invited_by ON users.invited_by = invited_by.id
+LEFT JOIN users AS created_by ON users.creator_id = created_by.id  `
 
 func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, userID *models.UserID, arg interface{}) *models.Profile {
 	var profile models.Profile
@@ -85,6 +90,10 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 	var invitedByName, invitedByShowName sql.NullString
 	var invitedByIsOnline sql.NullBool
 	var invitedByAvatar sql.NullString
+	var createdByID sql.NullInt64
+	var createdByName, createdByShowName sql.NullString
+	var createdByIsOnline sql.NullBool
+	var createdByAvatar sql.NullString
 
 	tx.Query(query, arg)
 	tx.Scan(&profile.ID, &profile.Name, &profile.ShowName,
@@ -104,7 +113,11 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 		&invitedByID,
 		&invitedByName, &invitedByShowName,
 		&invitedByIsOnline,
-		&invitedByAvatar)
+		&invitedByAvatar,
+		&createdByID,
+		&createdByName, &createdByShowName,
+		&createdByIsOnline,
+		&createdByAvatar)
 
 	if userID.ID == 0 && profile.Privacy != "all" {
 		return &models.Profile{}
@@ -125,6 +138,17 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 			profile.InvitedBy.ShowName = invitedByShowName.String
 			profile.InvitedBy.IsOnline = invitedByIsOnline.Bool
 			profile.InvitedBy.Avatar = srv.NewAvatar(invitedByAvatar.String)
+		}
+	} else if createdByID.Valid {
+		profile.CreatedBy = &models.User{
+			ID: createdByID.Int64,
+		}
+
+		if createdByName.Valid {
+			profile.CreatedBy.Name = createdByName.String
+			profile.CreatedBy.ShowName = createdByShowName.String
+			profile.CreatedBy.IsOnline = createdByIsOnline.Bool
+			profile.CreatedBy.Avatar = srv.NewAvatar(createdByAvatar.String)
 		}
 	}
 
