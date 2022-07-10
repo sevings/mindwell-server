@@ -63,6 +63,18 @@ func newThemeLoader(srv *utils.MindwellServer) func(themes.GetThemesNameParams, 
 	}
 }
 
+func removeInvite(tx *utils.AutoTx, userID int64) bool {
+	const q = `
+		DELETE FROM invites
+		WHERE referrer_id = $1
+		LIMIT 1
+		`
+
+	tx.Exec(q, userID)
+
+	return tx.RowsAffected() == 1
+}
+
 func createTheme(tx *utils.AutoTx, userID *models.UserID, name, showName string) int64 {
 	const rankQ = "SELECT COUNT(*) + 1 FROM users WHERE creator_id IS NOT NULL AND karma >= 0"
 	rank := tx.QueryInt64(rankQ)
@@ -79,7 +91,7 @@ func createTheme(tx *utils.AutoTx, userID *models.UserID, name, showName string)
 
 func newThemeCreator(srv *utils.MindwellServer) func(themes.PostThemesParams, *models.UserID) middleware.Responder {
 	return func(params themes.PostThemesParams, userID *models.UserID) middleware.Responder {
-		if userID.Authority != models.UserIDAuthorityAdmin {
+		if userID.Ban.Invite {
 			err := srv.NewError(&i18n.Message{ID: "cant_create_theme", Other: "You are not allowed to create themes."})
 			return themes.NewPostThemesForbidden().WithPayload(err)
 		}
@@ -90,6 +102,13 @@ func newThemeCreator(srv *utils.MindwellServer) func(themes.PostThemesParams, *m
 			if oldID > 0 {
 				err := srv.NewError(&i18n.Message{ID: "theme_name_is_not_free", Other: "Theme name is not free."})
 				return themes.NewPostThemesBadRequest().WithPayload(err)
+			}
+
+			if userID.Authority != models.UserIDAuthorityAdmin {
+				if ok := removeInvite(tx, userID.ID); !ok {
+					err := srv.StandardError("invalid_invite")
+					return themes.NewPostThemesBadRequest().WithPayload(err)
+				}
 			}
 
 			const query = profileQuery + "WHERE users.id = $1 AND users.creator_id IS NOT NULL"
