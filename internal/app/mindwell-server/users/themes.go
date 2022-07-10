@@ -166,8 +166,7 @@ func newThemeEditor(srv *utils.MindwellServer) func(themes.PutThemesNameParams, 
 			}
 
 			theme := editThemeProfile(srv, tx, userID, params)
-
-			if tx.Error() != nil {
+			if theme.ID == 0 {
 				err := srv.StandardError("no_theme")
 				return themes.NewPutThemesNameForbidden().WithPayload(err)
 			}
@@ -180,7 +179,7 @@ func newThemeEditor(srv *utils.MindwellServer) func(themes.PutThemesNameParams, 
 func newThemeFollowersLoader(srv *utils.MindwellServer) func(themes.GetThemesNameFollowersParams, *models.UserID) middleware.Responder {
 	return func(params themes.GetThemesNameFollowersParams, userID *models.UserID) middleware.Responder {
 		list := loadRelatedUsers(srv, userID, usersQueryToName, usersToNameQueryWhere,
-			models.RelationshipRelationFollowed, userID.Name, models.FriendListRelationFollowers,
+			models.RelationshipRelationFollowed, params.Name, models.FriendListRelationFollowers,
 			*params.After, *params.Before, *params.Limit)
 
 		if list == nil {
