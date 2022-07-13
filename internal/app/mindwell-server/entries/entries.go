@@ -428,17 +428,25 @@ func newThemePoster(srv *utils.MindwellServer) func(themes.PostThemesNameTlogPar
 				return themes.NewPostThemesNameTlogForbidden().WithPayload(postThemeErr)
 			}
 
-			const themeQ = `SELECT id FROM users WHERE lower(name) = lower($1) AND creator_id IS NOT NULL`
-			themeID := tx.QueryInt64(themeQ, params.Name)
+			const themeQ = `SELECT id, creator_id FROM users WHERE lower(name) = lower($1) AND creator_id IS NOT NULL`
+			var themeID, creatorID int64
+			tx.Query(themeQ, params.Name).Scan(&themeID, &creatorID)
 
-			relationTo := utils.LoadRelation(tx, userID.ID, themeID)
-			if relationTo != models.RelationshipRelationFollowed {
-				return themes.NewPostThemesNameTlogForbidden().WithPayload(postThemeErr)
+			if themeID == 0 {
+				err := srv.StandardError("no_theme")
+				return themes.NewPutThemesNameForbidden().WithPayload(err)
 			}
 
-			relationFrom := utils.LoadRelation(tx, themeID, userID.ID)
-			if relationFrom == models.RelationshipRelationIgnored {
-				return themes.NewPostThemesNameTlogForbidden().WithPayload(postThemeErr)
+			if creatorID != userID.ID {
+				relationTo := utils.LoadRelation(tx, userID.ID, themeID)
+				if relationTo != models.RelationshipRelationFollowed {
+					return themes.NewPostThemesNameTlogForbidden().WithPayload(postThemeErr)
+				}
+
+				relationFrom := utils.LoadRelation(tx, themeID, userID.ID)
+				if relationFrom == models.RelationshipRelationIgnored {
+					return themes.NewPostThemesNameTlogForbidden().WithPayload(postThemeErr)
+				}
 			}
 
 			entry := &models.Entry{

@@ -190,6 +190,10 @@ func isOpenForMe(profile *models.Profile, me *models.UserID) bool {
 		return true
 	}
 
+	if profile.CreatedBy != nil && profile.CreatedBy.ID == me.ID {
+		return true
+	}
+
 	if profile.Relations.ToMe == models.RelationshipRelationIgnored {
 		return false
 	}
