@@ -639,12 +639,17 @@ func entryVoteStatus(vote sql.NullFloat64) int64 {
 }
 
 func setEntryRights(entry *models.Entry, userID *models.UserID) {
+	authorID := entry.Author.ID
+	if entry.User != nil {
+		authorID = entry.User.ID
+	}
+
 	entry.Rights = &models.EntryRights{
-		Edit:     entry.Author.ID == userID.ID,
-		Delete:   entry.Author.ID == userID.ID,
-		Comment:  entry.Author.ID == userID.ID || (!userID.Ban.Comment && entry.IsCommentable),
-		Vote:     entry.Author.ID != userID.ID && !userID.Ban.Vote && entry.Rating.IsVotable,
-		Complain: entry.Author.ID != userID.ID && userID.ID > 0,
+		Edit:     authorID == userID.ID,
+		Delete:   authorID == userID.ID,
+		Comment:  authorID == userID.ID || (!userID.Ban.Comment && entry.IsCommentable),
+		Vote:     authorID != userID.ID && !userID.Ban.Vote && entry.Rating.IsVotable,
+		Complain: authorID != userID.ID && userID.ID > 0,
 	}
 }
 
