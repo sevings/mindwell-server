@@ -48,9 +48,9 @@ func tlogTagsQuery(userID *models.UserID, limit int64, tlog string) *sqlf.Stmt {
 
 func liveTagsQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 	q := tagsQuery(limit).
-		Join("users", "entries.author_id = users.id").
+		Join("users AS authors", "entries.author_id = authors.id").
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
-		Join("user_privacy", "users.privacy = user_privacy.id").
+		Join("user_privacy", "authors.privacy = user_privacy.id").
 		Where("age(entries.created_at) <= interval '1 month'").
 		OrderBy("cnt DESC").
 		OrderBy("max(entries.created_at) DESC")

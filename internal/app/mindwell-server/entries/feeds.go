@@ -153,7 +153,7 @@ END
 
 func AddLiveInvitedQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt {
 	return addLiveQuery(q, userID, tag).
-		Where("authors.invited_by IS NOT NULL")
+		Where("(authors.invited_by IS NOT NULL OR authors.creator_id IS NOT NULL)")
 }
 
 func liveInvitedQuery(userID *models.UserID, limit int64, tag string) *sqlf.Stmt {
@@ -163,13 +163,13 @@ func liveInvitedQuery(userID *models.UserID, limit int64, tag string) *sqlf.Stmt
 
 func addLiveWaitingQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt {
 	return addLiveQuery(q, userID, tag).
-		Where("authors.invited_by IS NULL").
+		Where("authors.invited_by IS NULL AND authors.creator_id IS NULL").
 		Where("now() - entries.created_at <= interval '3 months'")
 }
 
 func addLiveCommentsQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt {
 	return addLiveQuery(q, userID, tag).
-		Where("authors.invited_by IS NOT NULL").
+		Where("(authors.invited_by IS NOT NULL OR authors.creator_id IS NOT NULL)").
 		Where("entries.comments_count > 0").
 		OrderBy("last_comment DESC")
 }
