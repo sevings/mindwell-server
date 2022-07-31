@@ -44,13 +44,17 @@ func (pm *Postman) Start(smtpHost string, smtpPort int) error {
 	smtp.Host = smtpHost
 	smtp.Port = smtpPort
 	smtp.Authentication = mail.AuthNone
-	smtp.KeepAlive = true
 
 	smtpClient, err := smtp.Connect()
 	if err == nil {
 		pm.Logger.Info(fmt.Sprintf("Connected to smtp://%s:%d", smtpHost, smtpPort))
 	} else {
 		return err
+	}
+
+	err = smtpClient.Quit()
+	if err != nil {
+		pm.Logger.Error(err.Error())
 	}
 
 	go func() {
@@ -65,49 +69,43 @@ func (pm *Postman) Start(smtpHost string, smtpPort int) error {
 			count = 0
 		}
 
-		for {
-			select {
-			case msg, ok := <-pm.ch:
-				if !ok {
-					close(pm.stop)
-					return
-				}
+		for msg := range pm.ch {
+			if msg.Error != nil {
+				pm.Logger.Warn(msg.Error.Error())
+				continue
+			}
 
-				if msg.Error != nil {
-					pm.Logger.Warn(msg.Error.Error())
-					continue
-				}
+			timeLeft := time.Until(until)
+			if timeLeft < 0 {
+				resetCounter()
+			}
 
-				timeLeft := time.Until(until)
-				if timeLeft < 0 {
-					resetCounter()
-				}
+			if count == limitPerInt {
+				pm.Logger.Warn("exceeded the limit of emails",
+					zap.Float64("timeout", timeLeft.Minutes()),
+				)
+				time.Sleep(timeLeft)
+				resetCounter()
+			}
 
-				if count == limitPerInt {
-					pm.Logger.Warn("exceeded the limit of emails",
-						zap.Float64("timeout", timeLeft.Minutes()),
-					)
-					time.Sleep(timeLeft)
-					resetCounter()
-				}
+			count++
 
-				count++
+			smtpClient, err = smtp.Connect()
+			if err != nil {
+				pm.Logger.Error(err.Error())
+			}
 
-				err := msg.Send(smtpClient)
-				if err == nil {
-					pm.Logger.Info("sent",
-						zap.String("to", msg.GetRecipients()[0]),
-					)
-				} else {
-					pm.Logger.Error(err.Error())
-				}
-			case <-time.After(30 * time.Second):
-				err := smtpClient.Noop()
-				if err != nil {
-					pm.Logger.Error(err.Error())
-				}
+			err = msg.Send(smtpClient)
+			if err == nil {
+				pm.Logger.Info("sent",
+					zap.String("to", msg.GetRecipients()[0]),
+				)
+			} else {
+				pm.Logger.Error(err.Error())
 			}
 		}
+
+		close(pm.stop)
 	}()
 
 	return nil
