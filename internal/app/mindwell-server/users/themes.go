@@ -64,13 +64,24 @@ func newThemeLoader(srv *utils.MindwellServer) func(themes.GetThemesNameParams, 
 }
 
 func removeInvite(tx *utils.AutoTx, userID int64) bool {
-	const q = `
-		DELETE FROM invites
+	const idQ = `
+		SELECT id
+		FROM invites
 		WHERE referrer_id = $1
 		LIMIT 1
+`
+
+	inviteID := tx.QueryInt64(idQ, userID)
+	if inviteID == 0 {
+		return false
+	}
+
+	const q = `
+		DELETE FROM invites
+		WHERE id = $1
 		`
 
-	tx.Exec(q, userID)
+	tx.Exec(q, inviteID)
 
 	return tx.RowsAffected() == 1
 }
