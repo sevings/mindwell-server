@@ -1,45 +1,56 @@
 package utils
 
 import (
-	"context"
+	"fmt"
 	"go.uber.org/zap"
 	"strconv"
 	"time"
 
-	"github.com/mailgun/mailgun-go/v4"
 	"github.com/matcornic/hermes/v2"
 	"github.com/sevings/mindwell-server/models"
+	mail "github.com/xhit/go-simple-mail/v2"
 )
 
 type Postman struct {
-	url  string
-	mg   mailgun.Mailgun
-	h    hermes.Hermes
-	log  *zap.Logger
-	sprt string
-	ch   chan *mailgun.Message
-	stop chan interface{}
+	BaseUrl   string
+	Support   string
+	Moderator string
+	Logger    *zap.Logger
+	h         hermes.Hermes
+	ch        chan *mail.Email
+	stop      chan interface{}
 }
 
-func NewPostman(domain, apiKey, baseURL, support string, log *zap.Logger) *Postman {
-	pm := &Postman{
-		url: baseURL,
-		mg:  mailgun.NewMailgun(domain, apiKey),
-		h: hermes.Hermes{
-			Theme: &hermes.Flat{},
-			Product: hermes.Product{
-				Name:      "команда Mindwell",
-				Link:      baseURL,
-				Logo:      baseURL + "assets/olympus/img/logo-mindwell.png",
-				Copyright: "© Mindwell.",
-				TroubleText: "Если кнопка '{ACTION}' по какой-то причине не работает, " +
-					"скопируй и вставь в адресную строку браузера следующую ссылку: ",
-			},
+func (pm *Postman) Start(smtpHost string, smtpPort int) error {
+	if pm.BaseUrl == "" || pm.Support == "" || pm.Moderator == "" || pm.Logger == nil {
+		return fmt.Errorf("invalid email settings")
+	}
+
+	pm.h = hermes.Hermes{
+		Theme: &hermes.Flat{},
+		Product: hermes.Product{
+			Name:      "команда Mindwell",
+			Link:      pm.BaseUrl,
+			Logo:      pm.BaseUrl + "assets/olympus/img/logo-mindwell.png",
+			Copyright: "© Mindwell.",
+			TroubleText: "Если кнопка '{ACTION}' по какой-то причине не работает, " +
+				"скопируй и вставь в адресную строку браузера следующую ссылку: ",
 		},
-		log:  log,
-		sprt: support,
-		ch:   make(chan *mailgun.Message, 200),
-		stop: make(chan interface{}),
+	}
+	pm.ch = make(chan *mail.Email, 200)
+	pm.stop = make(chan interface{})
+
+	smtp := mail.NewSMTPClient()
+	smtp.Host = smtpHost
+	smtp.Port = smtpPort
+	smtp.Authentication = mail.AuthNone
+	smtp.KeepAlive = true
+
+	smtpClient, err := smtp.Connect()
+	if err == nil {
+		pm.Logger.Info(fmt.Sprintf("Connected to smtp://%s:%d", smtpHost, smtpPort))
+	} else {
+		return err
 	}
 
 	go func() {
@@ -54,37 +65,52 @@ func NewPostman(domain, apiKey, baseURL, support string, log *zap.Logger) *Postm
 			count = 0
 		}
 
-		for msg := range pm.ch {
-			timeLeft := time.Until(until)
-			if timeLeft < 0 {
-				resetCounter()
-			}
+		for {
+			select {
+			case msg, ok := <-pm.ch:
+				if !ok {
+					close(pm.stop)
+					return
+				}
 
-			if count == limitPerInt {
-				pm.log.Warn("exceeded the limit of emails",
-					zap.Float64("timeout", timeLeft.Minutes()),
-				)
-				time.Sleep(timeLeft)
-				resetCounter()
-			}
+				if msg.Error != nil {
+					pm.Logger.Warn(msg.Error.Error())
+					continue
+				}
 
-			count++
+				timeLeft := time.Until(until)
+				if timeLeft < 0 {
+					resetCounter()
+				}
 
-			resp, id, err := pm.mg.Send(context.Background(), msg)
-			if err == nil {
-				pm.log.Info("sent",
-					zap.String("id", id),
-					zap.String("resp", resp),
-				)
-			} else {
-				log.Error(err.Error())
+				if count == limitPerInt {
+					pm.Logger.Warn("exceeded the limit of emails",
+						zap.Float64("timeout", timeLeft.Minutes()),
+					)
+					time.Sleep(timeLeft)
+					resetCounter()
+				}
+
+				count++
+
+				err := msg.Send(smtpClient)
+				if err == nil {
+					pm.Logger.Info("sent",
+						zap.String("to", msg.GetRecipients()[0]),
+					)
+				} else {
+					pm.Logger.Error(err.Error())
+				}
+			case <-time.After(30 * time.Second):
+				err := smtpClient.Noop()
+				if err != nil {
+					pm.Logger.Error(err.Error())
+				}
 			}
 		}
-
-		close(pm.stop)
 	}()
 
-	return pm
+	return nil
 }
 
 func (pm *Postman) Stop() {
@@ -97,19 +123,24 @@ func (pm *Postman) send(email hermes.Email, address, subj, name string) {
 	email.Body.Signature = "С наилучшими пожеланиями"
 	email.Body.Outros = []string{
 		// "Изменить настройки уведомлений можно в панели управления учетной записью: " +
-		// 	pm.url + "account/email",
+		// 	pm.BaseUrl + "account/email",
 		"Появились вопросы или какая-то проблема? " +
 			"Не стесняйся и просто ответь на это письмо. Мы будем рады помочь. ",
 	}
 
 	text, err := pm.h.GeneratePlainText(email)
 	if err != nil {
-		pm.log.Error(err.Error())
+		pm.Logger.Error(err.Error())
 	}
 
-	from := "Команда Mindwell <support@mindwell.win>"
-	recp := name + " <" + address + ">"
-	msg := pm.mg.NewMessage(from, subj, text, recp)
+	from := fmt.Sprintf("Команда Mindwell <%s>", pm.Support)
+	to := fmt.Sprintf("%s <%s>", name, address)
+
+	msg := mail.NewMSG()
+	msg.SetFrom(from)
+	msg.AddTo(to)
+	msg.SetSubject(subj)
+	msg.SetBody(mail.TextPlain, text)
 
 	// html, err := pm.h.GenerateHTML(email)
 	// if err != nil {
@@ -134,12 +165,17 @@ func (pm *Postman) sendComplain(email hermes.Email, subj string) {
 
 	text, err := pm.h.GeneratePlainText(email)
 	if err != nil {
-		pm.log.Error(err.Error())
+		pm.Logger.Error(err.Error())
 	}
 
-	from := "Команда Mindwell <support@mindwell.win>"
-	recp := "Команда Mindwell <" + pm.sprt + ">"
-	msg := pm.mg.NewMessage(from, subj, text, recp)
+	from := fmt.Sprintf("Команда Mindwell <%s>", pm.Support)
+	to := pm.Moderator
+
+	msg := mail.NewMSG()
+	msg.SetFrom(from)
+	msg.AddTo(to)
+	msg.SetSubject(subj)
+	msg.SetBody(mail.TextPlain, text)
 
 	pm.ch <- msg
 }
@@ -157,7 +193,7 @@ func (pm *Postman) SendGreeting(address, name, code string) {
 					Button: hermes.Button{
 						Color: "#22BC66",
 						Text:  "Начать пользоваться Mindwell",
-						Link:  pm.url + "account/verification/" + address + "?code=" + code,
+						Link:  pm.BaseUrl + "account/verification/" + address + "?code=" + code,
 					},
 				},
 			},
@@ -212,7 +248,7 @@ func (pm *Postman) SendResetPassword(address, name, gender, code string, date in
 					Button: hermes.Button{
 						Color: "#22BC66",
 						Text:  "Сбросить пароль",
-						Link: pm.url + "account/recover?email=" + address +
+						Link: pm.BaseUrl + "account/recover?email=" + address +
 							"&code=" + code + "&date=" + strconv.FormatInt(date, 10),
 					},
 				},
@@ -250,7 +286,7 @@ func (pm *Postman) SendNewComment(address, fromGender, toShowName, entryTitle st
 					Button: hermes.Button{
 						Color: "#22BC66",
 						Text:  "Открыть запись",
-						Link:  pm.url + "entries/" + strconv.FormatInt(cmt.EntryID, 10) + "#comments",
+						Link:  pm.BaseUrl + "entries/" + strconv.FormatInt(cmt.EntryID, 10) + "#comments",
 					},
 				},
 			},
@@ -291,7 +327,7 @@ func (pm *Postman) SendNewFollower(address, fromName, fromShowName, fromGender s
 					Button: hermes.Button{
 						Color: "#22BC66",
 						Text:  fromShowName,
-						Link:  pm.url + "users/" + fromName,
+						Link:  pm.BaseUrl + "users/" + fromName,
 					},
 				},
 			},
@@ -323,7 +359,7 @@ func (pm *Postman) SendNewAccept(address, fromName, fromShowName, fromGender, to
 					Button: hermes.Button{
 						Color: "#22BC66",
 						Text:  fromShowName,
-						Link:  pm.url + "users/" + fromName,
+						Link:  pm.BaseUrl + "users/" + fromName,
 					},
 				},
 			},
@@ -346,7 +382,7 @@ func (pm *Postman) SendNewInvite(address, name string) {
 					Button: hermes.Button{
 						Color: "#22BC66",
 						Text:  "Ожидающие",
-						Link:  pm.url + "users?top=waiting",
+						Link:  pm.BaseUrl + "users?top=waiting",
 					},
 				},
 			},
@@ -375,7 +411,7 @@ func (pm *Postman) SendAdm(address, name, gender string) {
 					Button: hermes.Button{
 						Color: "#22BC66",
 						Text:  "Клуб АДМ",
-						Link:  pm.url + "adm",
+						Link:  pm.BaseUrl + "adm",
 					},
 				},
 			},
@@ -451,7 +487,7 @@ func (pm *Postman) SendCommentComplain(from, against, content, comment string, c
 					Button: hermes.Button{
 						Color: "#22BC66",
 						Text:  "Запись",
-						Link:  pm.url + "entries/" + strconv.FormatInt(entryID, 10),
+						Link:  pm.BaseUrl + "entries/" + strconv.FormatInt(entryID, 10),
 					},
 				},
 			},
@@ -479,7 +515,7 @@ func (pm *Postman) SendEntryComplain(from, against, content, entry string, entry
 					Button: hermes.Button{
 						Color: "#22BC66",
 						Text:  "Запись",
-						Link:  pm.url + "entries/" + strconv.FormatInt(entryID, 10),
+						Link:  pm.BaseUrl + "entries/" + strconv.FormatInt(entryID, 10),
 					},
 				},
 			},
@@ -507,7 +543,7 @@ func (pm *Postman) SendReminder(address, name, gender string) {
 					Button: hermes.Button{
 						Color: "#22BC66",
 						Text:  "Майндвелл",
-						Link:  pm.url,
+						Link:  pm.BaseUrl,
 					},
 				},
 			},
