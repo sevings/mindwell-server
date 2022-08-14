@@ -149,8 +149,9 @@ func (ntf *CompositeNotifier) SendNewComment(tx *AutoTx, cmt *models.Comment) {
 		WHERE users.id = $1 AND users.gender = gender.id
 	`
 
-	var fromGender string
-	tx.Query(fromQ, cmt.Author.ID).Scan(&fromGender)
+	fromGender := tx.QueryString(fromQ, cmt.Author.ID)
+
+	cmtUserID := tx.QueryInt64("SELECT user_id FROM comments WHERE id = $1", cmt.ID)
 
 	const toQ = `
 		SELECT users.id, users.name, show_name, email, verified AND email_comments, telegram, telegram_comments
@@ -158,7 +159,7 @@ func (ntf *CompositeNotifier) SendNewComment(tx *AutoTx, cmt *models.Comment) {
 		INNER JOIN watching ON watching.user_id = users.id 
 		WHERE watching.entry_id = $1 AND users.id <> $2`
 
-	tx.Query(toQ, cmt.EntryID, cmt.Author.ID)
+	tx.Query(toQ, cmt.EntryID, cmtUserID)
 
 	type userData struct {
 		id        int64
