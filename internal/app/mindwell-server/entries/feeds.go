@@ -263,7 +263,7 @@ func watchingQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 	q := feedQuery(userID, limit)
 	addCanViewEntryQuery(q, userID)
 	return q.Where("my_watching.entry_id IS NOT NULL").
-		Where("authors.invited_by IS NOT NULL").
+		Where("(authors.invited_by IS NOT NULL OR authors.creator_id IS NOT NULL)").
 		Where("entries.comments_count > 0").
 		OrderBy("last_comment DESC")
 }
