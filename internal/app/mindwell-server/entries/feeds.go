@@ -22,12 +22,12 @@ func baseFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 		Select("word_count, entry_privacy.type as privacy").
 		Select("is_commentable, is_votable, in_live, is_anonymous").
 		Select("entries.comments_count, entries.favorites_count").
-		Select("authors.id, authors.name, authors.show_name").
-		Select("is_online(authors.last_seen_at) as is_online").
-		Select("authors.avatar").
-		Select("entry_users.id, entry_users.name, entry_users.show_name").
-		Select("is_online(entry_users.last_seen_at) as is_online").
-		Select("entry_users.avatar").
+		Select("entries.author_id, authors.name as author_name, authors.show_name as author_show_name").
+		Select("is_online(authors.last_seen_at) as author_is_online").
+		Select("authors.avatar as author_avatar").
+		Select("entries.user_id, entry_users.name as user_name, entry_users.show_name as user_show_name").
+		Select("is_online(entry_users.last_seen_at) as user_is_online").
+		Select("entry_users.avatar as user_avatar").
 		From("entries").
 		Join("users AS authors", "entries.author_id = authors.id").
 		Join("users AS entry_users", "entries.user_id = entry_users.id").
@@ -59,11 +59,14 @@ func addSubQuery(q *sqlf.Stmt) *sqlf.Stmt {
 		Select("rating, up_votes, down_votes").
 		Select("title, edit_content").
 		Select("word_count, privacy").
-		Select("is_commentable, is_votable, in_live").
+		Select("is_commentable, is_votable, in_live, is_anonymous").
 		Select("comments_count, favorites_count").
-		Select("author_id, name, show_name").
-		Select("is_online").
-		Select("avatar").
+		Select("author_id, author_name, author_show_name").
+		Select("author_is_online").
+		Select("author_avatar").
+		Select("user_id, user_name, user_show_name").
+		Select("user_is_online").
+		Select("user_avatar").
 		Select("vote, is_favorite, is_watching").
 		From("").SubQuery("(", ") AS entries", q)
 }
