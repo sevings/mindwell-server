@@ -426,7 +426,7 @@ func loadInvitedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 
 const loadUserQuery = `
 SELECT id, name, show_name,
-is_online(last_seen_at), avatar
+is_online(last_seen_at), creator_id IS NOT NULL, avatar
 FROM users
 WHERE `
 
@@ -438,7 +438,7 @@ func loadUser(srv *utils.MindwellServer, tx *utils.AutoTx, query string, arg int
 	var avatar string
 
 	tx.Query(query, arg).Scan(&user.ID, &user.Name, &user.ShowName,
-		&user.IsOnline, &avatar)
+		&user.IsOnline, &user.IsTheme, &avatar)
 
 	user.Avatar = srv.NewAvatar(avatar)
 	return &user

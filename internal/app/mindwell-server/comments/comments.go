@@ -70,7 +70,7 @@ const commentQuery = `
 		extract(epoch from comments.created_at), edit_content, rating,
 		up_votes, down_votes, votes.vote,
 		author_id, name, show_name, 
-		is_online(last_seen_at),
+		is_online(last_seen_at), users.creator_id IS NOT NULL,
 		avatar
 	FROM comments
 	JOIN users ON comments.author_id = users.id
@@ -118,7 +118,7 @@ func LoadComment(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 		&comment.CreatedAt, &comment.EditContent, &comment.Rating.Rating,
 		&comment.Rating.UpCount, &comment.Rating.DownCount, &vote,
 		&comment.Author.ID, &comment.Author.Name, &comment.Author.ShowName,
-		&comment.Author.IsOnline,
+		&comment.Author.IsOnline, &comment.Author.IsTheme,
 		&avatar)
 
 	entryAuthorID := tx.QueryInt64("SELECT author_id FROM entries WHERE id = $1", comment.EntryID)
@@ -297,7 +297,7 @@ func LoadEntryComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *mode
 			&comment.CreatedAt, &comment.EditContent, &comment.Rating.Rating,
 			&comment.Rating.UpCount, &comment.Rating.DownCount, &vote,
 			&comment.Author.ID, &comment.Author.Name, &comment.Author.ShowName,
-			&comment.Author.IsOnline,
+			&comment.Author.IsOnline, &comment.Author.IsTheme,
 			&avatar)
 		if !ok {
 			break

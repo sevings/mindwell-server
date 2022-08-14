@@ -24,6 +24,7 @@ func baseFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 		Select("entries.comments_count, entries.favorites_count").
 		Select("entries.author_id, authors.name as author_name, authors.show_name as author_show_name").
 		Select("is_online(authors.last_seen_at) as author_is_online").
+		Select("authors.creator_id IS NOT NULL as author_is_theme").
 		Select("authors.avatar as author_avatar").
 		Select("entries.user_id, entry_users.name as user_name, entry_users.show_name as user_show_name").
 		Select("is_online(entry_users.last_seen_at) as user_is_online").
@@ -63,6 +64,7 @@ func addSubQuery(q *sqlf.Stmt) *sqlf.Stmt {
 		Select("comments_count, favorites_count").
 		Select("author_id, author_name, author_show_name").
 		Select("author_is_online").
+		Select("author_is_theme").
 		Select("author_avatar").
 		Select("user_id, user_name, user_show_name").
 		Select("user_is_online").
@@ -308,6 +310,7 @@ func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID
 			&entry.CommentCount, &entry.FavoriteCount,
 			&author.ID, &author.Name, &author.ShowName,
 			&author.IsOnline,
+			&author.IsTheme,
 			&authorAvatar,
 			&user.ID, &user.Name, &user.ShowName,
 			&user.IsOnline,
