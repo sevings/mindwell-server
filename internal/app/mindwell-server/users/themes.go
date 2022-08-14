@@ -2,11 +2,15 @@ package users
 
 import (
 	"fmt"
+	"github.com/aofei/cameron"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/utils"
+	"image/jpeg"
+	"os"
+	"strconv"
 	"strings"
 )
 
@@ -86,17 +90,50 @@ func removeInvite(tx *utils.AutoTx, userID int64) bool {
 	return tx.RowsAffected() == 1
 }
 
-func createTheme(tx *utils.AutoTx, userID *models.UserID, name, showName string) int64 {
+func saveAvatar(srv *utils.MindwellServer, size, blockSize int, name, folder, fileName string) {
+	path := srv.ImagesFolder() + "avatars/" + strconv.Itoa(size) + "/" + folder
+	err := os.MkdirAll(path, 0777)
+	if err != nil {
+		srv.LogApi().Error(err.Error())
+	}
+
+	f, err := os.Create(path + fileName)
+	if err != nil {
+		srv.LogApi().Error(err.Error())
+	}
+	defer f.Close()
+
+	img := cameron.Identicon([]byte(name), size, blockSize)
+	err = jpeg.Encode(f, img, &jpeg.Options{Quality: 85})
+	if err != nil {
+		srv.LogApi().Error(err.Error())
+	}
+}
+
+func generateAvatar(srv *utils.MindwellServer, name string) string {
+	folder := name[:1] + "/"
+	fileName := utils.GenerateString(5) + ".jpg"
+
+	saveAvatar(srv, 124, 15, name, folder, fileName)
+	saveAvatar(srv, 92, 11, name, folder, fileName)
+	saveAvatar(srv, 42, 5, name, folder, fileName)
+
+	return folder + fileName
+}
+
+func createTheme(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, name, showName string) int64 {
 	const rankQ = "SELECT COUNT(*) + 1 FROM users WHERE creator_id IS NOT NULL AND karma >= 0"
 	rank := tx.QueryInt64(rankQ)
 
+	avatar := generateAvatar(srv, name)
+
 	const q = `
 		INSERT INTO users 
-		(name, show_name, email, password_hash, creator_id, rank)
-		values($1, $2, $1, '', $3, $4)
+		(name, show_name, email, password_hash, avatar, creator_id, rank)
+		values($1, $2, $1, '', $3, $4, $5)
 		RETURNING id`
 
-	user := tx.QueryInt64(q, name, showName, userID.ID, rank)
+	user := tx.QueryInt64(q, name, showName, avatar, userID.ID, rank)
 	return user
 }
 
@@ -123,7 +160,7 @@ func newThemeCreator(srv *utils.MindwellServer) func(themes.PostThemesParams, *m
 			}
 
 			const query = profileQuery + "WHERE users.id = $1 AND users.creator_id IS NOT NULL"
-			themeID := createTheme(tx, userID, params.Name, params.ShowName)
+			themeID := createTheme(srv, tx, userID, params.Name, params.ShowName)
 			theme := loadUserProfile(srv, tx, query, userID, themeID)
 			if theme.ID == 0 {
 				err := srv.NewError(nil)
