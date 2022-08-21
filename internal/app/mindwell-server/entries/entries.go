@@ -185,7 +185,7 @@ func initMyEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 	}
 
 	setEntryTexts(entry, hasAttach)
-	setEntryRights(entry, userID)
+	setEntryRights(entry, userID, 0)
 
 	return true
 }
@@ -638,7 +638,7 @@ func entryVoteStatus(vote sql.NullFloat64) int64 {
 	}
 }
 
-func setEntryRights(entry *models.Entry, userID *models.UserID) {
+func setEntryRights(entry *models.Entry, userID *models.UserID, themeCreatorID int64) {
 	authorID := entry.Author.ID
 	if entry.User != nil {
 		authorID = entry.User.ID
@@ -646,7 +646,7 @@ func setEntryRights(entry *models.Entry, userID *models.UserID) {
 
 	entry.Rights = &models.EntryRights{
 		Edit:     authorID == userID.ID,
-		Delete:   authorID == userID.ID,
+		Delete:   authorID == userID.ID || (entry.Author.IsTheme && themeCreatorID == userID.ID),
 		Comment:  authorID == userID.ID || (!userID.Ban.Comment && entry.IsCommentable),
 		Vote:     authorID != userID.ID && !userID.Ban.Vote && entry.Rating.IsVotable,
 		Complain: authorID != userID.ID && userID.ID > 0,
@@ -692,10 +692,18 @@ func newEntryLoader(srv *utils.MindwellServer) func(entries.GetEntriesIDParams, 
 }
 
 func deleteEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID, userID int64) bool {
-	const allowedQuery = "SELECT author_id = $2 FROM entries WHERE id = $1"
-	allowed := tx.QueryBool(allowedQuery, entryID, userID)
-	if !allowed {
-		return false
+	const authorQuery = `
+SELECT user_id, creator_id
+FROM entries
+JOIN users ON author_id = users.id
+WHERE entries.id = $1`
+	var entryUserID int64
+	var themeCreatorID sql.NullInt64
+	tx.Query(authorQuery, entryID).Scan(&entryUserID, &themeCreatorID)
+	if entryUserID != userID {
+		if !themeCreatorID.Valid || themeCreatorID.Int64 != userID {
+			return false
+		}
 	}
 
 	const commentsQuery = "SELECT id FROM comments WHERE entry_id = $1"
