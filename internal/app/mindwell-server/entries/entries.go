@@ -692,18 +692,13 @@ func newEntryLoader(srv *utils.MindwellServer) func(entries.GetEntriesIDParams, 
 }
 
 func deleteEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID, userID int64) bool {
-	const authorQuery = `
-SELECT user_id, creator_id
-FROM entries
-JOIN users ON author_id = users.id
-WHERE entries.id = $1`
-	var entryUserID int64
-	var themeCreatorID sql.NullInt64
-	tx.Query(authorQuery, entryID).Scan(&entryUserID, &themeCreatorID)
-	if entryUserID != userID {
-		if !themeCreatorID.Valid || themeCreatorID.Int64 != userID {
-			return false
-		}
+	if userID == 0 {
+		return false
+	}
+
+	var entryUserID, themeCreatorID = comments.LoadEntryAuthor(tx, entryID)
+	if entryUserID != userID && themeCreatorID != userID {
+		return false
 	}
 
 	const commentsQuery = "SELECT id FROM comments WHERE entry_id = $1"

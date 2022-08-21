@@ -89,10 +89,10 @@ func commentVote(vote sql.NullFloat64) int64 {
 	}
 }
 
-func setCommentRights(comment *models.Comment, userID *models.UserID, entryAuthorID int64) {
+func setCommentRights(comment *models.Comment, userID *models.UserID, entryAuthorID, themeCreatorID int64) {
 	comment.Rights = &models.CommentRights{
 		Edit:     comment.Author.ID == userID.ID,
-		Delete:   comment.Author.ID == userID.ID || entryAuthorID == userID.ID,
+		Delete:   comment.Author.ID == userID.ID || entryAuthorID == userID.ID || themeCreatorID == userID.ID,
 		Vote:     comment.Author.ID != userID.ID && !userID.Ban.Vote,
 		Complain: comment.Author.ID != userID.ID,
 	}
@@ -100,6 +100,16 @@ func setCommentRights(comment *models.Comment, userID *models.UserID, entryAutho
 
 func setCommentText(comment *models.Comment) {
 	comment.Content = HtmlContent(comment.EditContent)
+}
+
+func LoadEntryAuthor(tx *utils.AutoTx, entryID int64) (entryUserID int64, themeCreatorID int64) {
+	const entryAuthorQuery = `
+SELECT user_id, COALESCE(creator_id, 0)
+FROM entries
+JOIN users ON author_id = users.id
+WHERE entries.id = $1`
+	tx.Query(entryAuthorQuery, entryID).Scan(&entryUserID, &themeCreatorID)
+	return entryUserID, themeCreatorID
 }
 
 func LoadComment(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, commentID int64) *models.Comment {
@@ -121,8 +131,9 @@ func LoadComment(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 		&comment.Author.IsOnline, &comment.Author.IsTheme,
 		&avatar)
 
-	entryAuthorID := tx.QueryInt64("SELECT author_id FROM entries WHERE id = $1", comment.EntryID)
-	setCommentRights(&comment, userID, entryAuthorID)
+	entryUserID, themeCreatorID := LoadEntryAuthor(tx, comment.EntryID)
+	setCommentRights(&comment, userID, entryUserID, themeCreatorID)
+
 	setCommentText(&comment)
 
 	if !comment.Rights.Edit {
@@ -198,15 +209,21 @@ func newCommentEditor(srv *utils.MindwellServer) func(comments.PutCommentsIDPara
 }
 
 func canDeleteComment(tx *utils.AutoTx, userID *models.UserID, commentID int64) bool {
+	if userID.ID == 0 {
+		return false
+	}
+
 	const q = `
-		SELECT comments.author_id, entries.author_id
-		FROM comments, entries
-		WHERE comments.id = $1 AND entries.id = comments.entry_id`
+		SELECT comments.user_id, entries.user_id, COALESCE(users.creator_id, 0)
+		FROM comments
+		JOIN entries on entries.id = comments.entry_id
+		JOIN users on entries.author_id = users.id
+		WHERE comments.id = $1`
 
-	var commentAuthorID, entryAuthorID int64
-	tx.Query(q, commentID).Scan(&commentAuthorID, &entryAuthorID)
+	var commentUserID, entryUserID, themeCreatorID int64
+	tx.Query(q, commentID).Scan(&commentUserID, &entryUserID, &themeCreatorID)
 
-	return commentAuthorID == userID.ID || entryAuthorID == userID.ID
+	return commentUserID == userID.ID || entryUserID == userID.ID || themeCreatorID == userID.ID
 }
 
 func deleteComment(tx *utils.AutoTx, commentID int64) {
@@ -259,7 +276,7 @@ func LoadEntryComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *mode
 		srv.LogApi().Sugar().Warn("error parse after:", afterS)
 	}
 
-	entryAuthorID := tx.QueryInt64("SELECT author_id FROM entries WHERE id = $1", entryID)
+	entryUserID, themeCreatorID := LoadEntryAuthor(tx, entryID)
 
 	if after > 0 {
 		const q = commentQuery + `
@@ -303,7 +320,7 @@ func LoadEntryComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *mode
 			break
 		}
 
-		setCommentRights(&comment, userID, entryAuthorID)
+		setCommentRights(&comment, userID, entryUserID, themeCreatorID)
 		setCommentText(&comment)
 
 		if !comment.Rights.Edit {
