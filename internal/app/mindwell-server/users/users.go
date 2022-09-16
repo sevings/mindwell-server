@@ -167,6 +167,7 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 	}
 
 	if profile.IsTheme {
+		profile.Gender = ""
 		profile.LastSeenAt = 0
 		profile.IsOnline = false
 	}
@@ -426,7 +427,7 @@ func loadInvitedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 
 const loadUserQuery = `
 SELECT id, name, show_name,
-is_online(last_seen_at), creator_id IS NOT NULL, avatar
+is_online(last_seen_at) AND creator_id IS NULL, creator_id IS NOT NULL, avatar
 FROM users
 WHERE `
 
@@ -441,6 +442,7 @@ func loadUser(srv *utils.MindwellServer, tx *utils.AutoTx, query string, arg int
 		&user.IsOnline, &user.IsTheme, &avatar)
 
 	user.Avatar = srv.NewAvatar(avatar)
+
 	return &user
 }
 

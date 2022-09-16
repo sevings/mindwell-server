@@ -92,4 +92,17 @@ func TestCommentVotes(t *testing.T) {
 	banVote(db, userIDs[1])
 	checkVoteForComment(t, userIDs[1], false, c.ID, 1, true, 1)
 	removeUserRestrictions(db, userIDs)
+
+	checkDeleteEntry(t, e.ID, userIDs[0], true)
+}
+
+func TestThemeCommentVotes(t *testing.T) {
+	theme := createTestTheme(t, userIDs[0])
+	e := createThemeEntry(t, userIDs[0], theme.Name, models.EntryPrivacyAll, true, true, true, true)
+	c := createComment(t, userIDs[0], e.ID)
+
+	checkVoteForComment(t, userIDs[0], false, c.ID, 1, true, 1)
+	checkVoteForComment(t, userIDs[1], true, c.ID, 1, true, 1)
+
+	checkDeleteEntry(t, e.ID, userIDs[0], true)
 }

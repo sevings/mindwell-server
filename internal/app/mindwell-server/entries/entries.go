@@ -313,7 +313,7 @@ func canPostInLive(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 	}
 
 	var entryCount int64
-	const countQ = `SELECT count(*) FROM entries WHERE author_id = $1 
+	const countQ = `SELECT count(*) FROM entries WHERE user_id = $1 
 		AND date_trunc('day', created_at) = CURRENT_DATE AND in_live
 	`
 	tx.Query(countQ, userID.ID).Scan(&entryCount)
@@ -498,6 +498,10 @@ func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserI
 		entry.WordCount, entry.Privacy,
 		entry.IsCommentable, entry.Rating.IsVotable, entry.InLive, category, entry.ID, userID.ID).
 		Scan(&entry.CreatedAt)
+
+	if tx.Error() == sql.ErrNoRows {
+		return false
+	}
 
 	entry.Rating.ID = entry.ID
 	watchings.AddWatching(tx, userID.ID, entry.ID)

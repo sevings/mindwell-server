@@ -117,10 +117,24 @@ func TestEntryVotes(t *testing.T) {
 	checkVoteForEntry(t, userIDs[0], false, e.ID, 0, false, 0)
 	checkUnvoteEntry(t, userIDs[0], false, e.ID, 0)
 
+	checkDeleteEntry(t, e.ID, userIDs[0], true)
+
 	e = createTlogEntry(t, userIDs[0], models.EntryPrivacyAll, true, false, false)
 	checkEntryVote(t, userIDs[1], e.ID, 0, 0)
 
 	checkVoteForEntry(t, userIDs[0], false, e.ID, 0, false, 0)
 	checkVoteForEntry(t, userIDs[1], false, e.ID, 0, false, 0)
 	checkUnvoteEntry(t, userIDs[2], false, e.ID, -1)
+
+	checkDeleteEntry(t, e.ID, userIDs[0], true)
+}
+
+func TestThemeEntryVotes(t *testing.T) {
+	theme := createTestTheme(t, userIDs[0])
+	e := createThemeEntry(t, userIDs[0], theme.Name, models.EntryPrivacyAll, true, true, true, true)
+
+	checkVoteForEntry(t, userIDs[0], false, e.ID, 0, false, 0)
+	checkVoteForEntry(t, userIDs[1], true, e.ID, 1, true, 1)
+
+	checkDeleteEntry(t, e.ID, userIDs[0], true)
 }

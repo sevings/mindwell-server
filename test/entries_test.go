@@ -2,6 +2,7 @@ package test
 
 import (
 	"fmt"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"log"
 	"strings"
 	"testing"
@@ -17,7 +18,7 @@ import (
 )
 
 func checkEntry(t *testing.T, entry *models.Entry,
-	user *models.AuthProfile, canEdit bool, vote int64, watching bool,
+	user, author *models.Profile, canEdit bool, vote int64, watching bool,
 	wc int64, privacy string, commentable, votable, live bool, title, content string, tags []string) {
 
 	req := require.New(t)
@@ -80,12 +81,25 @@ tagLoop:
 		req.Zero(cmts.NextBefore)
 	}
 
-	author := entry.Author
-	req.Equal(user.ID, author.ID)
-	req.Equal(user.Name, author.Name)
-	req.Equal(user.ShowName, author.ShowName)
-	req.Equal(user.IsOnline, author.IsOnline)
-	req.Equal(user.Avatar, author.Avatar)
+	req.Equal(user == nil, entry.User == nil)
+	if user != nil {
+		req.Equal(user.ID, entry.User.ID)
+		req.Equal(user.Name, entry.User.Name)
+		req.Equal(user.ShowName, entry.User.ShowName)
+		req.Equal(user.IsOnline, entry.User.IsOnline)
+		req.Equal(user.Avatar, entry.User.Avatar)
+		req.Equal(user.IsTheme, entry.User.IsTheme)
+	}
+
+	req.Equal(author == nil, entry.Author == nil)
+	if author != nil {
+		req.Equal(author.ID, entry.Author.ID)
+		req.Equal(author.Name, entry.Author.Name)
+		req.Equal(author.ShowName, entry.Author.ShowName)
+		req.Equal(author.IsOnline, entry.Author.IsOnline)
+		req.Equal(author.Avatar, entry.Author.Avatar)
+		req.Equal(author.IsTheme, entry.Author.IsTheme)
+	}
 
 	rights := entry.Rights
 	req.Equal(canEdit, rights.Edit)
@@ -96,7 +110,7 @@ tagLoop:
 }
 
 func checkLoadEntry(t *testing.T, entryID int64, userID *models.UserID, success bool,
-	user *models.AuthProfile, canEdit bool, vote int64, watching bool,
+	user, author *models.Profile, canEdit bool, vote int64, watching bool,
 	wc int64, privacy string, commentable, votable, live bool, title, content string, tags []string) {
 
 	load := api.EntriesGetEntriesIDHandler.Handle
@@ -108,12 +122,12 @@ func checkLoadEntry(t *testing.T, entryID int64, userID *models.UserID, success 
 	}
 
 	entry := body.Payload
-	checkEntry(t, entry, user, canEdit, vote, watching, wc, privacy, commentable, votable, live, title, content, tags)
+	checkEntry(t, entry, user, author, canEdit, vote, watching, wc, privacy, commentable, votable, live, title, content, tags)
 }
 
 func checkPostEntry(t *testing.T,
 	params me.PostMeTlogParams,
-	user *models.AuthProfile, id *models.UserID, success bool, wc int64) int64 {
+	user, author *models.Profile, id *models.UserID, success bool, wc int64) int64 {
 
 	post := api.MePostMeTlogHandler.Handle
 	resp := post(params, id)
@@ -124,11 +138,11 @@ func checkPostEntry(t *testing.T,
 	}
 
 	entry := body.Payload
-	checkEntry(t, entry, user, true, 0, true, wc, params.Privacy,
+	checkEntry(t, entry, user, author, true, 0, true, wc, params.Privacy,
 		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
 
-	checkLoadEntry(t, entry.ID, id, true, user,
+	checkLoadEntry(t, entry.ID, id, true, user, author,
 		true, 0, true, wc, params.Privacy,
 		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
@@ -138,7 +152,7 @@ func checkPostEntry(t *testing.T,
 
 func checkEditEntry(t *testing.T,
 	params entries.PutEntriesIDParams,
-	user *models.AuthProfile, id *models.UserID, success bool, wc int64) {
+	user, author *models.Profile, id *models.UserID, success bool, wc int64) {
 
 	edit := api.EntriesPutEntriesIDHandler.Handle
 	resp := edit(params, id)
@@ -149,11 +163,11 @@ func checkEditEntry(t *testing.T,
 	}
 
 	entry := body.Payload
-	checkEntry(t, entry, user, true, 0, true, wc, params.Privacy,
+	checkEntry(t, entry, user, author, true, 0, true, wc, params.Privacy,
 		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
 
-	checkLoadEntry(t, entry.ID, id, true, user,
+	checkLoadEntry(t, entry.ID, id, true, user, author,
 		true, 0, true, wc, params.Privacy,
 		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
@@ -187,20 +201,20 @@ func TestPostMyTlog(t *testing.T) {
 
 	params.Tags = []string{"tag1", "tag2"}
 
-	id := checkPostEntry(t, params, profiles[0], userIDs[0], true, 5)
+	id := checkPostEntry(t, params, nil, &profiles[0].Profile, userIDs[0], true, 5)
 	checkEntryWatching(t, userIDs[0], id, true, true)
 
 	req := require.New(t)
-	idSame := checkPostEntry(t, params, profiles[0], userIDs[0], true, 5)
+	idSame := checkPostEntry(t, params, nil, &profiles[0].Profile, userIDs[0], true, 5)
 	req.Equal(id, idSame)
 
 	votable = true
-	checkPostEntry(t, params, profiles[0], userIDs[0], false, 5)
+	checkPostEntry(t, params, nil, &profiles[0].Profile, userIDs[0], false, 5)
 
 	votable = false
-	checkPostEntry(t, params, profiles[3], userIDs[3], false, 5)
+	checkPostEntry(t, params, nil, &profiles[3].Profile, userIDs[3], false, 5)
 	votable = true
-	id2 := checkPostEntry(t, params, profiles[3], userIDs[3], true, 5)
+	id2 := checkPostEntry(t, params, nil, &profiles[3].Profile, userIDs[3], true, 5)
 
 	var images []int64
 	images = append(images, createImage(srv, db, userIDs[1]).ID)
@@ -208,8 +222,8 @@ func TestPostMyTlog(t *testing.T) {
 	images = append(images, createImage(srv, db, userIDs[1]).ID)
 
 	params.Images = images
-	checkPostEntry(t, params, profiles[0], userIDs[0], false, 5)
-	id3 := checkPostEntry(t, params, profiles[1], userIDs[1], true, 5)
+	checkPostEntry(t, params, nil, &profiles[0].Profile, userIDs[0], false, 5)
+	id3 := checkPostEntry(t, params, nil, &profiles[1].Profile, userIDs[1], true, 5)
 
 	title = "title"
 	commentable = false
@@ -226,22 +240,23 @@ func TestPostMyTlog(t *testing.T) {
 		Tags:          []string{"tag1", "tag3"},
 	}
 
-	checkEditEntry(t, editParams, profiles[0], userIDs[0], true, 2)
+	checkEditEntry(t, editParams, nil, &profiles[0].Profile, userIDs[1], false, 2)
+	checkEditEntry(t, editParams, nil, &profiles[0].Profile, userIDs[0], true, 2)
 
-	checkLoadEntry(t, id, userIDs[1], false, nil, false, 0, false, 0, "",
+	checkLoadEntry(t, id, userIDs[1], false, nil, nil, false, 0, false, 0, "",
 		true, false, false, "", "", []string{})
 
 	editParams.ID = id2
 	editParams.Privacy = models.EntryPrivacyAll
-	checkEditEntry(t, editParams, profiles[3], userIDs[3], false, 2)
+	checkEditEntry(t, editParams, nil, &profiles[3].Profile, userIDs[3], false, 2)
 	votable = true
-	checkEditEntry(t, editParams, profiles[3], userIDs[3], true, 2)
+	checkEditEntry(t, editParams, nil, &profiles[3].Profile, userIDs[3], true, 2)
 
 	images = images[1:]
 	images = append(images, createImage(srv, db, userIDs[1]).ID)
 	editParams.ID = id3
 	editParams.Images = images
-	checkEditEntry(t, editParams, profiles[1], userIDs[1], true, 2)
+	checkEditEntry(t, editParams, nil, &profiles[1].Profile, userIDs[1], true, 2)
 
 	checkDeleteEntry(t, id, userIDs[1], false)
 	checkDeleteEntry(t, id, userIDs[0], true)
@@ -249,6 +264,116 @@ func TestPostMyTlog(t *testing.T) {
 
 	checkDeleteEntry(t, id2, userIDs[3], true)
 	checkDeleteEntry(t, id3, userIDs[1], true)
+}
+
+func checkPostThemeEntry(t *testing.T,
+	params themes.PostThemesNameTlogParams,
+	user, author *models.Profile, id *models.UserID, success bool, wc int64) int64 {
+
+	post := api.ThemesPostThemesNameTlogHandler.Handle
+	resp := post(params, id)
+	body, ok := resp.(*themes.PostThemesNameTlogCreated)
+	require.Equal(t, success, ok)
+	if !ok {
+		return 0
+	}
+
+	entry := body.Payload
+	checkEntry(t, entry, user, author, true, 0, true, wc, params.Privacy,
+		*params.IsCommentable, *params.IsVotable, *params.InLive,
+		*params.Title, params.Content, params.Tags)
+
+	checkLoadEntry(t, entry.ID, id, true, user, author,
+		true, 0, true, wc, params.Privacy,
+		*params.IsCommentable, *params.IsVotable, *params.InLive,
+		*params.Title, params.Content, params.Tags)
+
+	return entry.ID
+}
+
+func TestPostToTheme(t *testing.T) {
+	theme := createTestTheme(t, userIDs[0])
+
+	params := themes.PostThemesNameTlogParams{
+		Content: "test content",
+		Name:    theme.Name,
+	}
+
+	commentable := true
+	params.IsCommentable = &commentable
+
+	votable := false
+	params.IsVotable = &votable
+
+	live := true
+	params.InLive = &live
+
+	params.Privacy = models.EntryPrivacyAll
+
+	title := "title title ti"
+	params.Title = &title
+
+	params.Tags = []string{"tag1", "tag2"}
+
+	isAnonymous := false
+	params.IsAnonymous = &isAnonymous
+
+	id := checkPostThemeEntry(t, params, &profiles[0].Profile, theme, userIDs[0], true, 5)
+	checkEntryWatching(t, userIDs[0], id, true, true)
+
+	checkPostThemeEntry(t, params, &profiles[1].Profile, theme, userIDs[1], false, 5)
+	checkPostThemeEntry(t, params, &profiles[3].Profile, theme, userIDs[3], false, 5)
+
+	toTheme := &models.AuthProfile{Profile: *theme}
+	checkFollow(t, userIDs[1], nil, toTheme, models.RelationshipRelationFollowed, true)
+	checkFollow(t, userIDs[3], nil, toTheme, models.RelationshipRelationFollowed, true)
+
+	id2 := checkPostThemeEntry(t, params, &profiles[1].Profile, theme, userIDs[1], true, 5)
+	checkPostThemeEntry(t, params, &profiles[3].Profile, theme, userIDs[3], false, 5)
+
+	title = "title"
+	commentable = false
+	votable = false
+	live = false
+	editParams := entries.PutEntriesIDParams{
+		ID:            id,
+		Content:       "content",
+		Title:         &title,
+		IsCommentable: &commentable,
+		IsVotable:     &votable,
+		InLive:        &live,
+		Privacy:       models.EntryPrivacyInvited,
+		Tags:          []string{"tag1", "tag3"},
+	}
+
+	checkEditEntry(t, editParams, &profiles[0].Profile, theme, userIDs[0], true, 2)
+
+	checkLoadEntry(t, id, userIDs[3], false, nil, nil, false, 0, false, 0, "",
+		true, false, false, "", "", []string{})
+
+	editParams.ID = id2
+	editParams.Privacy = models.EntryPrivacyAll
+	checkEditEntry(t, editParams, &profiles[0].Profile, theme, userIDs[0], false, 2)
+
+	var images []int64
+	images = append(images, createImage(srv, db, userIDs[1]).ID)
+	images = append(images, createImage(srv, db, userIDs[1]).ID)
+	images = append(images, createImage(srv, db, userIDs[1]).ID)
+
+	editParams.Images = images
+	votable = true
+	checkEditEntry(t, editParams, &profiles[1].Profile, theme, userIDs[1], true, 2)
+
+	checkDeleteEntry(t, id, userIDs[1], false)
+	checkDeleteEntry(t, id, userIDs[0], true)
+	checkDeleteEntry(t, id2, userIDs[1], true)
+
+	id2 = checkPostThemeEntry(t, params, &profiles[1].Profile, theme, userIDs[1], true, 3)
+	checkDeleteEntry(t, id2, userIDs[0], true)
+
+	following := &models.UserID{Name: theme.Name}
+	checkUnfollow(t, userIDs[1], following)
+	checkUnfollow(t, userIDs[3], following)
 }
 
 func TestLiveRestrictions(t *testing.T) {
@@ -273,22 +398,22 @@ func TestLiveRestrictions(t *testing.T) {
 		IsVotable:     &votable,
 		InLive:        &live,
 	}
-	e0 := checkPostEntry(t, postParams, profiles[0], userIDs[0], true, 3)
+	e0 := checkPostEntry(t, postParams, nil, &profiles[0].Profile, userIDs[0], true, 3)
 
 	postParams.Content = "test test test2"
-	checkPostEntry(t, postParams, profiles[0], userIDs[0], true, 3)
+	checkPostEntry(t, postParams, nil, &profiles[0].Profile, userIDs[0], true, 3)
 
 	postParams.Content = "test test test3"
-	checkPostEntry(t, postParams, profiles[0], userIDs[0], false, 3)
+	checkPostEntry(t, postParams, nil, &profiles[0].Profile, userIDs[0], false, 3)
 
 	postParams.Privacy = models.EntryPrivacyRegistered
-	checkPostEntry(t, postParams, profiles[0], userIDs[0], false, 3)
+	checkPostEntry(t, postParams, nil, &profiles[0].Profile, userIDs[0], false, 3)
 
 	postParams.Privacy = models.EntryPrivacyInvited
-	checkPostEntry(t, postParams, profiles[0], userIDs[0], false, 3)
+	checkPostEntry(t, postParams, nil, &profiles[0].Profile, userIDs[0], false, 3)
 
 	live = false
-	e1 := checkPostEntry(t, postParams, profiles[0], userIDs[0], true, 3)
+	e1 := checkPostEntry(t, postParams, nil, &profiles[0].Profile, userIDs[0], true, 3)
 
 	live = true
 	editParams := entries.PutEntriesIDParams{
@@ -300,33 +425,72 @@ func TestLiveRestrictions(t *testing.T) {
 		InLive:        &live,
 		Privacy:       models.EntryPrivacyAll,
 	}
-	checkEditEntry(t, editParams, profiles[0], userIDs[0], true, 1)
+	checkEditEntry(t, editParams, nil, &profiles[0].Profile, userIDs[0], true, 1)
 
 	live = false
-	checkEditEntry(t, editParams, profiles[0], userIDs[0], true, 1)
+	checkEditEntry(t, editParams, nil, &profiles[0].Profile, userIDs[0], true, 1)
 
 	live = true
-	checkEditEntry(t, editParams, profiles[0], userIDs[0], true, 1)
+	checkEditEntry(t, editParams, nil, &profiles[0].Profile, userIDs[0], true, 1)
 
 	editParams.ID = e1
-	checkEditEntry(t, editParams, profiles[0], userIDs[0], false, 1)
+	checkEditEntry(t, editParams, nil, &profiles[0].Profile, userIDs[0], false, 1)
 
 	editParams.Privacy = models.EntryPrivacyRegistered
-	checkEditEntry(t, editParams, profiles[0], userIDs[0], false, 1)
+	checkEditEntry(t, editParams, nil, &profiles[0].Profile, userIDs[0], false, 1)
 
 	editParams.Privacy = models.EntryPrivacyInvited
-	checkEditEntry(t, editParams, profiles[0], userIDs[0], false, 1)
+	checkEditEntry(t, editParams, nil, &profiles[0].Profile, userIDs[0], false, 1)
 
 	banLive(db, userIDs[0])
 	editParams.ID = e0
-	checkEditEntry(t, editParams, profiles[0], userIDs[0], true, 1)
+	checkEditEntry(t, editParams, nil, &profiles[0].Profile, userIDs[0], true, 1)
 	live = false
-	checkEditEntry(t, editParams, profiles[0], userIDs[0], true, 1)
+	checkEditEntry(t, editParams, nil, &profiles[0].Profile, userIDs[0], true, 1)
 	editParams.ID = e1
-	checkEditEntry(t, editParams, profiles[0], userIDs[0], true, 1)
+	checkEditEntry(t, editParams, nil, &profiles[0].Profile, userIDs[0], true, 1)
 	live = true
-	checkPostEntry(t, postParams, profiles[0], userIDs[0], false, 3)
-	checkEditEntry(t, editParams, profiles[0], userIDs[0], false, 1)
+	checkPostEntry(t, postParams, nil, &profiles[0].Profile, userIDs[0], false, 3)
+	checkEditEntry(t, editParams, nil, &profiles[0].Profile, userIDs[0], false, 1)
+
+	utils.ClearDatabase(db)
+	userIDs, profiles = registerTestUsers(db)
+}
+
+func TestThemeLiveRestrictions(t *testing.T) {
+	utils.ClearDatabase(db)
+	userIDs, profiles = registerTestUsers(db)
+
+	userIDs[0].FollowersCount = 4
+	_, err := db.Exec("UPDATE users SET followers_count = 4 WHERE id = $1", userIDs[0].ID)
+	if err != nil {
+		log.Println(err)
+	}
+
+	theme := createTestTheme(t, userIDs[0])
+
+	commentable := true
+	votable := true
+	live := true
+	title := ""
+	isAnonymous := false
+	postParams := themes.PostThemesNameTlogParams{
+		Name:          theme.Name,
+		Content:       "test test test",
+		Title:         &title,
+		Privacy:       models.EntryPrivacyAll,
+		IsAnonymous:   &isAnonymous,
+		IsCommentable: &commentable,
+		IsVotable:     &votable,
+		InLive:        &live,
+	}
+	checkPostThemeEntry(t, postParams, &profiles[0].Profile, theme, userIDs[0], true, 3)
+
+	postParams.Content = "test test test2"
+	checkPostThemeEntry(t, postParams, &profiles[0].Profile, theme, userIDs[0], true, 3)
+
+	postParams.Content = "test test test3"
+	checkPostThemeEntry(t, postParams, &profiles[0].Profile, theme, userIDs[0], false, 3)
 
 	utils.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)
@@ -637,7 +801,7 @@ func TestLoadTlog(t *testing.T) {
 	checkLoadTlog(t, userIDs[0], userIDs[3], false, 3, "", "", 1)
 	checkLoadTlog(t, userIDs[0], noAuthUser, false, 10, "", "", 2)
 
-	checkLoadEntry(t, feed.Entries[0].ID, userIDs[3], false, profiles[0], false, 0, false, 0, "",
+	checkLoadEntry(t, feed.Entries[0].ID, userIDs[3], false, nil, &profiles[0].Profile, false, 0, false, 0, "",
 		true, false, false, "", "", []string{})
 
 	checkFollow(t, userIDs[1], userIDs[0], profiles[0], models.RelationshipRelationRequested, true)
@@ -650,7 +814,7 @@ func TestLoadTlog(t *testing.T) {
 	checkLoadTlog(t, userIDs[0], userIDs[3], false, 3, "", "", 1)
 	checkLoadTlog(t, userIDs[0], noAuthUser, false, 10, "", "", 2)
 
-	checkLoadEntry(t, feed.Entries[0].ID, userIDs[3], false, profiles[0], false, 0, false, 0, "",
+	checkLoadEntry(t, feed.Entries[0].ID, userIDs[3], false, nil, &profiles[0].Profile, false, 0, false, 0, "",
 		true, false, false, "", "", []string{})
 
 	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationIgnored, true)
@@ -1390,11 +1554,11 @@ func checkPostTaggedEntry(t *testing.T, user *models.UserID, author *models.Auth
 	require.True(t, ok)
 
 	entry := body.Payload
-	checkEntry(t, entry, author, true, 0, true, wc, params.Privacy,
+	checkEntry(t, entry, nil, &author.Profile, true, 0, true, wc, params.Privacy,
 		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
 
-	checkLoadEntry(t, entry.ID, user, true, author,
+	checkLoadEntry(t, entry.ID, user, true, nil, &author.Profile,
 		true, 0, true, wc, params.Privacy,
 		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
@@ -1420,11 +1584,11 @@ func checkEditTaggedEntry(t *testing.T, entry *models.Entry, user *models.AuthPr
 	require.True(t, ok)
 
 	edited := body.Payload
-	checkEntry(t, edited, user, true, 0, true, entry.WordCount, params.Privacy,
+	checkEntry(t, edited, nil, &user.Profile, true, 0, true, entry.WordCount, params.Privacy,
 		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
 
-	checkLoadEntry(t, entry.ID, id, true, user,
+	checkLoadEntry(t, entry.ID, id, true, nil, &user.Profile,
 		true, 0, true, entry.WordCount, params.Privacy,
 		*params.IsCommentable, *params.IsVotable, *params.InLive,
 		*params.Title, params.Content, params.Tags)
@@ -1516,7 +1680,7 @@ func TestSearchEntries(t *testing.T) {
 			VisibleFor:    nil,
 		}
 
-		return checkPostEntry(t, params, profiles[0], userIDs[0], true, wc)
+		return checkPostEntry(t, params, nil, &profiles[0].Profile, userIDs[0], true, wc)
 	}
 
 	e1 := post("Романтическая дружба",
@@ -1574,7 +1738,7 @@ func TestLoadTlogCalendar(t *testing.T) {
 			Title:         &title,
 		}
 
-		return checkPostEntry(t, params, profiles[0], userIDs[0], true, wc)
+		return checkPostEntry(t, params, nil, &profiles[0].Profile, userIDs[0], true, wc)
 	}
 
 	e1 := post("title", "content1", "all", 2)
@@ -1678,7 +1842,7 @@ func TestLoadAdjacentEntries(t *testing.T) {
 			Title:         &title,
 		}
 
-		return checkPostEntry(t, params, profiles[0], userIDs[0], true, wc)
+		return checkPostEntry(t, params, nil, &profiles[0].Profile, userIDs[0], true, wc)
 	}
 
 	e1 := post("title", "content1", "all", 2)

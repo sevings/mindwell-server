@@ -1,6 +1,7 @@
 package test
 
 import (
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"strings"
 	"testing"
 	"time"
@@ -146,6 +147,27 @@ func checkNameFollowers(t *testing.T, user *models.UserID, name, after, before s
 	return list
 }
 
+func checkThemeFollowers(t *testing.T, user *models.UserID, name, after, before string, limit int64, size int) *models.FriendList {
+	get := api.ThemesGetThemesNameFollowersHandler.Handle
+	params := themes.GetThemesNameFollowersParams{
+		After:  &after,
+		Before: &before,
+		Limit:  &limit,
+		Name:   name,
+	}
+	resp := get(params, user)
+	body, ok := resp.(*themes.GetThemesNameFollowersOK)
+
+	require.True(t, ok)
+
+	list := body.Payload
+	require.Equal(t, size, len(list.Users))
+	require.Equal(t, strings.ToLower(name), strings.ToLower(list.Subject.Name))
+	require.Equal(t, models.FriendListRelationFollowers, list.Relation)
+
+	return list
+}
+
 func checkNameFollowings(t *testing.T, user *models.UserID, name, after, before string, limit int64, size int) *models.FriendList {
 	get := api.UsersGetUsersNameFollowingsHandler.Handle
 	params := users.GetUsersNameFollowingsParams{
@@ -188,7 +210,11 @@ func checkNameInvited(t *testing.T, user *models.UserID, name, after, before str
 	return list
 }
 
-func TestOpenFriendLists(t *testing.T) {
+func TestMyFollows(t *testing.T) {
+	theme := createTestTheme(t, userIDs[0])
+
+	checkFollow(t, userIDs[0], nil, &models.AuthProfile{Profile: *theme}, models.RelationshipRelationFollowed, true)
+	time.Sleep(10 * time.Millisecond)
 	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationFollowed, true)
 	time.Sleep(10 * time.Millisecond)
 	checkFollow(t, userIDs[0], userIDs[2], profiles[2], models.RelationshipRelationFollowed, true)
@@ -205,19 +231,41 @@ func TestOpenFriendLists(t *testing.T) {
 
 	checkMyFollowings(t, userIDs[2], "", "", 100, 0)
 
-	list = checkMyFollowings(t, userIDs[0], "", "", 100, 2)
+	list = checkMyFollowings(t, userIDs[0], "", "", 100, 3)
 	req.Equal(profiles[2].ID, list.Users[0].ID)
 	req.Equal(profiles[1].ID, list.Users[1].ID)
+	req.Equal(theme.ID, list.Users[2].ID)
 
 	list = checkMyFollowings(t, userIDs[0], "", "", 1, 1)
 	req.Equal(profiles[2].ID, list.Users[0].ID)
 	req.False(list.HasAfter)
 	req.True(list.HasBefore)
 
-	list = checkMyFollowings(t, userIDs[0], "", list.NextBefore, 10, 1)
+	list = checkMyFollowings(t, userIDs[0], "", list.NextBefore, 10, 2)
 	req.Equal(profiles[1].ID, list.Users[0].ID)
+	req.Equal(theme.ID, list.Users[1].ID)
 	req.True(list.HasAfter)
 	req.False(list.HasBefore)
+
+	checkUnfollow(t, userIDs[0], userIDs[1])
+	checkUnfollow(t, userIDs[0], userIDs[2])
+	checkUnfollow(t, userIDs[1], userIDs[2])
+	deleteTheme(t, theme)
+}
+
+func TestOpenFollows(t *testing.T) {
+	theme := createTestTheme(t, userIDs[0])
+
+	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationFollowed, true)
+	time.Sleep(10 * time.Millisecond)
+	checkFollow(t, userIDs[0], userIDs[2], profiles[2], models.RelationshipRelationFollowed, true)
+	time.Sleep(10 * time.Millisecond)
+	checkFollow(t, userIDs[1], userIDs[2], profiles[2], models.RelationshipRelationFollowed, true)
+	time.Sleep(10 * time.Millisecond)
+	checkFollow(t, userIDs[0], nil, &models.AuthProfile{Profile: *theme}, models.RelationshipRelationFollowed, true)
+
+	req := require.New(t)
+	var list *models.FriendList
 
 	checkNameFollowers(t, userIDs[0], profiles[0].Name, "", "", 100, 0)
 
@@ -227,8 +275,13 @@ func TestOpenFriendLists(t *testing.T) {
 	checkNameFollowings(t, userIDs[0], profiles[2].Name, "", "", 100, 0)
 
 	list = checkNameFollowings(t, userIDs[0], strings.ToLower(profiles[0].Name), "", "", 1, 1)
-	req.Equal(profiles[2].ID, list.Users[0].ID)
+	req.Equal(theme.ID, list.Users[0].ID)
 	req.False(list.HasAfter)
+	req.True(list.HasBefore)
+
+	list = checkNameFollowings(t, userIDs[0], strings.ToUpper(profiles[0].Name), "", list.NextBefore, 1, 1)
+	req.Equal(profiles[2].ID, list.Users[0].ID)
+	req.True(list.HasAfter)
 	req.True(list.HasBefore)
 
 	list = checkNameFollowings(t, userIDs[0], strings.ToUpper(profiles[0].Name), "", list.NextBefore, 1, 1)
@@ -238,30 +291,83 @@ func TestOpenFriendLists(t *testing.T) {
 
 	list = checkNameFollowings(t, userIDs[0], strings.ToLower(profiles[0].Name), list.NextAfter, "", 1, 1)
 	req.Equal(profiles[2].ID, list.Users[0].ID)
+	req.True(list.HasAfter)
+	req.True(list.HasBefore)
+
+	list = checkNameFollowings(t, userIDs[0], strings.ToLower(profiles[0].Name), list.NextAfter, "", 1, 1)
+	req.Equal(theme.ID, list.Users[0].ID)
 	req.False(list.HasAfter)
 	req.True(list.HasBefore)
 
 	checkUnfollow(t, userIDs[0], userIDs[1])
 	checkUnfollow(t, userIDs[0], userIDs[2])
 	checkUnfollow(t, userIDs[1], userIDs[2])
+	deleteTheme(t, theme)
+}
+
+func TestThemeFollowers(t *testing.T) {
+	theme := createTestTheme(t, userIDs[0])
+
+	checkFollow(t, userIDs[0], nil, &models.AuthProfile{Profile: *theme}, models.RelationshipRelationFollowed, true)
+	time.Sleep(time.Millisecond)
+	checkFollow(t, userIDs[1], nil, &models.AuthProfile{Profile: *theme}, models.RelationshipRelationFollowed, true)
+	time.Sleep(time.Millisecond)
+	checkFollow(t, userIDs[2], nil, &models.AuthProfile{Profile: *theme}, models.RelationshipRelationFollowed, true)
+
+	req := require.New(t)
+	var list *models.FriendList
+
+	list = checkThemeFollowers(t, userIDs[0], theme.Name, "", "", 100, 3)
+	req.Equal(profiles[2].ID, list.Users[0].ID)
+	req.Equal(profiles[1].ID, list.Users[1].ID)
+	req.Equal(profiles[0].ID, list.Users[2].ID)
+
+	list = checkThemeFollowers(t, userIDs[0], theme.Name, "", "", 1, 1)
+	req.Equal(profiles[2].ID, list.Users[0].ID)
+	req.False(list.HasAfter)
+	req.True(list.HasBefore)
+
+	list = checkThemeFollowers(t, userIDs[0], theme.Name, "", list.NextBefore, 10, 2)
+	req.Equal(profiles[1].ID, list.Users[0].ID)
+	req.Equal(profiles[0].ID, list.Users[1].ID)
+	req.True(list.HasAfter)
+	req.False(list.HasBefore)
+
+	deleteTheme(t, theme)
+}
+
+func TestMyIgnored(t *testing.T) {
+	req := require.New(t)
+	var list *models.FriendList
+
+	theme := createTestTheme(t, userIDs[0])
 
 	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationIgnored, true)
 	time.Sleep(10 * time.Millisecond)
 	checkFollow(t, userIDs[0], userIDs[2], profiles[2], models.RelationshipRelationIgnored, true)
+	time.Sleep(10 * time.Millisecond)
+	checkFollow(t, userIDs[0], nil, &models.AuthProfile{Profile: *theme}, models.RelationshipRelationIgnored, true)
 
 	checkMyIgnored(t, userIDs[2], "", "", 100, 0)
 
-	list = checkMyIgnored(t, userIDs[0], "", "", 100, 2)
-	req.Equal(profiles[2].ID, list.Users[0].ID)
-	req.Equal(profiles[1].ID, list.Users[1].ID)
+	list = checkMyIgnored(t, userIDs[0], "", "", 100, 3)
+	req.Equal(theme.ID, list.Users[0].ID)
+	req.Equal(profiles[2].ID, list.Users[1].ID)
+	req.Equal(profiles[1].ID, list.Users[2].ID)
 	req.False(list.HasAfter)
 	req.False(list.HasBefore)
 
 	list = checkMyIgnored(t, userIDs[0], "", "", 1, 1)
-	req.Equal(profiles[2].ID, list.Users[0].ID)
+	req.Equal(theme.ID, list.Users[0].ID)
 
 	checkUnfollow(t, userIDs[0], userIDs[1])
 	checkUnfollow(t, userIDs[0], userIDs[2])
+	deleteTheme(t, theme)
+}
+
+func TestMyInvited(t *testing.T) {
+	req := require.New(t)
+	var list *models.FriendList
 
 	checkMyInvited(t, userIDs[2], "", "", 100, 0)
 
@@ -284,15 +390,23 @@ func TestOpenFriendLists(t *testing.T) {
 	req.Equal(profiles[1].ID, list.Users[1].ID)
 	req.Equal(profiles[0].ID, list.Users[2].ID)
 	req.Equal(int64(1), list.Users[3].ID)
+}
+
+func TestMyHidden(t *testing.T) {
+	theme := createTestTheme(t, userIDs[0])
 
 	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationHidden, true)
 	checkFollow(t, userIDs[0], userIDs[2], profiles[2], models.RelationshipRelationHidden, true)
-	checkMyHidden(t, userIDs[0], "", "", 10, 2)
+	checkFollow(t, userIDs[0], nil, &models.AuthProfile{Profile: *theme}, models.RelationshipRelationHidden, true)
+
+	checkMyHidden(t, userIDs[0], "", "", 10, 3)
+
 	checkUnfollow(t, userIDs[0], userIDs[1])
 	checkUnfollow(t, userIDs[0], userIDs[2])
+	deleteTheme(t, theme)
 }
 
-func TestPrivateFriendLists(t *testing.T) {
+func TestPrivateFollows(t *testing.T) {
 	checkFollow(t, userIDs[0], userIDs[2], profiles[2], models.RelationshipRelationFollowed, true)
 	time.Sleep(10 * time.Millisecond)
 	checkFollow(t, userIDs[1], userIDs[2], profiles[2], models.RelationshipRelationFollowed, true)

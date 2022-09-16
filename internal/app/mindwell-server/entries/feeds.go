@@ -23,7 +23,7 @@ func baseFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 		Select("is_commentable, is_votable, in_live, is_anonymous").
 		Select("entries.comments_count, entries.favorites_count").
 		Select("entries.author_id, authors.name as author_name, authors.show_name as author_show_name").
-		Select("is_online(authors.last_seen_at) as author_is_online").
+		Select("is_online(authors.last_seen_at) AND authors.creator_id IS NULL as author_is_online").
 		Select("authors.creator_id as author_creator_id").
 		Select("authors.avatar as author_avatar").
 		Select("entries.user_id, entry_users.name as user_name, entry_users.show_name as user_show_name").
