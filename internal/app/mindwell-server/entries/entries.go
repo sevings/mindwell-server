@@ -151,21 +151,17 @@ func setEntryTexts(entry *models.Entry, hasAttach bool) {
 }
 
 func initMyEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID,
-	entry *models.Entry, hasAttach bool) bool {
+	entry *models.Entry, hasAttach bool) *models.Error {
 	isTheme := entry.Author.ID != userID.ID
 
 	if entry.Privacy == models.EntryPrivacyMe {
 		if isTheme {
-			return false
+			return srv.NewError(&i18n.Message{ID: "post_me_to_theme", Other: "Private entries in themes are not allowed."})
 		}
 
 		entry.Rating.IsVotable = false
 		entry.InLive = false
 	} else if entry.Privacy == models.EntryPrivacyFollowers {
-		if isTheme {
-			return false
-		}
-
 		entry.InLive = false
 	}
 
@@ -178,7 +174,7 @@ func initMyEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 
 	entry.Author = users.LoadUserByID(srv, tx, entry.Author.ID)
 	if entry.Author.ID == 0 {
-		return false
+		return srv.NewError(nil)
 	}
 	if isTheme && !entry.IsAnonymous {
 		entry.User = users.LoadUserByID(srv, tx, userID.ID)
@@ -187,12 +183,12 @@ func initMyEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 	setEntryTexts(entry, hasAttach)
 	setEntryRights(entry, userID, 0)
 
-	return true
+	return nil
 }
 
-func createEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entry *models.Entry, hasAttach bool) bool {
-	if !initMyEntry(srv, tx, userID, entry, hasAttach) {
-		return false
+func createEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entry *models.Entry, hasAttach bool) *models.Error {
+	if err := initMyEntry(srv, tx, userID, entry, hasAttach); err != nil {
+		return err
 	}
 
 	category := entryCategory(entry)
@@ -217,7 +213,7 @@ func createEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 	entry.Rating.ID = entry.ID
 	watchings.AddWatching(tx, userID.ID, entry.ID)
 
-	return true
+	return nil
 }
 
 func loadEntryImages(srv *utils.MindwellServer, tx *utils.AutoTx, entry *models.Entry, images []int64) {
@@ -374,8 +370,8 @@ func postNewEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 		return imageErr
 	}
 
-	if !createEntry(srv, tx, userID, entry, len(images) > 0) {
-		return srv.NewError(nil)
+	if err := createEntry(srv, tx, userID, entry, len(images) > 0); err != nil {
+		return err
 	}
 
 	attachImages(srv, tx, entry, images)
@@ -476,10 +472,10 @@ func newThemePoster(srv *utils.MindwellServer) func(themes.PostThemesNameTlogPar
 }
 
 func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entry *models.Entry,
-	hasAttach bool) bool {
+	hasAttach bool) *models.Error {
 
-	if !initMyEntry(srv, tx, userID, entry, hasAttach) {
-		return false
+	if err := initMyEntry(srv, tx, userID, entry, hasAttach); err != nil {
+		return err
 	}
 
 	category := entryCategory(entry)
@@ -500,13 +496,13 @@ func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserI
 		Scan(&entry.CreatedAt)
 
 	if tx.Error() == sql.ErrNoRows {
-		return false
+		return srv.StandardError("no_entry")
 	}
 
 	entry.Rating.ID = entry.ID
 	watchings.AddWatching(tx, userID.ID, entry.ID)
 
-	return true
+	return nil
 }
 
 func reattachImages(srv *utils.MindwellServer, tx *utils.AutoTx, entry *models.Entry, images []int64) {
@@ -612,8 +608,8 @@ func newEntryEditor(srv *utils.MindwellServer) func(entries.PutEntriesIDParams, 
 				Tags:        params.Tags,
 			}
 
-			if !editEntry(srv, tx, uID, entry, len(params.Images) > 0) {
-				return entries.NewPutEntriesIDBadRequest()
+			if err := editEntry(srv, tx, uID, entry, len(params.Images) > 0); err != nil {
+				return entries.NewPutEntriesIDBadRequest().WithPayload(err)
 			}
 
 			reattachImages(srv, tx, entry, params.Images)
