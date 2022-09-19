@@ -39,6 +39,7 @@ func myTagsQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 func tlogTagsQuery(userID *models.UserID, limit int64, tlog string) *sqlf.Stmt {
 	q := tagsQuery(limit).
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
+		Join("users AS authors", "entries.author_id = authors.id").
 		Where("entries.author_id = (SELECT id FROM users WHERE lower(name) = lower(?))", tlog).
 		OrderBy("max(entries.created_at) DESC").
 		OrderBy("cnt DESC")

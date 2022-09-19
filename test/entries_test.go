@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"log"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -835,6 +836,89 @@ func TestLoadTlog(t *testing.T) {
 	esm.Clear()
 }
 
+func checkLoadThemeTlog(t *testing.T, user *models.UserID, name string, success bool, size int) *models.Feed {
+	var limit int64 = 100
+	var before, after, tag, sort, query string
+	sort = "new"
+	params := themes.GetThemesNameTlogParams{
+		Name:   name,
+		Limit:  &limit,
+		Before: &before,
+		After:  &after,
+		Tag:    &tag,
+		Sort:   &sort,
+		Query:  &query,
+	}
+
+	load := api.ThemesGetThemesNameTlogHandler.Handle
+	resp := load(params, user)
+	body, ok := resp.(*themes.GetThemesNameTlogOK)
+	require.Equal(t, success, ok)
+	if !ok {
+		return nil
+	}
+
+	feed := body.Payload
+	require.Equal(t, size, len(feed.Entries))
+
+	return feed
+}
+
+func TestLoadThemeTlog(t *testing.T) {
+	noAuthUser := utils.NoAuthUser()
+
+	theme := createTestTheme(t, userIDs[0])
+	toTheme := &models.AuthProfile{Profile: *theme}
+	checkFollow(t, userIDs[1], nil, toTheme, models.RelationshipRelationFollowed, true)
+	checkFollow(t, userIDs[3], nil, toTheme, models.RelationshipRelationFollowed, true)
+
+	e3 := createThemeEntry(t, userIDs[1], theme.Name, models.EntryPrivacyAll, true, true, true, false)
+	time.Sleep(time.Millisecond)
+	e2 := createThemeEntry(t, userIDs[1], theme.Name, models.EntryPrivacyRegistered, true, true, true, false)
+	time.Sleep(time.Millisecond)
+	e1 := createThemeEntry(t, userIDs[1], theme.Name, models.EntryPrivacyInvited, true, true, true, false)
+	time.Sleep(time.Millisecond)
+	e0 := createThemeEntry(t, userIDs[1], theme.Name, models.EntryPrivacyFollowers, true, true, true, false)
+
+	checkLoadTheme := func(user *models.UserID, success bool, size int) *models.Feed {
+		return checkLoadThemeTlog(t, user, theme.Name, success, size)
+	}
+
+	feed := checkLoadTheme(userIDs[0], true, 4)
+	compareThemeEntries(t, e0, feed.Entries[0], userIDs[0], userIDs[0])
+	compareThemeEntries(t, e1, feed.Entries[1], userIDs[0], userIDs[0])
+	compareThemeEntries(t, e2, feed.Entries[2], userIDs[0], userIDs[0])
+	compareThemeEntries(t, e3, feed.Entries[3], userIDs[0], userIDs[0])
+
+	feed = checkLoadTheme(userIDs[1], true, 4)
+	compareThemeEntries(t, e0, feed.Entries[0], userIDs[1], userIDs[0])
+	compareThemeEntries(t, e1, feed.Entries[1], userIDs[1], userIDs[0])
+	compareThemeEntries(t, e2, feed.Entries[2], userIDs[1], userIDs[0])
+	compareThemeEntries(t, e3, feed.Entries[3], userIDs[1], userIDs[0])
+
+	feed = checkLoadTheme(userIDs[2], true, 3)
+	compareThemeEntries(t, e1, feed.Entries[0], userIDs[2], userIDs[0])
+	compareThemeEntries(t, e2, feed.Entries[1], userIDs[2], userIDs[0])
+	compareThemeEntries(t, e3, feed.Entries[2], userIDs[2], userIDs[0])
+
+	feed = checkLoadTheme(userIDs[3], true, 3)
+	compareThemeEntries(t, e0, feed.Entries[0], userIDs[3], userIDs[0])
+	compareThemeEntries(t, e2, feed.Entries[1], userIDs[3], userIDs[0])
+	compareThemeEntries(t, e3, feed.Entries[2], userIDs[3], userIDs[0])
+
+	feed = checkLoadTheme(noAuthUser, true, 1)
+	compareThemeEntries(t, e3, feed.Entries[0], noAuthUser, userIDs[0])
+
+	checkDeleteEntry(t, e0.ID, userIDs[1], true)
+	checkDeleteEntry(t, e1.ID, userIDs[1], true)
+	checkDeleteEntry(t, e2.ID, userIDs[1], true)
+	checkDeleteEntry(t, e3.ID, userIDs[1], true)
+
+	following := &models.UserID{Name: theme.Name}
+	checkUnfollow(t, userIDs[1], following)
+	checkUnfollow(t, userIDs[3], following)
+}
+
 func checkLoadMyTlogAll(t *testing.T, user *models.UserID, limit int64, before, after, tag, sort, query string, size int) *models.Feed {
 	params := me.GetMeTlogParams{
 		Limit:  &limit,
@@ -1101,13 +1185,14 @@ func TestLoadFavorites(t *testing.T) {
 	checkUnfollow(t, userIDs[0], userIDs[2])
 }
 
-func compareEntries(t *testing.T, exp, act *models.Entry, user *models.UserID) {
+func compareEntriesFull(t *testing.T, exp, act *models.Entry) {
 	req := require.New(t)
 
 	req.Equal(exp.ID, act.ID)
 	req.Equal(exp.Author, act.Author)
 	req.Equal(exp.CommentCount, act.CommentCount)
 	req.Equal(exp.Content, act.Content)
+	req.Equal(exp.EditContent, act.EditContent)
 	req.Equal(exp.CreatedAt, act.CreatedAt)
 	req.Equal(exp.CutContent, exp.CutContent)
 	req.Equal(exp.CutTitle, act.CutTitle)
@@ -1125,17 +1210,55 @@ func compareEntries(t *testing.T, exp, act *models.Entry, user *models.UserID) {
 	req.Equal(exp.Rating.Rating, act.Rating.Rating)
 	req.Equal(exp.Rating.IsVotable, act.Rating.IsVotable)
 
-	if exp.Author.ID == user.ID {
-		req.NotEmpty(act.EditContent)
+	req.Equal(exp.Rights.Edit, act.Rights.Edit)
+	req.Equal(exp.Rights.Delete, act.Rights.Delete)
+	req.Equal(exp.Rights.Comment, act.Rights.Comment)
+	req.Equal(exp.Rights.Vote, act.Rights.Vote)
+	req.Equal(exp.Rights.Complain, act.Rights.Complain)
+}
+
+func setEditContent(e *models.Entry, empty bool) string {
+	ec := e.EditContent
+
+	if empty {
+		e.EditContent = ""
 	} else {
-		req.Empty(act.EditContent)
+		e.EditContent = regexp.MustCompile(`<p>([^<]+)</p>\n`).FindStringSubmatch(e.Content)[1]
 	}
 
-	rights := act.Rights
-	req.Equal(act.Author.ID == user.ID, rights.Edit)
-	req.Equal(act.Author.ID == user.ID, rights.Delete)
-	req.Equal(act.Author.ID == user.ID || !user.Ban.Comment, rights.Comment)
-	req.Equal(act.Author.ID != user.ID && !user.Ban.Vote && act.Rating.IsVotable, rights.Vote)
+	return ec
+}
+
+func compareEntries(t *testing.T, exp, act *models.Entry, user *models.UserID) {
+	content := setEditContent(exp, exp.Author.ID != user.ID)
+	rights := exp.Rights
+
+	exp.Rights.Edit = act.Author.ID == user.ID
+	exp.Rights.Delete = act.Author.ID == user.ID
+	exp.Rights.Comment = act.Author.ID == user.ID || !user.Ban.Comment
+	exp.Rights.Vote = act.Author.ID != user.ID && !user.Ban.Vote && act.Rating.IsVotable
+	exp.Rights.Complain = act.Author.ID != user.ID && user.ID > 0
+
+	compareEntriesFull(t, exp, act)
+
+	exp.Rights = rights
+	exp.EditContent = content
+}
+
+func compareThemeEntries(t *testing.T, exp, act *models.Entry, user, creator *models.UserID) {
+	content := setEditContent(exp, exp.User.ID != user.ID)
+	rights := exp.Rights
+
+	exp.Rights.Edit = act.User.ID == user.ID
+	exp.Rights.Delete = act.User.ID == user.ID || user.ID == creator.ID
+	exp.Rights.Comment = act.User.ID == user.ID || !user.Ban.Comment
+	exp.Rights.Vote = act.User.ID != user.ID && !user.Ban.Vote && act.Rating.IsVotable
+	exp.Rights.Complain = act.User.ID != user.ID && user.ID > 0
+
+	compareEntriesFull(t, exp, act)
+
+	exp.Rights = rights
+	exp.EditContent = content
 }
 
 func TestLoadLiveComments(t *testing.T) {
@@ -1387,6 +1510,8 @@ func TestEntryHTML(t *testing.T) {
 
 		entry := body.Payload
 		require.Equal(t, out, entry.Content)
+
+		checkDeleteEntry(t, entry.ID, userIDs[0], true)
 	}
 
 	linkify := func(url string) (string, string) {
@@ -1397,13 +1522,15 @@ func TestEntryHTML(t *testing.T) {
 	post(linkify("https://ya.ru"))
 }
 
-func TestCanViewEntry(t *testing.T) {
-	req := require.New(t)
+func checkCanViewEntry(t *testing.T, userID *models.UserID, entryID int64, res bool) {
+	tx := utils.NewAutoTx(db)
+	defer tx.Finish()
+	require.Equal(t, res, utils.CanViewEntry(tx, userID, entryID))
+}
 
+func TestCanViewEntry(t *testing.T) {
 	check := func(userID *models.UserID, entryID int64, res bool) {
-		tx := utils.NewAutoTx(db)
-		defer tx.Finish()
-		req.Equal(res, utils.CanViewEntry(tx, userID, entryID))
+		checkCanViewEntry(t, userID, entryID, res)
 	}
 
 	noAuthUser := utils.NoAuthUser()
@@ -1529,9 +1656,66 @@ func TestCanViewEntry(t *testing.T) {
 	check(noAuthUser, e1.ID, true)
 	check(noAuthUser, e2.ID, false)
 
-	utils.ClearDatabase(db)
-	userIDs, profiles = registerTestUsers(db)
-	esm.Clear()
+	checkDeleteEntry(t, e1.ID, userIDs[0], true)
+	checkDeleteEntry(t, e2.ID, userIDs[0], true)
+	checkDeleteEntry(t, e3.ID, userIDs[0], true)
+	checkDeleteEntry(t, e4.ID, userIDs[0], true)
+	checkDeleteEntry(t, e5.ID, userIDs[0], true)
+
+	checkUnfollow(t, userIDs[1], userIDs[0])
+	checkUnfollow(t, userIDs[0], userIDs[1])
+}
+
+func TestCanViewThemeEntry(t *testing.T) {
+	check := func(userID *models.UserID, entryID int64, res bool) {
+		checkCanViewEntry(t, userID, entryID, res)
+	}
+
+	noAuthUser := utils.NoAuthUser()
+
+	theme := createTestTheme(t, userIDs[0])
+	toTheme := &models.AuthProfile{Profile: *theme}
+	checkFollow(t, userIDs[1], nil, toTheme, models.RelationshipRelationFollowed, true)
+	checkFollow(t, userIDs[3], nil, toTheme, models.RelationshipRelationFollowed, true)
+
+	e1 := createThemeEntry(t, userIDs[1], theme.Name, models.EntryPrivacyAll, true, true, true, false)
+	e2 := createThemeEntry(t, userIDs[1], theme.Name, models.EntryPrivacyRegistered, true, true, true, false)
+	e3 := createThemeEntry(t, userIDs[1], theme.Name, models.EntryPrivacyInvited, true, true, true, false)
+	e4 := createThemeEntry(t, userIDs[1], theme.Name, models.EntryPrivacyFollowers, true, true, true, false)
+
+	check(userIDs[0], e1.ID, true)
+	check(userIDs[0], e2.ID, true)
+	check(userIDs[0], e3.ID, true)
+	check(userIDs[0], e4.ID, true)
+
+	check(userIDs[1], e1.ID, true)
+	check(userIDs[1], e2.ID, true)
+	check(userIDs[1], e3.ID, true)
+	check(userIDs[1], e4.ID, true)
+
+	check(userIDs[2], e1.ID, true)
+	check(userIDs[2], e2.ID, true)
+	check(userIDs[2], e3.ID, true)
+	check(userIDs[2], e4.ID, false)
+
+	check(userIDs[3], e1.ID, true)
+	check(userIDs[3], e2.ID, true)
+	check(userIDs[3], e3.ID, false)
+	check(userIDs[3], e4.ID, true)
+
+	check(noAuthUser, e1.ID, true)
+	check(noAuthUser, e2.ID, false)
+	check(noAuthUser, e3.ID, false)
+	check(noAuthUser, e4.ID, false)
+
+	checkDeleteEntry(t, e1.ID, userIDs[1], true)
+	checkDeleteEntry(t, e2.ID, userIDs[1], true)
+	checkDeleteEntry(t, e3.ID, userIDs[1], true)
+	checkDeleteEntry(t, e4.ID, userIDs[1], true)
+
+	following := &models.UserID{Name: theme.Name}
+	checkUnfollow(t, userIDs[1], following)
+	checkUnfollow(t, userIDs[3], following)
 }
 
 func checkPostTaggedEntry(t *testing.T, user *models.UserID, author *models.AuthProfile, content string, wc int64, tags []string) *models.Entry {

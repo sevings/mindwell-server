@@ -190,13 +190,13 @@ CASE entry_privacy.type
 WHEN 'all' THEN TRUE
 WHEN 'registered' THEN ?
 WHEN 'invited' THEN ?
-WHEN 'followers' THEN entries.author_id = ? OR relations_from_me.type = 'followed'
-WHEN 'some' THEN entries.author_id = ?
+WHEN 'followers' THEN authors.id = ? OR authors.creator_id = ? OR relations_from_me.type = 'followed'
+WHEN 'some' THEN authors.id = ? OR authors.creator_id = ?
 	OR EXISTS(SELECT 1 from entries_privacy WHERE user_id = ? AND entry_id = entries.id)
 WHEN 'me' THEN ? AND entries.author_id = ?
 ELSE FALSE
 END
-`, userID.ID > 0, userID.IsInvited, userID.ID, userID.ID, userID.ID, showMe, userID.ID)
+`, userID.ID > 0, userID.IsInvited, userID.ID, userID.ID, userID.ID, userID.ID, userID.ID, showMe, userID.ID)
 }
 
 func AddRelationToTlogQuery(q *sqlf.Stmt, userID *models.UserID, tlog string) *sqlf.Stmt {
@@ -603,11 +603,11 @@ func newThemeLoader(srv *utils.MindwellServer) func(themes.GetThemesNameTlogPara
 			canView := utils.CanViewTlogName(tx, userID, params.Name)
 			if !canView {
 				err := srv.StandardError("no_theme")
-				return themes.NewGetThemesNameFeedNotFound().WithPayload(err)
+				return themes.NewGetThemesNameTlogNotFound().WithPayload(err)
 			}
 
 			feed := loadTlogFeed(srv, tx, userID, params.Name, *params.Before, *params.After, *params.Tag, *params.Sort, *params.Query, *params.Limit)
-			return themes.NewGetThemesNameFeedOK().WithPayload(feed)
+			return themes.NewGetThemesNameTlogOK().WithPayload(feed)
 		})
 	}
 }
