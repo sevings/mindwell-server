@@ -8,7 +8,8 @@ ALTER TABLE entries
 ADD COLUMN "user_id" Integer NOT NULL DEFAULT 1;
 
 UPDATE entries
-SET user_id = author_id;
+SET user_id = author_id
+WHERE user_id = 1;
 
 ALTER TABLE entries
 ALTER COLUMN user_id DROP DEFAULT;
@@ -35,7 +36,8 @@ ALTER TABLE comments
 ADD COLUMN "user_id" Integer NOT NULL DEFAULT 1;
 
 UPDATE comments
-SET user_id = author_id;
+SET user_id = author_id
+WHERE user_id = 1;
 
 ALTER TABLE comments
 ALTER COLUMN user_id DROP DEFAULT;
