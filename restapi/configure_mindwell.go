@@ -57,12 +57,21 @@ func configureAPI(api *operations.MindwellAPI) http.Handler {
 	srv := utils.NewMindwellServer(api, "configs/server")
 	srv.Eac = utils.NewEmailChecker(srv)
 
-	domain := srv.ConfigString("mailgun.domain")
-	apiKey := srv.ConfigString("mailgun.api_key")
-	baseURL := srv.ConfigString("server.base_url")
-	support := srv.ConfigString("server.support")
+	pm := &utils.Postman{
+		BaseUrl:   srv.ConfigString("server.base_url"),
+		Support:   srv.ConfigString("server.support"),
+		Moderator: srv.ConfigString("server.moderator"),
+		Logger:    srv.LogEmail(),
+	}
 
-	srv.Ntf.Mail = utils.NewPostman(domain, apiKey, baseURL, support, srv.LogEmail())
+	smtpHost := srv.ConfigString("email.host")
+	smtpPort := srv.ConfigInt("email.port")
+	err = pm.Start(smtpHost, smtpPort)
+	if err != nil {
+		systemLogger.Error(err.Error())
+	}
+
+	srv.Ntf.Mail = pm
 
 	accountImpl.ConfigureAPI(srv)
 	admImpl.ConfigureAPI(srv)
