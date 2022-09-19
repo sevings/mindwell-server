@@ -333,3 +333,19 @@ ALTER COLUMN rank
 DROP DEFAULT;
 
 DROP FUNCTION next_user_rank();
+
+CREATE OR REPLACE FUNCTION give_invite(userName TEXT) RETURNS VOID AS $$
+    DECLARE
+        wordCount INTEGER;
+        userId INTEGER;
+    BEGIN
+        wordCount = (SELECT COUNT(*) FROM invite_words);
+        userId = (SELECT id FROM users WHERE lower(name) = lower(userName));
+
+        INSERT INTO invites(referrer_id, word1, word2, word3)
+            VALUES(userId,
+                ceil(random() * wordCount),
+                ceil(random() * wordCount),
+                ceil(random() * wordCount));
+    END;
+$$ LANGUAGE plpgsql;

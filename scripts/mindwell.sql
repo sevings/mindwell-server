@@ -1017,9 +1017,9 @@ CREATE OR REPLACE FUNCTION give_invite(userName TEXT) RETURNS VOID AS $$
 
         INSERT INTO invites(referrer_id, word1, word2, word3)
             VALUES(userId, 
-                trunc(random() * wordCount),
-                trunc(random() * wordCount),
-                trunc(random() * wordCount));
+                ceil(random() * wordCount),
+                ceil(random() * wordCount),
+                ceil(random() * wordCount));
     END;
 $$ LANGUAGE plpgsql;
 
