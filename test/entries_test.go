@@ -493,6 +493,11 @@ func TestThemeLiveRestrictions(t *testing.T) {
 	postParams.Content = "test test test3"
 	checkPostThemeEntry(t, postParams, &profiles[0].Profile, theme, userIDs[0], false, 3)
 
+	live = false
+
+	banLive(db, userIDs[0])
+	checkPostThemeEntry(t, postParams, &profiles[0].Profile, theme, userIDs[0], false, 3)
+
 	utils.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)
 }

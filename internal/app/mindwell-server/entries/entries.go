@@ -152,7 +152,7 @@ func setEntryTexts(entry *models.Entry, hasAttach bool) {
 
 func initMyEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID,
 	entry *models.Entry, hasAttach bool) *models.Error {
-	isTheme := entry.Author.ID != userID.ID
+	isTheme := entry.Author.IsTheme
 
 	if entry.Privacy == models.EntryPrivacyMe {
 		if isTheme {
@@ -172,10 +172,16 @@ func initMyEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 	entry.IsWatching = true
 	entry.WordCount = wordCount(entry.EditContent, entry.Title)
 
-	entry.Author = users.LoadUserByID(srv, tx, entry.Author.ID)
+	if entry.Author.ID > 0 {
+		entry.Author = users.LoadUserByID(srv, tx, entry.Author.ID)
+	} else {
+		entry.Author = users.LoadUserByName(srv, tx, entry.Author.Name)
+	}
+
 	if entry.Author.ID == 0 {
 		return srv.NewError(nil)
 	}
+
 	if isTheme && !entry.IsAnonymous {
 		entry.User = users.LoadUserByID(srv, tx, userID.ID)
 	}
@@ -321,6 +327,44 @@ func canPostInLive(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 	return nil
 }
 
+func canPostInTheme(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, theme string) *models.Error {
+	if userID.Ban.Live {
+		return srv.NewError(&i18n.Message{ID: "post_in_themes", Other: "You're not allowed to post in themes."})
+	}
+
+	if userID.NegKarma {
+		return srv.NewError(&i18n.Message{ID: "post_in_themes_karma", Other: "You're not allowed to post in themes."})
+	}
+
+	postThemeErr := srv.NewError(&i18n.Message{ID: "post_in_theme", Other: "You're not allowed to post in this theme."})
+
+	if !userID.IsInvited {
+		return postThemeErr
+	}
+
+	const themeQ = `SELECT id, creator_id FROM users WHERE lower(name) = lower($1) AND creator_id IS NOT NULL`
+	var themeID, creatorID int64
+	tx.Query(themeQ, theme).Scan(&themeID, &creatorID)
+
+	if themeID == 0 {
+		return srv.StandardError("no_theme")
+	}
+
+	if creatorID != userID.ID {
+		relationTo := utils.LoadRelation(tx, userID.ID, themeID)
+		if relationTo != models.RelationshipRelationFollowed {
+			return postThemeErr
+		}
+
+		relationFrom := utils.LoadRelation(tx, themeID, userID.ID)
+		if relationFrom == models.RelationshipRelationIgnored {
+			return postThemeErr
+		}
+	}
+
+	return nil
+}
+
 func checkImagesOwner(srv *utils.MindwellServer, tx *utils.AutoTx, userID int64, images []int64) *models.Error {
 	for _, imageID := range images {
 		authorID := tx.QueryInt64("SELECT user_id FROM images WHERE id = $1", imageID)
@@ -353,6 +397,13 @@ func postNewEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 			entry.Privacy == models.EntryPrivacyRegistered ||
 			entry.Privacy == models.EntryPrivacyInvited) {
 		err := canPostInLive(srv, tx, userID)
+		if err != nil {
+			return err
+		}
+	}
+
+	if entry.Author.IsTheme && entry.Privacy != models.EntryPrivacyMe {
+		err := canPostInTheme(srv, tx, userID, entry.Author.Name)
 		if err != nil {
 			return err
 		}
@@ -416,38 +467,12 @@ func newMyTlogPoster(srv *utils.MindwellServer) func(me.PostMeTlogParams, *model
 }
 
 func newThemePoster(srv *utils.MindwellServer) func(themes.PostThemesNameTlogParams, *models.UserID) middleware.Responder {
-	postThemeErr := srv.NewError(&i18n.Message{ID: "post_in_theme", Other: "You're not allowed to post in this theme."})
-
 	return func(params themes.PostThemesNameTlogParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			if !userID.IsInvited {
-				return themes.NewPostThemesNameTlogForbidden().WithPayload(postThemeErr)
-			}
-
-			const themeQ = `SELECT id, creator_id FROM users WHERE lower(name) = lower($1) AND creator_id IS NOT NULL`
-			var themeID, creatorID int64
-			tx.Query(themeQ, params.Name).Scan(&themeID, &creatorID)
-
-			if themeID == 0 {
-				err := srv.StandardError("no_theme")
-				return themes.NewPutThemesNameForbidden().WithPayload(err)
-			}
-
-			if creatorID != userID.ID {
-				relationTo := utils.LoadRelation(tx, userID.ID, themeID)
-				if relationTo != models.RelationshipRelationFollowed {
-					return themes.NewPostThemesNameTlogForbidden().WithPayload(postThemeErr)
-				}
-
-				relationFrom := utils.LoadRelation(tx, themeID, userID.ID)
-				if relationFrom == models.RelationshipRelationIgnored {
-					return themes.NewPostThemesNameTlogForbidden().WithPayload(postThemeErr)
-				}
-			}
-
 			entry := &models.Entry{
 				Author: &models.User{
-					ID: themeID,
+					Name:    params.Name,
+					IsTheme: true,
 				},
 				Privacy:       params.Privacy,
 				IsCommentable: *params.IsCommentable,
@@ -594,7 +619,8 @@ func newEntryEditor(srv *utils.MindwellServer) func(entries.PutEntriesIDParams, 
 			entry := &models.Entry{
 				ID: params.ID,
 				Author: &models.User{
-					ID: authorID,
+					ID:      authorID,
+					IsTheme: authorID != uID.ID,
 				},
 				Privacy:       params.Privacy,
 				IsCommentable: *params.IsCommentable,
