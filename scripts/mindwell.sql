@@ -130,7 +130,7 @@ CREATE TABLE "mindwell"."users" (
     CONSTRAINT "enum_user_privacy" FOREIGN KEY("privacy") REFERENCES "mindwell"."user_privacy"("id"),
     CONSTRAINT "enum_user_alignment" FOREIGN KEY("text_alignment") REFERENCES "mindwell"."alignment"("id"),
     CONSTRAINT "enum_user_font_family" FOREIGN KEY("font_family") REFERENCES "mindwell"."font_family"("id"),
-    CONSTRAINT "enum_user_authority" FOREIGN KEY("authority") REFERENCES "mindwell"."authority"("id") ),
+    CONSTRAINT "enum_user_authority" FOREIGN KEY("authority") REFERENCES "mindwell"."authority"("id"),
     CONSTRAINT "theme_creator" FOREIGN KEY("creator_id") REFERENCES "mindwell"."users"("id") );
  ;
 -- -------------------------------------------------------------
@@ -237,12 +237,12 @@ CREATE UNIQUE INDEX "index_adm" ON "mindwell"."adm" USING btree( lower("name") )
 -- -------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION mindwell.ban_adm() RETURNS VOID AS $$
-    UPDATE users 
+    UPDATE mindwell.users
     SET adm_ban = true
     WHERE name IN (
         SELECT gs.name 
-        FROM adm AS gs
-        JOIN adm AS gf ON gf.grandfather = gs.name
+        FROM mindwell.adm AS gs
+        JOIN mindwell.adm AS gf ON gf.grandfather = gs.name
         WHERE (NOT gf.sent AND NOT gf.received) OR (gs.sent AND NOT gs.received)
     );
 $$ LANGUAGE SQL;
@@ -1923,8 +1923,8 @@ CREATE TRIGGER cnt_comment_votes_del
 
 
 INSERT INTO mindwell.users
-    (name, show_name, email, password_hash, invited_by)
-    VALUES('Mindwell', 'Mindwell', '', '', 1);
+    (name, show_name, email, password_hash, invited_by, rank)
+    VALUES('Mindwell', 'Mindwell', '', '', 1, 1);
 
 
 
@@ -2387,7 +2387,7 @@ CREATE TABLE "mindwell"."user_log" (
 
 CREATE VIEW "mindwell"."user_log_view" AS
 SELECT name, ip, to_hex(device) AS device, to_hex(app) AS app, to_hex(uid) AS uid, to_char(at, 'YYYY.MM.DD HH24:MI:SS') AS at, first
-FROM user_log
+FROM mindwell.user_log
 ORDER BY at DESC;
 
 CREATE INDEX "index_requested_at" ON "mindwell"."user_log" USING btree( "at" );
@@ -2404,9 +2404,9 @@ CREATE OR REPLACE FUNCTION mindwell.give_invites() RETURNS TABLE(user_id int) AS
                     SELECT author_id 
                     FROM (
                         SELECT created_at, author_id, rating 
-                        FROM entries 
+                        FROM mindwell.entries
                         WHERE age(created_at) <= interval '1 month' 
-                            AND visible_for = (SELECT id FROM entry_privacy WHERE type = 'all')
+                            AND visible_for = (SELECT id FROM mindwell.entry_privacy WHERE type = 'all')
                         ORDER BY rating DESC 
                         LIMIT 100) AS e
                     WHERE created_at::date = CURRENT_DATE - 3
@@ -2425,7 +2425,7 @@ CREATE OR REPLACE FUNCTION mindwell.give_invites() RETURNS TABLE(user_id int) AS
             AND invited_by IS NOT NULL
         RETURNING users.id
     ), wc AS (
-        SELECT COUNT(*) AS words FROM invite_words
+        SELECT COUNT(*) AS words FROM mindwell.invite_words
     )
     INSERT INTO mindwell.invites(referrer_id, word1, word2, word3)
         SELECT inviters.id, 
@@ -2550,7 +2550,7 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION mindwell.ban_invite(userName Text) RETURNS VOID AS $$
     DELETE FROM mindwell.invites
-    WHERE referrer_id = (SELECT id FROM users WHERE lower(name) = lower(userName));
+    WHERE referrer_id = (SELECT id FROM mindwell.users WHERE lower(name) = lower(userName));
 
     UPDATE mindwell.users
     SET invite_ban = CURRENT_DATE + interval '1 month'
