@@ -161,14 +161,17 @@ func generateAvatar(srv *utils.MindwellServer, name, gender string) string {
 func createUser(srv *utils.MindwellServer, tx *utils.AutoTx, params account.PostAccountRegisterParams) int64 {
 	hash := srv.TokenHash().PasswordHash(params.Password)
 
+	const rankQ = "SELECT COUNT(*) + 1 FROM users WHERE creator_id IS NULL AND karma >= 0"
+	rank := tx.QueryInt64(rankQ)
+
 	const q = `
 		INSERT INTO users 
 		(name, show_name, email, password_hash,
 		gender, 
-		country, city, avatar)
+		country, city, avatar, rank)
 		values($1, $1, $2, $3,
 			(select id from gender where type = $4), 
-			$5, $6, $7)
+			$5, $6, $7, $8)
 		RETURNING id`
 
 	if params.Gender == nil {
@@ -192,7 +195,8 @@ func createUser(srv *utils.MindwellServer, tx *utils.AutoTx, params account.Post
 	tx.Query(q,
 		params.Name, params.Email, hash,
 		*params.Gender,
-		*params.Country, *params.City, avatar).Scan(&user)
+		*params.Country, *params.City, avatar, rank).
+		Scan(&user)
 
 	if params.Birthday != nil {
 		tx.Exec("UPDATE users SET birthday = $1 WHERE id = $2", *params.Birthday, user)

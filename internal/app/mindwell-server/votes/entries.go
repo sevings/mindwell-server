@@ -65,19 +65,19 @@ func canVoteForEntry(tx *utils.AutoTx, userID *models.UserID, entryID int64) boo
 		return false
 	}
 
-	var authorID int64
+	var entryUserID int64
 	var votable bool
 	var privacy string
 
 	const q = `
-		SELECT author_id, is_votable, entry_privacy.type
+		SELECT user_id, is_votable, entry_privacy.type
 		FROM entries
 		INNER JOIN entry_privacy ON entries.visible_for = entry_privacy.id
 		WHERE entries.id = $1
 	`
 
-	tx.Query(q, entryID).Scan(&authorID, &votable, &privacy)
-	if authorID == userID.ID || !votable || privacy == models.EntryPrivacyAnonymous {
+	tx.Query(q, entryID).Scan(&entryUserID, &votable, &privacy)
+	if entryUserID == userID.ID || !votable {
 		return false
 	}
 

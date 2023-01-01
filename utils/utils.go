@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	crypto "crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"github.com/leporo/sqlf"
 	"log"
@@ -43,7 +44,7 @@ func LoadConfig(fileName string) *goconf.Config {
 	return config
 }
 
-func loadRelation(tx *AutoTx, from, to int64) string {
+func LoadRelation(tx *AutoTx, from, to int64) string {
 	if from == 0 || to == 0 {
 		return models.RelationshipRelationNone
 	}
@@ -69,16 +70,16 @@ func CanViewTlogName(tx *AutoTx, userID *models.UserID, tlog string) bool {
 		return false
 	}
 
-	tlogQuery := sqlf.Select("users.id").Select("user_privacy.type").
+	tlogQuery := sqlf.Select("users.id, COALESCE(creator_id, 0)").Select("user_privacy.type").
 		From("users").
 		LeftJoin("user_privacy", "users.privacy = user_privacy.id").
 		Where("lower(name) = lower(?)", tlog)
 
-	var tlogID int64
+	var tlogID, creatorID int64
 	var privacy string
-	tx.QueryStmt(tlogQuery).Scan(&tlogID, &privacy)
+	tx.QueryStmt(tlogQuery).Scan(&tlogID, &creatorID, &privacy)
 
-	return CanViewTlog(tx, userID, tlogID, privacy)
+	return CanViewTlog(tx, userID, tlogID, creatorID, privacy)
 }
 
 func CanViewTlogID(tx *AutoTx, userID *models.UserID, tlogID int64) bool {
@@ -86,19 +87,20 @@ func CanViewTlogID(tx *AutoTx, userID *models.UserID, tlogID int64) bool {
 		return false
 	}
 
-	tlogQuery := sqlf.Select("user_privacy.type").
+	tlogQuery := sqlf.Select("COALESCE(creator_id, 0), user_privacy.type").
 		From("users").
 		LeftJoin("user_privacy", "users.privacy = user_privacy.id").
 		Where("users.id = ?", tlogID)
 
+	var creatorID int64
 	var privacy string
-	tx.QueryStmt(tlogQuery).Scan(&privacy)
+	tx.QueryStmt(tlogQuery).Scan(&creatorID, &privacy)
 
-	return CanViewTlog(tx, userID, tlogID, privacy)
+	return CanViewTlog(tx, userID, tlogID, creatorID, privacy)
 }
 
 // CanViewTlog returns true if the user is allowed to read the tlog.
-func CanViewTlog(tx *AutoTx, userID *models.UserID, tlogID int64, privacy string) bool {
+func CanViewTlog(tx *AutoTx, userID *models.UserID, tlogID, creatorID int64, privacy string) bool {
 	if tlogID == 0 {
 		return false
 	}
@@ -107,11 +109,11 @@ func CanViewTlog(tx *AutoTx, userID *models.UserID, tlogID int64, privacy string
 		return privacy == models.EntryPrivacyAll
 	}
 
-	if userID.ID == tlogID {
+	if userID.ID == tlogID || userID.ID == creatorID {
 		return true
 	}
 
-	relationFrom := loadRelation(tx, tlogID, userID.ID)
+	relationFrom := LoadRelation(tx, tlogID, userID.ID)
 	if relationFrom == models.RelationshipRelationIgnored {
 		return false
 	}
@@ -124,7 +126,7 @@ func CanViewTlog(tx *AutoTx, userID *models.UserID, tlogID int64, privacy string
 	case models.EntryPrivacyInvited:
 		return userID.IsInvited
 	case models.EntryPrivacyFollowers:
-		relationTo := loadRelation(tx, userID.ID, tlogID)
+		relationTo := LoadRelation(tx, userID.ID, tlogID)
 		return relationTo == models.RelationshipRelationFollowed
 	}
 
@@ -137,21 +139,19 @@ func CanViewEntry(tx *AutoTx, userID *models.UserID, entryID int64) bool {
 		return false
 	}
 
-	entryQuery := sqlf.Select("author_id").Select("entry_privacy.type").
+	entryQuery := sqlf.Select("author_id, user_id, creator_id").Select("entry_privacy.type").
 		From("entries").
 		Join("entry_privacy", "visible_for = entry_privacy.id").
+		Join("users", "author_id = users.id").
 		Where("entries.id = ?", entryID)
 
-	var tlogID int64
+	var tlogID, entryUserID int64
+	var creatorID sql.NullInt64
 	var privacy string
-	tx.QueryStmt(entryQuery).Scan(&tlogID, &privacy)
+	tx.QueryStmt(entryQuery).Scan(&tlogID, &entryUserID, &creatorID, &privacy)
 
-	if tlogID == userID.ID {
+	if entryUserID == userID.ID || (creatorID.Valid && creatorID.Int64 == userID.ID) {
 		return true
-	}
-
-	if privacy == models.EntryPrivacyAnonymous {
-		return userID.ID > 0
 	}
 
 	if !CanViewTlogID(tx, userID, tlogID) {
@@ -166,7 +166,7 @@ func CanViewEntry(tx *AutoTx, userID *models.UserID, entryID int64) bool {
 	case models.EntryPrivacyInvited:
 		return userID.IsInvited
 	case models.EntryPrivacyFollowers:
-		relationTo := loadRelation(tx, userID.ID, tlogID)
+		relationTo := LoadRelation(tx, userID.ID, tlogID)
 		return relationTo == models.RelationshipRelationFollowed
 	case models.EntryPrivacySome:
 		if userID.ID == 0 {

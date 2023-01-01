@@ -8,6 +8,7 @@ import (
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/entries"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"github.com/sevings/mindwell-server/utils"
 	"strings"
@@ -43,8 +44,8 @@ func myCalendarQuery(userID *models.UserID, cal *models.Calendar) *sqlf.Stmt {
 
 func tlogCalendarQuery(userID *models.UserID, tlog string, cal *models.Calendar) *sqlf.Stmt {
 	q := baseCalendarQuery(cal).
-		Join("users", "author_id = users.id").
-		Where("lower(users.name) = lower(?)", tlog).
+		Join("users AS authors", "entries.author_id = authors.id").
+		Where("lower(authors.name) = lower(?)", tlog).
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id")
 	AddRelationToTlogQuery(q, userID, tlog)
 	return AddEntryOpenQuery(q, userID, false)
@@ -154,6 +155,21 @@ func newTlogCalendarLoader(srv *utils.MindwellServer) func(users.GetUsersNameCal
 	}
 }
 
+func newThemeCalendarLoader(srv *utils.MindwellServer) func(themes.GetThemesNameCalendarParams, *models.UserID) middleware.Responder {
+	return func(params themes.GetThemesNameCalendarParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			canView := utils.CanViewTlogName(tx, userID, params.Name)
+			if !canView {
+				err := srv.StandardError("no_theme")
+				return themes.NewGetThemesNameCalendarNotFound().WithPayload(err)
+			}
+
+			feed := loadTlogCalendar(tx, userID, params.Name, *params.Start, *params.End, *params.Limit)
+			return themes.NewGetThemesNameCalendarOK().WithPayload(feed)
+		})
+	}
+}
+
 func loadMyCalendar(tx *utils.AutoTx, userID *models.UserID, start, end, limit int64) *models.Calendar {
 	createdAtQuery := sqlf.Select("extract(epoch FROM created_at)").
 		From("users").
@@ -200,6 +216,7 @@ func loadAdjacent(tx *utils.AutoTx, userID *models.UserID, entryID int64) models
 
 	if authorID != userID.ID {
 		q.Join("entry_privacy", "entries.visible_for = entry_privacy.id")
+		q.Join("users AS authors", "entries.author_id = authors.id")
 		q = AddRelationToQuery(q, userID, authorID)
 		q = AddEntryOpenQuery(q, userID, false)
 	}

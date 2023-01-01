@@ -319,6 +319,7 @@ func (bot *TelegramBot) help(upd *tgbotapi.Update) string {
 <code>/alts {email, login или ссылка}</code> — искать альтернативные аккаунты пользователя.
 <code>/delete {email}</code> — удалить пользователя.
 <code>/create app {dev_name} {public | private} {code | password} {redirect_uri} {name} {show_name} {platform} {info}</code> - создать приложение.
+<code>/create theme {name} {creator}</code> — создать тему.
 /stat — статистика сервера.
 `
 	}
@@ -485,8 +486,11 @@ func (bot *TelegramBot) create(upd *tgbotapi.Update) string {
 		return "Укажи необходимые аргументы."
 	}
 
-	if args[0] == "app" {
+	switch args[0] {
+	case "app":
 		return bot.createApp(args[1:])
+	case "theme":
+		return bot.createTheme(args[1:])
 	}
 
 	return unrecognisedText
@@ -575,6 +579,34 @@ VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	text += "\n<b>info</b>: " + info
 
 	return text
+}
+
+func (bot *TelegramBot) createTheme(args []string) string {
+	if len(args) < 2 {
+		return "Укажи необходимые аргументы."
+	}
+
+	name := strings.TrimSpace(args[0])
+	creator := strings.TrimSpace(args[1])
+
+	tx := NewAutoTx(bot.srv.DB)
+	defer tx.Finish()
+
+	const rankQ = "SELECT COUNT(*) + 1 FROM users WHERE creator_id IS NOT NULL AND karma >= 0"
+	rank := tx.QueryInt64(rankQ)
+
+	const q = `
+		INSERT INTO users 
+		(name, show_name, email, password_hash, creator_id, rank)
+		values($1, $1, $1, '', (SELECT id FROM users WHERE lower(name) = lower($2)), $3)`
+
+	tx.Exec(q, name, creator, rank)
+	if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
+		bot.log.Error(tx.Error().Error())
+		return "Не удалось создать тему."
+	}
+
+	return fmt.Sprintf(`Тема создана: <a href="%sthemes/%s">%s</a>`, bot.url, name, name)
 }
 
 func (bot *TelegramBot) info(upd *tgbotapi.Update) string {

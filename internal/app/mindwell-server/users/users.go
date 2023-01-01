@@ -5,6 +5,7 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"github.com/sevings/mindwell-server/utils"
 	"strconv"
@@ -33,12 +34,20 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.MePutMeOnlineHandler = me.PutMeOnlineHandlerFunc(newMyOnlineSetter(srv))
 
 	srv.API.UsersGetUsersHandler = users.GetUsersHandlerFunc(newUsersLoader(srv))
+
+	srv.API.ThemesGetThemesHandler = themes.GetThemesHandlerFunc(newThemesLoader(srv))
+	srv.API.ThemesPostThemesHandler = themes.PostThemesHandlerFunc(newThemeCreator(srv))
+
+	srv.API.ThemesGetThemesNameHandler = themes.GetThemesNameHandlerFunc(newThemeLoader(srv))
+	srv.API.ThemesPutThemesNameHandler = themes.PutThemesNameHandlerFunc(newThemeEditor(srv))
+
+	srv.API.ThemesGetThemesNameFollowersHandler = themes.GetThemesNameFollowersHandlerFunc(newThemeFollowersLoader(srv))
 }
 
 const profileQuery = `
 SELECT users.id, users.name, users.show_name,
 users.avatar,
-gender.type, users.is_daylog,
+gender.type, users.is_daylog, users.creator_id IS NOT NULL,
 user_privacy.type,
 users.title, users.rank, 
 extract(epoch from users.created_at), extract(epoch from users.last_seen_at), is_online(users.last_seen_at),
@@ -53,13 +62,18 @@ font_family.type, users.font_size, alignment.type,
 users.invited_by, 
 invited_by.name, invited_by.show_name,
 is_online(invited_by.last_seen_at), 
-invited_by.avatar
+invited_by.avatar, 
+users.creator_id, 
+created_by.name, created_by.show_name,
+is_online(created_by.last_seen_at), 
+created_by.avatar
 FROM users 
 INNER JOIN gender ON gender.id = users.gender
 INNER JOIN user_privacy ON users.privacy = user_privacy.id
 INNER JOIN font_family ON users.font_family = font_family.id
 INNER JOIN alignment ON users.text_alignment = alignment.id
-LEFT JOIN users AS invited_by ON users.invited_by = invited_by.id `
+LEFT JOIN users AS invited_by ON users.invited_by = invited_by.id
+LEFT JOIN users AS created_by ON users.creator_id = created_by.id  `
 
 func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, userID *models.UserID, arg interface{}) *models.Profile {
 	var profile models.Profile
@@ -76,11 +90,15 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 	var invitedByName, invitedByShowName sql.NullString
 	var invitedByIsOnline sql.NullBool
 	var invitedByAvatar sql.NullString
+	var createdByID sql.NullInt64
+	var createdByName, createdByShowName sql.NullString
+	var createdByIsOnline sql.NullBool
+	var createdByAvatar sql.NullString
 
 	tx.Query(query, arg)
 	tx.Scan(&profile.ID, &profile.Name, &profile.ShowName,
 		&avatar,
-		&profile.Gender, &profile.IsDaylog,
+		&profile.Gender, &profile.IsDaylog, &profile.IsTheme,
 		&profile.Privacy,
 		&profile.Title, &profile.Rank,
 		&profile.CreatedAt, &profile.LastSeenAt, &profile.IsOnline,
@@ -95,7 +113,11 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 		&invitedByID,
 		&invitedByName, &invitedByShowName,
 		&invitedByIsOnline,
-		&invitedByAvatar)
+		&invitedByAvatar,
+		&createdByID,
+		&createdByName, &createdByShowName,
+		&createdByIsOnline,
+		&createdByAvatar)
 
 	if userID.ID == 0 && profile.Privacy != "all" {
 		return &models.Profile{}
@@ -117,6 +139,17 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 			profile.InvitedBy.IsOnline = invitedByIsOnline.Bool
 			profile.InvitedBy.Avatar = srv.NewAvatar(invitedByAvatar.String)
 		}
+	} else if createdByID.Valid {
+		profile.CreatedBy = &models.User{
+			ID: createdByID.Int64,
+		}
+
+		if createdByName.Valid {
+			profile.CreatedBy.Name = createdByName.String
+			profile.CreatedBy.ShowName = createdByShowName.String
+			profile.CreatedBy.IsOnline = createdByIsOnline.Bool
+			profile.CreatedBy.Avatar = srv.NewAvatar(createdByAvatar.String)
+		}
 	}
 
 	profile.Cover = srv.NewCover(profile.ID, cover)
@@ -131,6 +164,12 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 	if profile.ID == userID.ID {
 		profile.Relations.IsOpenForMe = true
 		return &profile
+	}
+
+	if profile.IsTheme {
+		profile.Gender = ""
+		profile.LastSeenAt = 0
+		profile.IsOnline = false
 	}
 
 	const relationQuery = `
@@ -149,6 +188,10 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 
 func isOpenForMe(profile *models.Profile, me *models.UserID) bool {
 	if profile.ID == me.ID {
+		return true
+	}
+
+	if profile.CreatedBy != nil && profile.CreatedBy.ID == me.ID {
 		return true
 	}
 
@@ -185,7 +228,7 @@ func relationship(tx *utils.AutoTx, query string, from, to int64) string {
 }
 
 const usersQuerySelect = `
-SELECT users.id, users.name, users.show_name, gender.type,
+SELECT users.id, users.name, users.show_name, gender.type, users.creator_id IS NOT NULL,
 is_online(users.last_seen_at), extract(epoch from users.last_seen_at), users.title, users.rank,
 user_privacy.type, users.avatar, users.cover,
 users.entries_count, users.followings_count, users.followers_count, 
@@ -212,7 +255,7 @@ func loadUserList(srv *utils.MindwellServer, tx *utils.AutoTx, reverse bool) ([]
 		user.Counts = &models.FriendAO1Counts{}
 		var avatar, cover string
 
-		ok := tx.Scan(&user.ID, &user.Name, &user.ShowName, &user.Gender,
+		ok := tx.Scan(&user.ID, &user.Name, &user.ShowName, &user.Gender, &user.IsTheme,
 			&user.IsOnline, &user.LastSeenAt, &user.Title, &user.Rank,
 			&user.Privacy, &avatar, &cover,
 			&user.Counts.Entries, &user.Counts.Followings, &user.Counts.Followers,
@@ -221,6 +264,11 @@ func loadUserList(srv *utils.MindwellServer, tx *utils.AutoTx, reverse bool) ([]
 			&nextBefore)
 		if !ok {
 			break
+		}
+
+		if user.IsTheme {
+			user.LastSeenAt = 0
+			user.IsOnline = false
 		}
 
 		user.Avatar = srv.NewAvatar(avatar)
@@ -243,62 +291,72 @@ func loadUserList(srv *utils.MindwellServer, tx *utils.AutoTx, reverse bool) ([]
 }
 
 func loadRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, queryWhere, related, name,
-	relation, afterS, beforeS string, limit int64) middleware.Responder {
-	return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-		open := utils.CanViewTlogName(tx, userID, name)
-		if !open {
-			err := srv.StandardError("no_tlog")
-			return users.NewGetUsersNameFollowersForbidden().WithPayload(err)
-		}
+	relation, afterS, beforeS string, limit int64) *models.FriendList {
+	tx := utils.NewAutoTx(srv.DB)
+	defer tx.Finish()
 
-		before := utils.ParseFloat(beforeS)
-		after := utils.ParseFloat(afterS)
+	open := utils.CanViewTlogName(tx, userID, name)
+	if !open {
+		return nil
+	}
 
-		if after > 0 {
-			q := query + " AND relations.changed_at > to_timestamp($3) ORDER BY relations.changed_at ASC LIMIT $4"
-			tx.Query(q, name, related, after, limit)
-		} else if before > 0 {
-			q := query + " AND relations.changed_at < to_timestamp($3) ORDER BY relations.changed_at DESC LIMIT $4"
-			tx.Query(q, name, related, before, limit)
-		} else {
-			q := query + " ORDER BY relations.changed_at DESC LIMIT $3"
-			tx.Query(q, name, related, limit)
-		}
+	before := utils.ParseFloat(beforeS)
+	after := utils.ParseFloat(afterS)
 
-		var list models.FriendList
-		var nextBefore, nextAfter interface{}
-		list.Users, nextBefore, nextAfter = loadUserList(srv, tx, after > 0)
+	if after > 0 {
+		q := query + " AND relations.changed_at > to_timestamp($3) ORDER BY relations.changed_at ASC LIMIT $4"
+		tx.Query(q, name, related, after, limit)
+	} else if before > 0 {
+		q := query + " AND relations.changed_at < to_timestamp($3) ORDER BY relations.changed_at DESC LIMIT $4"
+		tx.Query(q, name, related, before, limit)
+	} else {
+		q := query + " ORDER BY relations.changed_at DESC LIMIT $3"
+		tx.Query(q, name, related, limit)
+	}
 
-		list.Subject = loadUser(srv, tx, loadUserQueryName, name)
-		list.Relation = relation
+	var list models.FriendList
+	var nextBefore, nextAfter interface{}
+	list.Users, nextBefore, nextAfter = loadUserList(srv, tx, after > 0)
 
-		if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
-			err := srv.StandardError("no_tlog")
-			return users.NewGetUsersNameFollowersNotFound().WithPayload(err)
-		}
+	list.Subject = loadUser(srv, tx, loadUserQueryName, name)
+	list.Relation = relation
 
-		if len(list.Users) == 0 {
-			return users.NewGetUsersNameFollowersOK().WithPayload(&list)
-		}
+	if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
+		return nil
+	}
 
-		beforeQuery := `SELECT EXISTS(
+	if len(list.Users) == 0 {
+		return &list
+	}
+
+	beforeQuery := `SELECT EXISTS(
 		SELECT 1 
 		FROM users, relation, relations, gender, user_privacy
 		WHERE ` + queryWhere + " AND relations.changed_at < to_timestamp($3))"
 
-		list.NextBefore = utils.FormatFloat(nextBefore.(float64))
-		list.HasBefore = tx.QueryBool(beforeQuery, name, related, nextBefore)
+	list.NextBefore = utils.FormatFloat(nextBefore.(float64))
+	list.HasBefore = tx.QueryBool(beforeQuery, name, related, nextBefore)
 
-		afterQuery := `SELECT EXISTS(
+	afterQuery := `SELECT EXISTS(
 		SELECT 1 
 		FROM users, relation, relations, gender, user_privacy
 		WHERE ` + queryWhere + " AND relations.changed_at > to_timestamp($3))"
 
-		list.NextAfter = utils.FormatFloat(nextAfter.(float64))
-		list.HasAfter = tx.QueryBool(afterQuery, name, related, nextAfter)
+	list.NextAfter = utils.FormatFloat(nextAfter.(float64))
+	list.HasAfter = tx.QueryBool(afterQuery, name, related, nextAfter)
 
-		return users.NewGetUsersNameFollowersOK().WithPayload(&list)
-	})
+	return &list
+}
+
+func loadTlogRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, queryWhere, related, name,
+	relation, afterS, beforeS string, limit int64) middleware.Responder {
+	list := loadRelatedUsers(srv, userID, query, queryWhere, related, name, relation, afterS, beforeS, limit)
+	if list == nil {
+		err := srv.StandardError("no_tlog")
+		return users.NewGetUsersNameFollowersNotFound().WithPayload(err)
+	}
+
+	return users.NewGetUsersNameFollowersOK().WithPayload(list)
 }
 
 func loadInvitedUsers(srv *utils.MindwellServer, userID *models.UserID, query, queryWhere, name,
@@ -369,7 +427,7 @@ func loadInvitedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 
 const loadUserQuery = `
 SELECT id, name, show_name,
-is_online(last_seen_at), avatar
+is_online(last_seen_at) AND creator_id IS NULL, creator_id IS NOT NULL, avatar
 FROM users
 WHERE `
 
@@ -381,9 +439,10 @@ func loadUser(srv *utils.MindwellServer, tx *utils.AutoTx, query string, arg int
 	var avatar string
 
 	tx.Query(query, arg).Scan(&user.ID, &user.Name, &user.ShowName,
-		&user.IsOnline, &avatar)
+		&user.IsOnline, &user.IsTheme, &avatar)
 
 	user.Avatar = srv.NewAvatar(avatar)
+
 	return &user
 }
 

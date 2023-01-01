@@ -7,6 +7,7 @@ import (
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/entries"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"github.com/sevings/mindwell-server/utils"
 	"strings"
@@ -19,13 +20,18 @@ func baseFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 		Select("rating, entries.up_votes, entries.down_votes").
 		Select("entries.title, edit_content").
 		Select("word_count, entry_privacy.type as privacy").
-		Select("is_commentable, is_votable, in_live").
+		Select("is_commentable, is_votable, in_live, is_anonymous").
 		Select("entries.comments_count, entries.favorites_count").
-		Select("author_id, users.name, users.show_name").
-		Select("is_online(users.last_seen_at) as is_online").
-		Select("users.avatar").
+		Select("entries.author_id, authors.name as author_name, authors.show_name as author_show_name").
+		Select("is_online(authors.last_seen_at) AND authors.creator_id IS NULL as author_is_online").
+		Select("authors.creator_id as author_creator_id").
+		Select("authors.avatar as author_avatar").
+		Select("entries.user_id, entry_users.name as user_name, entry_users.show_name as user_show_name").
+		Select("is_online(entry_users.last_seen_at) as user_is_online").
+		Select("entry_users.avatar as user_avatar").
 		From("entries").
-		Join("users", "entries.author_id = users.id").
+		Join("users AS authors", "entries.author_id = authors.id").
+		Join("users AS entry_users", "entries.user_id = entry_users.id").
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
 		With("my_favorites",
 			sqlf.Select("entry_id").From("favorites").Where("user_id = ?", userID.ID)).
@@ -54,11 +60,15 @@ func addSubQuery(q *sqlf.Stmt) *sqlf.Stmt {
 		Select("rating, up_votes, down_votes").
 		Select("title, edit_content").
 		Select("word_count, privacy").
-		Select("is_commentable, is_votable, in_live").
+		Select("is_commentable, is_votable, in_live, is_anonymous").
 		Select("comments_count, favorites_count").
-		Select("author_id, name, show_name").
-		Select("is_online").
-		Select("avatar").
+		Select("author_id, author_name, author_show_name").
+		Select("author_is_online").
+		Select("author_creator_id").
+		Select("author_avatar").
+		Select("user_id, user_name, user_show_name").
+		Select("user_is_online").
+		Select("user_avatar").
 		Select("vote, is_favorite, is_watching").
 		From("").SubQuery("(", ") AS entries", q)
 }
@@ -96,7 +106,7 @@ func feedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 		With("my_votes",
 			sqlf.Select("entry_id, vote").From("entry_votes").Where("user_id = ?", userID.ID)).
 		LeftJoin("my_votes", "my_votes.entry_id = entries.id").
-		Join("user_privacy", "users.privacy = user_privacy.id")
+		Join("user_privacy", "authors.privacy = user_privacy.id")
 }
 
 func addRelationsToMeQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
@@ -148,7 +158,7 @@ END
 
 func AddLiveInvitedQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt {
 	return addLiveQuery(q, userID, tag).
-		Where("users.invited_by IS NOT NULL")
+		Where("(authors.invited_by IS NOT NULL OR authors.creator_id IS NOT NULL)")
 }
 
 func liveInvitedQuery(userID *models.UserID, limit int64, tag string) *sqlf.Stmt {
@@ -158,13 +168,13 @@ func liveInvitedQuery(userID *models.UserID, limit int64, tag string) *sqlf.Stmt
 
 func addLiveWaitingQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt {
 	return addLiveQuery(q, userID, tag).
-		Where("users.invited_by IS NULL").
+		Where("authors.invited_by IS NULL AND authors.creator_id IS NULL").
 		Where("now() - entries.created_at <= interval '3 months'")
 }
 
 func addLiveCommentsQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt {
 	return addLiveQuery(q, userID, tag).
-		Where("users.invited_by IS NOT NULL").
+		Where("(authors.invited_by IS NOT NULL OR authors.creator_id IS NOT NULL)").
 		Where("entries.comments_count > 0").
 		OrderBy("last_comment DESC")
 }
@@ -180,13 +190,13 @@ CASE entry_privacy.type
 WHEN 'all' THEN TRUE
 WHEN 'registered' THEN ?
 WHEN 'invited' THEN ?
-WHEN 'followers' THEN entries.author_id = ? OR relations_from_me.type = 'followed'
-WHEN 'some' THEN entries.author_id = ?
+WHEN 'followers' THEN authors.id = ? OR authors.creator_id = ? OR relations_from_me.type = 'followed'
+WHEN 'some' THEN authors.id = ? OR authors.creator_id = ?
 	OR EXISTS(SELECT 1 from entries_privacy WHERE user_id = ? AND entry_id = entries.id)
 WHEN 'me' THEN ? AND entries.author_id = ?
 ELSE FALSE
 END
-`, userID.ID > 0, userID.IsInvited, userID.ID, userID.ID, userID.ID, showMe, userID.ID)
+`, userID.ID > 0, userID.IsInvited, userID.ID, userID.ID, userID.ID, userID.ID, userID.ID, showMe, userID.ID)
 }
 
 func AddRelationToTlogQuery(q *sqlf.Stmt, userID *models.UserID, tlog string) *sqlf.Stmt {
@@ -211,7 +221,7 @@ func AddRelationToQuery(q *sqlf.Stmt, userID *models.UserID, tlogID int64) *sqlf
 }
 
 func addTlogQuery(q *sqlf.Stmt, userID *models.UserID, tlog, tag string) *sqlf.Stmt {
-	q.Where("lower(users.name) = lower(?)", tlog)
+	q.Where("lower(authors.name) = lower(?)", tlog)
 	addTagQuery(q, tag)
 	AddRelationToTlogQuery(q, userID, tlog)
 	return AddEntryOpenQuery(q, userID, false)
@@ -227,7 +237,7 @@ func addFriendsQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt
 	AddEntryOpenQuery(q, userID, false)
 	addTagQuery(q, tag)
 	return q.
-		Where("(users.id = ? OR relations_from_me.type = 'followed')", userID.ID).
+		Where("(authors.id = ? OR relations_from_me.type = 'followed')", userID.ID).
 		Where("(user_privacy.type != 'invited' OR ?)", userID.IsInvited)
 }
 
@@ -258,7 +268,7 @@ func watchingQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 	q := feedQuery(userID, limit)
 	addCanViewEntryQuery(q, userID)
 	return q.Where("my_watching.entry_id IS NOT NULL").
-		Where("users.invited_by IS NOT NULL").
+		Where("(authors.invited_by IS NOT NULL OR authors.creator_id IS NOT NULL)").
 		Where("entries.comments_count > 0").
 		OrderBy("last_comment DESC")
 }
@@ -277,40 +287,54 @@ func favoritesQuery(userID *models.UserID, limit int64, tlog string) *sqlf.Stmt 
 func scrollQuery() *sqlf.Stmt {
 	return sqlf.
 		From("entries").
-		Join("users", "entries.author_id = users.id").
+		Join("users AS authors", "entries.author_id = authors.id").
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
-		Join("user_privacy", "users.privacy = user_privacy.id").
+		Join("user_privacy", "authors.privacy = user_privacy.id").
 		Limit(1)
 }
 
 func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, reverse bool) *models.Feed {
 	feed := models.Feed{}
 
+	themeCreators := make(map[int64]int64)
+
 	for {
 		var entry models.Entry
-		var author models.User
+		var author, user models.User
 		var vote sql.NullFloat64
-		var avatar string
+		var authorAvatar, userAvatar string
 		var rating models.Rating
+		var creatorID sql.NullInt64
 		ok := tx.Scan(&entry.ID, &entry.CreatedAt,
 			&rating.Rating, &rating.UpCount, &rating.DownCount,
 			&entry.Title, &entry.EditContent,
 			&entry.WordCount, &entry.Privacy,
-			&entry.IsCommentable, &rating.IsVotable, &entry.InLive,
+			&entry.IsCommentable, &rating.IsVotable, &entry.InLive, &entry.IsAnonymous,
 			&entry.CommentCount, &entry.FavoriteCount,
 			&author.ID, &author.Name, &author.ShowName,
 			&author.IsOnline,
-			&avatar,
+			&creatorID,
+			&authorAvatar,
+			&user.ID, &user.Name, &user.ShowName,
+			&user.IsOnline,
+			&userAvatar,
 			&vote, &entry.IsFavorited, &entry.IsWatching)
 		if !ok {
 			break
 		}
 
+		if creatorID.Valid {
+			author.IsTheme = true
+			themeCreators[author.ID] = creatorID.Int64
+		}
+
 		rating.Vote = entryVoteStatus(vote)
 		entry.Rating = &rating
 		rating.ID = entry.ID
-		author.Avatar = srv.NewAvatar(avatar)
+		author.Avatar = srv.NewAvatar(authorAvatar)
 		entry.Author = &author
+		user.Avatar = srv.NewAvatar(userAvatar)
+		entry.User = &user
 
 		feed.Entries = append(feed.Entries, &entry)
 	}
@@ -328,11 +352,16 @@ func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID
 	}
 
 	for _, entry := range feed.Entries {
-		setEntryRights(entry, userID)
+		creatorID := themeCreators[entry.Author.ID]
+		setEntryRights(entry, userID, creatorID)
 		setEntryTexts(entry, len(entry.Images) > 0)
 
-		if entry.Author.ID != userID.ID {
+		if entry.User.ID != userID.ID {
 			entry.EditContent = ""
+		}
+
+		if entry.IsAnonymous || entry.Author.ID == entry.User.ID {
+			entry.User = nil
 		}
 	}
 
@@ -418,15 +447,6 @@ func newLiveLoader(srv *utils.MindwellServer) func(entries.GetEntriesLiveParams,
 			}
 
 			return entries.NewGetEntriesLiveOK().WithPayload(feed)
-		})
-	}
-}
-
-func newAnonymousLoader(srv *utils.MindwellServer) func(entries.GetEntriesAnonymousParams, *models.UserID) middleware.Responder {
-	return func(params entries.GetEntriesAnonymousParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			feed := &models.Feed{}
-			return entries.NewGetEntriesAnonymousOK().WithPayload(feed)
 		})
 	}
 }
@@ -573,6 +593,21 @@ func newTlogLoader(srv *utils.MindwellServer) func(users.GetUsersNameTlogParams,
 
 			feed := loadTlogFeed(srv, tx, userID, params.Name, *params.Before, *params.After, *params.Tag, *params.Sort, *params.Query, *params.Limit)
 			return users.NewGetUsersNameTlogOK().WithPayload(feed)
+		})
+	}
+}
+
+func newThemeLoader(srv *utils.MindwellServer) func(themes.GetThemesNameTlogParams, *models.UserID) middleware.Responder {
+	return func(params themes.GetThemesNameTlogParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			canView := utils.CanViewTlogName(tx, userID, params.Name)
+			if !canView {
+				err := srv.StandardError("no_theme")
+				return themes.NewGetThemesNameTlogNotFound().WithPayload(err)
+			}
+
+			feed := loadTlogFeed(srv, tx, userID, params.Name, *params.Before, *params.After, *params.Tag, *params.Sort, *params.Query, *params.Limit)
+			return themes.NewGetThemesNameTlogOK().WithPayload(feed)
 		})
 	}
 }

@@ -2,6 +2,7 @@ package test
 
 import (
 	"database/sql"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"log"
 	"strconv"
 	"strings"
@@ -216,7 +217,8 @@ func removeUserRestrictions(db *sql.DB, userIDs []*models.UserID) {
 		vote_ban = CURRENT_DATE, 
 		invite_ban = CURRENT_DATE, 
 		comment_ban = CURRENT_DATE,
-		live_ban = CURRENT_DATE`)
+		live_ban = CURRENT_DATE
+	WHERE creator_id IS NULL`)
 	if err != nil {
 		log.Println(err)
 	}
@@ -284,10 +286,30 @@ func createTlogEntry(t *testing.T, id *models.UserID, privacy string, commentabl
 	return body.Payload
 }
 
+func createThemeEntry(t *testing.T, id *models.UserID, theme, privacy string, commentable, votable, live, anonymous bool) *models.Entry {
+	title := ""
+	params := themes.PostThemesNameTlogParams{
+		Name:          theme,
+		Content:       "test test test" + utils.GenerateString(5),
+		Title:         &title,
+		Privacy:       privacy,
+		IsCommentable: &commentable,
+		IsVotable:     &votable,
+		InLive:        &live,
+		IsAnonymous:   &anonymous,
+	}
+
+	resp := api.ThemesPostThemesNameTlogHandler.Handle(params, id)
+	body, ok := resp.(*themes.PostThemesNameTlogCreated)
+	require.True(t, ok)
+
+	return body.Payload
+}
+
 func createComment(t *testing.T, id *models.UserID, entryID int64) *models.Comment {
 	params := comments.PostEntriesIDCommentsParams{
 		ID:      entryID,
-		Content: "test comment",
+		Content: "test comment" + utils.GenerateString(5),
 	}
 
 	post := api.CommentsPostEntriesIDCommentsHandler.Handle

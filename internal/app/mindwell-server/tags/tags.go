@@ -7,6 +7,7 @@ import (
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/entries"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"github.com/sevings/mindwell-server/utils"
 )
@@ -15,6 +16,7 @@ import (
 func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.MeGetMeTagsHandler = me.GetMeTagsHandlerFunc(newMyTagsLoader(srv))
 	srv.API.UsersGetUsersNameTagsHandler = users.GetUsersNameTagsHandlerFunc(newUserTagsLoader(srv))
+	srv.API.ThemesGetThemesNameTagsHandler = themes.GetThemesNameTagsHandlerFunc(newThemeTagsLoader(srv))
 	srv.API.EntriesGetEntriesTagsHandler = entries.GetEntriesTagsHandlerFunc(newLiveTagsLoader(srv))
 }
 
@@ -37,6 +39,7 @@ func myTagsQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 func tlogTagsQuery(userID *models.UserID, limit int64, tlog string) *sqlf.Stmt {
 	q := tagsQuery(limit).
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
+		Join("users AS authors", "entries.author_id = authors.id").
 		Where("entries.author_id = (SELECT id FROM users WHERE lower(name) = lower(?))", tlog).
 		OrderBy("max(entries.created_at) DESC").
 		OrderBy("cnt DESC")
@@ -46,9 +49,9 @@ func tlogTagsQuery(userID *models.UserID, limit int64, tlog string) *sqlf.Stmt {
 
 func liveTagsQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 	q := tagsQuery(limit).
-		Join("users", "entries.author_id = users.id").
+		Join("users AS authors", "entries.author_id = authors.id").
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
-		Join("user_privacy", "users.privacy = user_privacy.id").
+		Join("user_privacy", "authors.privacy = user_privacy.id").
 		Where("age(entries.created_at) <= interval '1 month'").
 		OrderBy("cnt DESC").
 		OrderBy("max(entries.created_at) DESC")
@@ -105,6 +108,24 @@ func newUserTagsLoader(srv *utils.MindwellServer) func(users.GetUsersNameTagsPar
 			tags := loadTags(tx)
 
 			return users.NewGetUsersNameTagsOK().WithPayload(tags)
+		})
+	}
+}
+
+func newThemeTagsLoader(srv *utils.MindwellServer) func(themes.GetThemesNameTagsParams, *models.UserID) middleware.Responder {
+	return func(params themes.GetThemesNameTagsParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			if !utils.CanViewTlogName(tx, userID, params.Name) {
+				err := srv.StandardError("no_theme")
+				return themes.NewGetThemesNameTagsNotFound().WithPayload(err)
+			}
+
+			query := tlogTagsQuery(userID, *params.Limit, params.Name)
+
+			tx.QueryStmt(query)
+			tags := loadTags(tx)
+
+			return themes.NewGetThemesNameTagsOK().WithPayload(tags)
 		})
 	}
 }

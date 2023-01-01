@@ -65,7 +65,7 @@ func checkFollow(t *testing.T, user *models.UserID, toID *models.UserID, to *mod
 	req.Equal(user.Name, status.From)
 	req.Equal(relation, status.Relation)
 
-	if relation == models.RelationshipRelationFollowed && to.Account.Verified && getEmailSettings(t, toID).Followers {
+	if relation == models.RelationshipRelationFollowed && toID != nil && to.Account.Verified && getEmailSettings(t, toID).Followers {
 		esm.CheckEmail(t, to.Account.Email)
 	} else {
 		req.Empty(esm.Emails)

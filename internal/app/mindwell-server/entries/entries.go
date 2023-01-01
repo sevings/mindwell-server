@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"github.com/Workiva/go-datastructures/bitarray"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/comments"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"log"
 	"math/rand"
 	"regexp"
@@ -29,8 +30,11 @@ import (
 // ConfigureAPI creates operations handlers
 func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.MePostMeTlogHandler = me.PostMeTlogHandlerFunc(newMyTlogPoster(srv))
+	srv.API.ThemesPostThemesNameTlogHandler = themes.PostThemesNameTlogHandlerFunc(newThemePoster(srv))
+
 	srv.API.MeGetMeTlogHandler = me.GetMeTlogHandlerFunc(newMyTlogLoader(srv))
 	srv.API.UsersGetUsersNameTlogHandler = usersAPI.GetUsersNameTlogHandlerFunc(newTlogLoader(srv))
+	srv.API.ThemesGetThemesNameTlogHandler = themes.GetThemesNameTlogHandlerFunc(newThemeLoader(srv))
 
 	srv.API.MeGetMeFavoritesHandler = me.GetMeFavoritesHandlerFunc(newMyFavoritesLoader(srv))
 	srv.API.UsersGetUsersNameFavoritesHandler = usersAPI.GetUsersNameFavoritesHandlerFunc(newTlogFavoritesLoader(srv))
@@ -42,13 +46,13 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.EntriesGetEntriesIDAdjacentHandler = entries.GetEntriesIDAdjacentHandlerFunc(newAdjacentLoader(srv))
 
 	srv.API.EntriesGetEntriesLiveHandler = entries.GetEntriesLiveHandlerFunc(newLiveLoader(srv))
-	srv.API.EntriesGetEntriesAnonymousHandler = entries.GetEntriesAnonymousHandlerFunc(newAnonymousLoader(srv))
 	srv.API.EntriesGetEntriesBestHandler = entries.GetEntriesBestHandlerFunc(newBestLoader(srv))
 	srv.API.EntriesGetEntriesFriendsHandler = entries.GetEntriesFriendsHandlerFunc(newFriendsFeedLoader(srv))
 	srv.API.EntriesGetEntriesWatchingHandler = entries.GetEntriesWatchingHandlerFunc(newWatchingLoader(srv))
 
 	srv.API.MeGetMeCalendarHandler = me.GetMeCalendarHandlerFunc(newMyCalendarLoader(srv))
 	srv.API.UsersGetUsersNameCalendarHandler = usersAPI.GetUsersNameCalendarHandlerFunc(newTlogCalendarLoader(srv))
+	srv.API.ThemesGetThemesNameCalendarHandler = themes.GetThemesNameCalendarHandlerFunc(newThemeCalendarLoader(srv))
 }
 
 var wordRe *regexp.Regexp
@@ -146,57 +150,76 @@ func setEntryTexts(entry *models.Entry, hasAttach bool) {
 	entry.HasCut = hasCut
 }
 
-func myEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, title, content, privacy string,
-	isCommentable, isVotable, inLive, hasAttach bool) *models.Entry {
-	if privacy == models.EntryPrivacyMe {
-		isVotable = false
-		inLive = false
-	} else if privacy == models.EntryPrivacyFollowers {
-		inLive = false
+func initMyEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID,
+	entry *models.Entry, hasAttach bool) *models.Error {
+	isTheme := entry.Author.IsTheme
+
+	if entry.Privacy == models.EntryPrivacyMe {
+		if isTheme {
+			return srv.NewError(&i18n.Message{ID: "post_me_to_theme", Other: "Private entries in themes are not allowed."})
+		}
+
+		entry.Rating.IsVotable = false
+		entry.InLive = false
+	} else if entry.Privacy == models.EntryPrivacyFollowers {
+		entry.InLive = false
 	}
 
-	entry := &models.Entry{
-		Author:        users.LoadUserByID(srv, tx, userID.ID),
-		Privacy:       privacy,
-		IsWatching:    true,
-		IsCommentable: isCommentable,
-		InLive:        inLive,
-		Rating: &models.Rating{
-			IsVotable: isVotable,
-		},
-		Title:       title,
-		EditContent: content,
-		WordCount:   wordCount(content, title),
+	if !isTheme {
+		entry.IsAnonymous = false
+	}
+
+	entry.IsWatching = true
+	entry.WordCount = wordCount(entry.EditContent, entry.Title)
+
+	if entry.Author.ID > 0 {
+		entry.Author = users.LoadUserByID(srv, tx, entry.Author.ID)
+	} else {
+		entry.Author = users.LoadUserByName(srv, tx, entry.Author.Name)
+	}
+
+	if entry.Author.ID == 0 {
+		return srv.NewError(nil)
+	}
+
+	if isTheme && !entry.IsAnonymous {
+		entry.User = users.LoadUserByID(srv, tx, userID.ID)
 	}
 
 	setEntryTexts(entry, hasAttach)
-	setEntryRights(entry, userID)
+	setEntryRights(entry, userID, 0)
 
-	return entry
+	return nil
 }
 
-func createEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, title, content, privacy string,
-	isCommentable, isVotable, inLive, hasAttach bool) *models.Entry {
-	entry := myEntry(srv, tx, userID, title, content, privacy, isCommentable, isVotable, inLive, hasAttach)
+func createEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entry *models.Entry, hasAttach bool) *models.Error {
+	if err := initMyEntry(srv, tx, userID, entry, hasAttach); err != nil {
+		return err
+	}
 
 	category := entryCategory(entry)
 
 	const q = `
-	INSERT INTO entries (author_id, title, edit_content, 
-		word_count, visible_for, is_commentable, is_votable, in_live, category)
-	VALUES ($1, $2, $3, $4,
-		(SELECT id FROM entry_privacy WHERE type = $5), 
-		$6, $7, $8, (SELECT id from categories WHERE type = $9))
+	INSERT INTO entries (user_id, author_id, title, edit_content, word_count,
+		visible_for,
+		is_commentable, is_votable, is_anonymous, in_live,
+		category)
+	VALUES ($1, $2, $3, $4, $5,
+		(SELECT id FROM entry_privacy WHERE type = $6), 
+		$7, $8, $9, $10,
+		(SELECT id from categories WHERE type = $11))
 	RETURNING id, extract(epoch from created_at)`
 
-	tx.Query(q, userID.ID, entry.Title, entry.EditContent,
-		entry.WordCount, entry.Privacy, entry.IsCommentable, entry.Rating.IsVotable, entry.InLive, category).
+	tx.Query(q, userID.ID, entry.Author.ID, entry.Title, entry.EditContent, entry.WordCount,
+		entry.Privacy,
+		entry.IsCommentable, entry.Rating.IsVotable, entry.IsAnonymous, entry.InLive,
+		category).
 		Scan(&entry.ID, &entry.CreatedAt)
 
 	entry.Rating.ID = entry.ID
 	watchings.AddWatching(tx, userID.ID, entry.ID)
 
-	return entry
+	return nil
 }
 
 func loadEntryImages(srv *utils.MindwellServer, tx *utils.AutoTx, entry *models.Entry, images []int64) {
@@ -226,10 +249,10 @@ func attachImages(srv *utils.MindwellServer, tx *utils.AutoTx, entry *models.Ent
 	loadEntryImages(srv, tx, entry, images)
 }
 
-func setTags(tx *utils.AutoTx, entry *models.Entry, tags []string) {
-	realTags := make([]string, 0, len(tags))
+func setTags(tx *utils.AutoTx, entry *models.Entry) {
+	realTags := make([]string, 0, len(entry.Tags))
 tagLoop:
-	for _, tag := range tags {
+	for _, tag := range entry.Tags {
 		tag = strings.TrimSpace(tag)
 		tag = strings.ToLower(tag)
 		if tag == "" {
@@ -246,6 +269,7 @@ tagLoop:
 	}
 
 	if len(realTags) == 0 {
+		entry.Tags = nil
 		return
 	}
 
@@ -291,13 +315,51 @@ func canPostInLive(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 	}
 
 	var entryCount int64
-	const countQ = `SELECT count(*) FROM entries WHERE author_id = $1 
+	const countQ = `SELECT count(*) FROM entries WHERE user_id = $1 
 		AND date_trunc('day', created_at) = CURRENT_DATE AND in_live
 	`
 	tx.Query(countQ, userID.ID).Scan(&entryCount)
 
 	if !allowedInLive(userID.FollowersCount, entryCount) {
 		return srv.NewError(&i18n.Message{ID: "post_in_live_followers", Other: "You can't post in live anymore today."})
+	}
+
+	return nil
+}
+
+func canPostInTheme(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, theme string) *models.Error {
+	if userID.Ban.Live {
+		return srv.NewError(&i18n.Message{ID: "post_in_themes", Other: "You're not allowed to post in themes."})
+	}
+
+	if userID.NegKarma {
+		return srv.NewError(&i18n.Message{ID: "post_in_themes_karma", Other: "You're not allowed to post in themes."})
+	}
+
+	postThemeErr := srv.NewError(&i18n.Message{ID: "post_in_theme", Other: "You're not allowed to post in this theme."})
+
+	if !userID.IsInvited {
+		return postThemeErr
+	}
+
+	const themeQ = `SELECT id, creator_id FROM users WHERE lower(name) = lower($1) AND creator_id IS NOT NULL`
+	var themeID, creatorID int64
+	tx.Query(themeQ, theme).Scan(&themeID, &creatorID)
+
+	if themeID == 0 {
+		return srv.StandardError("no_theme")
+	}
+
+	if creatorID != userID.ID {
+		relationTo := utils.LoadRelation(tx, userID.ID, themeID)
+		if relationTo != models.RelationshipRelationFollowed {
+			return postThemeErr
+		}
+
+		relationFrom := utils.LoadRelation(tx, themeID, userID.ID)
+		if relationFrom == models.RelationshipRelationIgnored {
+			return postThemeErr
+		}
 	}
 
 	return nil
@@ -319,63 +381,127 @@ func checkImagesOwner(srv *utils.MindwellServer, tx *utils.AutoTx, userID int64,
 	return nil
 }
 
+func postNewEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entry *models.Entry, images []int64) *models.Error {
+	prev, found, same := checkPrev(userID, entry)
+	if found {
+		if same {
+			*entry = *prev
+			return nil
+		}
+
+		return srv.NewError(&i18n.Message{ID: "post_same_entry", Other: "You are trying to post the same entry again."})
+	}
+
+	if entry.InLive &&
+		(entry.Privacy == models.EntryPrivacyAll ||
+			entry.Privacy == models.EntryPrivacyRegistered ||
+			entry.Privacy == models.EntryPrivacyInvited) {
+		err := canPostInLive(srv, tx, userID)
+		if err != nil {
+			return err
+		}
+	}
+
+	if entry.Author.IsTheme && entry.Privacy != models.EntryPrivacyMe {
+		err := canPostInTheme(srv, tx, userID, entry.Author.Name)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !entry.Rating.IsVotable {
+		err := allowedWithoutVoting(srv, userID)
+		if err != nil {
+			return err
+		}
+	}
+
+	imageErr := checkImagesOwner(srv, tx, userID.ID, images)
+	if imageErr != nil {
+		return imageErr
+	}
+
+	if err := createEntry(srv, tx, userID, entry, len(images) > 0); err != nil {
+		return err
+	}
+
+	attachImages(srv, tx, entry, images)
+	setTags(tx, entry)
+
+	if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
+		return srv.NewError(nil)
+	}
+
+	setPrev(entry, userID)
+
+	return nil
+}
+
 func newMyTlogPoster(srv *utils.MindwellServer) func(me.PostMeTlogParams, *models.UserID) middleware.Responder {
 	return func(params me.PostMeTlogParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			prev, found, same := checkPrev(params, userID)
-			if found {
-				if same {
-					return me.NewPostMeTlogCreated().WithPayload(prev)
-				}
+			entry := &models.Entry{
+				Author: &models.User{
+					ID: userID.ID,
+				},
+				Privacy:       params.Privacy,
+				IsCommentable: *params.IsCommentable,
+				InLive:        *params.InLive,
+				IsAnonymous:   false,
+				Rating: &models.Rating{
+					IsVotable: *params.IsVotable,
+				},
+				Title:       *params.Title,
+				EditContent: params.Content,
+				Tags:        params.Tags,
+			}
 
-				err := srv.NewError(&i18n.Message{ID: "post_same_entry", Other: "You are trying to post the same entry again."})
+			err := postNewEntry(srv, tx, userID, entry, params.Images)
+			if err != nil {
 				return me.NewPostMeTlogForbidden().WithPayload(err)
 			}
-
-			if *params.InLive &&
-				(params.Privacy == models.EntryPrivacyAll ||
-					params.Privacy == models.EntryPrivacyRegistered ||
-					params.Privacy == models.EntryPrivacyInvited) {
-				err := canPostInLive(srv, tx, userID)
-				if err != nil {
-					return me.NewPostMeTlogForbidden().WithPayload(err)
-				}
-			}
-
-			if !*params.IsVotable {
-				err := allowedWithoutVoting(srv, userID)
-				if err != nil {
-					return me.NewPostMeTlogForbidden().WithPayload(err)
-				}
-			}
-
-			imageErr := checkImagesOwner(srv, tx, userID.ID, params.Images)
-			if imageErr != nil {
-				return me.NewPostMeTlogForbidden().WithPayload(imageErr)
-			}
-
-			entry := createEntry(srv, tx, userID,
-				*params.Title, params.Content, params.Privacy,
-				*params.IsCommentable, *params.IsVotable, *params.InLive, len(params.Images) > 0)
-
-			attachImages(srv, tx, entry, params.Images)
-			setTags(tx, entry, params.Tags)
-
-			if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
-				err := srv.NewError(nil)
-				return me.NewPostMeTlogForbidden().WithPayload(err)
-			}
-
-			setPrev(entry, userID)
 
 			return me.NewPostMeTlogCreated().WithPayload(entry)
 		})
 	}
 }
 
-func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID int64, userID *models.UserID, title, content, privacy string,
-	isCommentable, isVotable, inLive, hasAttach bool) *models.Entry {
-	entry := myEntry(srv, tx, userID, title, content, privacy, isCommentable, isVotable, inLive, hasAttach)
+func newThemePoster(srv *utils.MindwellServer) func(themes.PostThemesNameTlogParams, *models.UserID) middleware.Responder {
+	return func(params themes.PostThemesNameTlogParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			entry := &models.Entry{
+				Author: &models.User{
+					Name:    params.Name,
+					IsTheme: true,
+				},
+				Privacy:       params.Privacy,
+				IsCommentable: *params.IsCommentable,
+				InLive:        *params.InLive,
+				IsAnonymous:   *params.IsAnonymous,
+				Rating: &models.Rating{
+					IsVotable: *params.IsVotable,
+				},
+				Title:       *params.Title,
+				EditContent: params.Content,
+				Tags:        params.Tags,
+			}
+
+			err := postNewEntry(srv, tx, userID, entry, params.Images)
+			if err != nil {
+				return themes.NewPostThemesNameTlogForbidden().WithPayload(err)
+			}
+
+			return themes.NewPostThemesNameTlogCreated().WithPayload(entry)
+		})
+	}
+}
+
+func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entry *models.Entry,
+	hasAttach bool) *models.Error {
+
+	if err := initMyEntry(srv, tx, userID, entry, hasAttach); err != nil {
+		return err
+	}
 
 	category := entryCategory(entry)
 
@@ -386,19 +512,22 @@ func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID int64, userI
 	visible_for = (SELECT id FROM entry_privacy WHERE type = $4), 
 	is_commentable = $5, is_votable = $6, in_live = $7,
 	category = (SELECT id from categories WHERE type = $8)
-	WHERE id = $9 AND author_id = $10
+	WHERE id = $9 AND user_id = $10
 	RETURNING extract(epoch from created_at)`
 
 	tx.Query(q, entry.Title, entry.EditContent,
 		entry.WordCount, entry.Privacy,
-		entry.IsCommentable, entry.Rating.IsVotable, entry.InLive, category, entryID, userID.ID).
+		entry.IsCommentable, entry.Rating.IsVotable, entry.InLive, category, entry.ID, userID.ID).
 		Scan(&entry.CreatedAt)
 
-	entry.ID = entryID
-	entry.Rating.ID = entryID
+	if tx.Error() == sql.ErrNoRows {
+		return srv.StandardError("no_entry")
+	}
+
+	entry.Rating.ID = entry.ID
 	watchings.AddWatching(tx, userID.ID, entry.ID)
 
-	return entry
+	return nil
 }
 
 func reattachImages(srv *utils.MindwellServer, tx *utils.AutoTx, entry *models.Entry, images []int64) {
@@ -416,10 +545,10 @@ func reattachImages(srv *utils.MindwellServer, tx *utils.AutoTx, entry *models.E
 	loadEntryImages(srv, tx, entry, images)
 }
 
-func resetTags(tx *utils.AutoTx, entry *models.Entry, tags []string) {
+func resetTags(tx *utils.AutoTx, entry *models.Entry) {
 	tx.Exec("DELETE FROM entry_tags WHERE entry_id = $1", entry.ID)
 
-	setTags(tx, entry, tags)
+	setTags(tx, entry)
 }
 
 func canEditInLive(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entryID int64) *models.Error {
@@ -485,12 +614,32 @@ func newEntryEditor(srv *utils.MindwellServer) func(entries.PutEntriesIDParams, 
 				return entries.NewPutEntriesIDForbidden().WithPayload(imageErr)
 			}
 
-			entry := editEntry(srv, tx, params.ID, uID,
-				*params.Title, params.Content, params.Privacy,
-				*params.IsCommentable, *params.IsVotable, *params.InLive, len(params.Images) > 0)
+			authorID := tx.QueryInt64("SELECT author_id FROM entries WHERE id = $1", params.ID)
+
+			entry := &models.Entry{
+				ID: params.ID,
+				Author: &models.User{
+					ID:      authorID,
+					IsTheme: authorID != uID.ID,
+				},
+				Privacy:       params.Privacy,
+				IsCommentable: *params.IsCommentable,
+				InLive:        *params.InLive,
+				IsAnonymous:   false,
+				Rating: &models.Rating{
+					IsVotable: *params.IsVotable,
+				},
+				Title:       *params.Title,
+				EditContent: params.Content,
+				Tags:        params.Tags,
+			}
+
+			if err := editEntry(srv, tx, uID, entry, len(params.Images) > 0); err != nil {
+				return entries.NewPutEntriesIDBadRequest().WithPayload(err)
+			}
 
 			reattachImages(srv, tx, entry, params.Images)
-			resetTags(tx, entry, params.Tags)
+			resetTags(tx, entry)
 
 			if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
 				err := srv.NewError(&i18n.Message{ID: "edit_not_your_entry", Other: "You can't edit someone else's entries."})
@@ -515,13 +664,18 @@ func entryVoteStatus(vote sql.NullFloat64) int64 {
 	}
 }
 
-func setEntryRights(entry *models.Entry, userID *models.UserID) {
+func setEntryRights(entry *models.Entry, userID *models.UserID, themeCreatorID int64) {
+	authorID := entry.Author.ID
+	if entry.User != nil {
+		authorID = entry.User.ID
+	}
+
 	entry.Rights = &models.EntryRights{
-		Edit:     entry.Author.ID == userID.ID,
-		Delete:   entry.Author.ID == userID.ID,
-		Comment:  entry.Author.ID == userID.ID || (!userID.Ban.Comment && entry.IsCommentable),
-		Vote:     entry.Author.ID != userID.ID && !userID.Ban.Vote && entry.Rating.IsVotable,
-		Complain: entry.Author.ID != userID.ID && userID.ID > 0,
+		Edit:     authorID == userID.ID,
+		Delete:   authorID == userID.ID || (entry.Author.IsTheme && themeCreatorID == userID.ID),
+		Comment:  authorID == userID.ID || (!userID.Ban.Comment && entry.IsCommentable),
+		Vote:     authorID != userID.ID && !userID.Ban.Vote && entry.Rating.IsVotable,
+		Complain: authorID != userID.ID && userID.ID > 0,
 	}
 }
 
@@ -564,9 +718,12 @@ func newEntryLoader(srv *utils.MindwellServer) func(entries.GetEntriesIDParams, 
 }
 
 func deleteEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID, userID int64) bool {
-	const allowedQuery = "SELECT author_id = $2 FROM entries WHERE id = $1"
-	allowed := tx.QueryBool(allowedQuery, entryID, userID)
-	if !allowed {
+	if userID == 0 {
+		return false
+	}
+
+	var entryUserID, themeCreatorID = comments.LoadEntryAuthor(tx, entryID)
+	if entryUserID != userID && themeCreatorID != userID {
 		return false
 	}
 

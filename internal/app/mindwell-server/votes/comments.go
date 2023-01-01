@@ -51,14 +51,14 @@ func canVoteForComment(tx *utils.AutoTx, userID *models.UserID, commentID int64)
 	}
 
 	const q = `
-		SELECT entry_id, author_id
+		SELECT entry_id, user_id
 		FROM comments
 		WHERE id = $1
 	`
 
-	var entryID, authorID int64
-	tx.Query(q, commentID).Scan(&entryID, &authorID)
-	if authorID == userID.ID {
+	var entryID, cmtUserId int64
+	tx.Query(q, commentID).Scan(&entryID, &cmtUserId)
+	if cmtUserId == userID.ID {
 		return false
 	}
 

@@ -65,19 +65,6 @@ INSERT INTO "mindwell"."alignment" VALUES(3, 'justify');
 -- -------------------------------------------------------------
 
 
-CREATE OR REPLACE FUNCTION next_user_rank() RETURNS INTEGER AS $$
-    DECLARE
-        pos INTEGER;
-    BEGIN
-        pos = (
-            SELECT COUNT(*) + 1
-            FROM users
-            WHERE karma >= 0
-        );
-        RETURN pos;
-    END;
-$$ language plpgsql;
-
 CREATE OR REPLACE FUNCTION to_search_string(name TEXT, show_name TEXT, country TEXT, city TEXT)
    RETURNS TEXT AS $$
 BEGIN
@@ -97,7 +84,7 @@ CREATE TABLE "mindwell"."users" (
 	"privacy" Integer DEFAULT 0 NOT NULL,
 	"title" Text DEFAULT '' NOT NULL,
 	"last_seen_at" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "rank" Integer DEFAULT next_user_rank() NOT NULL,
+    "rank" Integer NOT NULL,
 	"karma" Real DEFAULT 0 NOT NULL,
 	"created_at" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	"last_invite" Date DEFAULT CURRENT_DATE NOT NULL,
@@ -137,12 +124,14 @@ CREATE TABLE "mindwell"."users" (
     "adm_ban" Boolean DEFAULT TRUE NOT NULL,
     "telegram" Integer,
     "authority" Integer DEFAULT 0 NOT NULL,
+    "creator_id" Integer,
 	CONSTRAINT "unique_user_id" PRIMARY KEY( "id" ),
     CONSTRAINT "enum_user_gender" FOREIGN KEY("gender") REFERENCES "mindwell"."gender"("id"),
     CONSTRAINT "enum_user_privacy" FOREIGN KEY("privacy") REFERENCES "mindwell"."user_privacy"("id"),
     CONSTRAINT "enum_user_alignment" FOREIGN KEY("text_alignment") REFERENCES "mindwell"."alignment"("id"),
     CONSTRAINT "enum_user_font_family" FOREIGN KEY("font_family") REFERENCES "mindwell"."font_family"("id"),
-    CONSTRAINT "enum_user_authority" FOREIGN KEY("authority") REFERENCES "mindwell"."authority"("id") );
+    CONSTRAINT "enum_user_authority" FOREIGN KEY("authority") REFERENCES "mindwell"."authority"("id") ),
+    CONSTRAINT "theme_creator" FOREIGN KEY("creator_id") REFERENCES "mindwell"."users"("id") );
  ;
 -- -------------------------------------------------------------
 
@@ -1028,9 +1017,9 @@ CREATE OR REPLACE FUNCTION give_invite(userName TEXT) RETURNS VOID AS $$
 
         INSERT INTO invites(referrer_id, word1, word2, word3)
             VALUES(userId, 
-                trunc(random() * wordCount),
-                trunc(random() * wordCount),
-                trunc(random() * wordCount));
+                ceil(random() * wordCount),
+                ceil(random() * wordCount),
+                ceil(random() * wordCount));
     END;
 $$ LANGUAGE plpgsql;
 
@@ -1197,12 +1186,14 @@ CREATE TABLE "mindwell"."entries" (
 	"id" Serial NOT NULL,
 	"created_at" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	"author_id" Integer NOT NULL,
+	"user_id" Integer NOT NULL,
 	"title" Text DEFAULT '' NOT NULL,
     "edit_content" Text NOT NULL,
 	"word_count" Integer NOT NULL,
 	"visible_for" Integer NOT NULL,
 	"is_votable" Boolean NOT NULL,
 	"is_commentable" Boolean DEFAULT TRUE NOT NULL,
+	"is_anonymous" Boolean DEFAULT FALSE NOT NULL,
     "in_live" Boolean DEFAULT TRUE NOT NULL,
 	"rating" Real DEFAULT 0 NOT NULL,
     "up_votes" Integer DEFAULT 0 NOT NULL,
@@ -1214,7 +1205,8 @@ CREATE TABLE "mindwell"."entries" (
 	"favorites_count" Integer DEFAULT 0 NOT NULL,
     "last_comment" Integer,
 	CONSTRAINT "unique_entry_id" PRIMARY KEY( "id" ),
-    CONSTRAINT "entry_user_id" FOREIGN KEY("author_id") REFERENCES "mindwell"."users"("id"),
+    CONSTRAINT "entry_author_id" FOREIGN KEY("author_id") REFERENCES "mindwell"."users"("id"),
+    CONSTRAINT "entry_user_id" FOREIGN KEY("user_id") REFERENCES "mindwell"."users"("id"),
     CONSTRAINT "enum_entry_privacy" FOREIGN KEY("visible_for") REFERENCES "mindwell"."entry_privacy"("id"),
     CONSTRAINT "entry_category" FOREIGN KEY("category") REFERENCES "mindwell"."categories"("id") );
  ;
@@ -1228,8 +1220,12 @@ CREATE INDEX "index_entry_id" ON "mindwell"."entries" USING btree( "id" );
 CREATE INDEX "index_entry_date" ON "mindwell"."entries" USING btree( "created_at" );
 -- -------------------------------------------------------------
 
--- CREATE INDEX "index_entry_users_id" -------------------------
-CREATE INDEX "index_entry_users_id" ON "mindwell"."entries" USING btree( "author_id" );
+-- CREATE INDEX "index_entry_author_id" ------------------------
+CREATE INDEX "index_entry_author_id" ON "mindwell"."entries" USING btree( "author_id" );
+-- -------------------------------------------------------------
+
+-- CREATE INDEX "index_entry_user_id" --------------------------
+CREATE INDEX "index_entry_user_id" ON "mindwell"."entries" USING btree( "user_id" );
 -- -------------------------------------------------------------
 
 -- CREATE INDEX "index_entry_rating" ---------------------------
@@ -1254,7 +1250,7 @@ CREATE OR REPLACE FUNCTION mindwell.inc_tlog_entries() RETURNS TRIGGER AS $$
         UPDATE mindwell.users
         SET entries_count = entries_count + 1
         WHERE id = NEW.author_id;
-        
+
         RETURN NULL;
     END;
 $$ LANGUAGE plpgsql;
@@ -1534,7 +1530,7 @@ CREATE OR REPLACE FUNCTION mindwell.entry_votes_ins() RETURNS TRIGGER AS $$
         WHERE id = NEW.entry_id;
         
         WITH entry AS (
-            SELECT author_id, category
+            SELECT user_id, category
             FROM mindwell.entries
             WHERE id = NEW.entry_id
         )
@@ -1545,7 +1541,7 @@ CREATE OR REPLACE FUNCTION mindwell.entry_votes_ins() RETURNS TRIGGER AS $$
             weight = atan2(vote_count + 1, 20) * (vote_sum + NEW.vote) 
                 / (weight_sum + abs(NEW.vote)) / pi() * 2
         FROM entry
-        WHERE user_id = entry.author_id 
+        WHERE vote_weights.user_id = entry.user_id
             AND vote_weights.category = entry.category;
 
         RETURN NULL;
@@ -1564,7 +1560,7 @@ CREATE OR REPLACE FUNCTION mindwell.entry_votes_upd() RETURNS TRIGGER AS $$
         WHERE id = NEW.entry_id;
         
         WITH entry AS (
-            SELECT author_id, category
+            SELECT user_id, category
             FROM mindwell.entries
             WHERE id = NEW.entry_id
         )
@@ -1574,7 +1570,7 @@ CREATE OR REPLACE FUNCTION mindwell.entry_votes_upd() RETURNS TRIGGER AS $$
             weight = atan2(vote_count, 20) * (vote_sum - OLD.vote + NEW.vote) 
                 / (weight_sum - abs(OLD.vote) + abs(NEW.vote)) / pi() * 2
         FROM entry
-        WHERE user_id = entry.author_id
+        WHERE vote_weights.user_id = entry.user_id
             AND vote_weights.category = entry.category;
 
         RETURN NULL;
@@ -1595,7 +1591,7 @@ CREATE OR REPLACE FUNCTION mindwell.entry_votes_del() RETURNS TRIGGER AS $$
         WHERE id = OLD.entry_id;
         
         WITH entry AS (
-            SELECT author_id, category
+            SELECT user_id, category
             FROM mindwell.entries
             WHERE id = OLD.entry_id
         )
@@ -1608,7 +1604,7 @@ CREATE OR REPLACE FUNCTION mindwell.entry_votes_del() RETURNS TRIGGER AS $$
                     / (weight_sum - abs(OLD.vote)) / pi() * 2
                 END
         FROM entry
-        WHERE user_id = entry.author_id
+        WHERE vote_weights.user_id = entry.user_id
             AND vote_weights.category = entry.category;
 
         RETURN NULL;
@@ -1691,6 +1687,7 @@ CREATE INDEX "index_private_users" ON "mindwell"."entries_privacy" USING btree( 
 CREATE TABLE "mindwell"."comments" (
 	"id" Serial NOT NULL,
 	"author_id" Integer NOT NULL,
+	"user_id" Integer NOT NULL,
 	"entry_id" Integer NOT NULL,
 	"created_at" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	"content" Text NOT NULL,
@@ -1701,7 +1698,8 @@ CREATE TABLE "mindwell"."comments" (
     "vote_sum" Real DEFAULT 0 NOT NULL,
     "weight_sum" Real DEFAULT 0 NOT NULL,
 	CONSTRAINT "unique_comment_id" PRIMARY KEY( "id" ),
-    CONSTRAINT "comment_user_id" FOREIGN KEY("author_id") REFERENCES "mindwell"."users"("id"),
+    CONSTRAINT "comment_author_id" FOREIGN KEY("author_id") REFERENCES "mindwell"."users"("id"),
+    CONSTRAINT "comment_user_id" FOREIGN KEY("user_id") REFERENCES "mindwell"."users"("id"),
     CONSTRAINT "comment_entry_id" FOREIGN KEY("entry_id") REFERENCES "mindwell"."entries"("id") ON DELETE CASCADE );
  ;
 -- -------------------------------------------------------------
@@ -1823,7 +1821,7 @@ CREATE OR REPLACE FUNCTION mindwell.comment_votes_ins() RETURNS TRIGGER AS $$
         WHERE id = NEW.comment_id;
         
         WITH cmnt AS (
-            SELECT author_id
+            SELECT user_id
             FROM mindwell.comments
             WHERE id = NEW.comment_id
         )
@@ -1834,7 +1832,7 @@ CREATE OR REPLACE FUNCTION mindwell.comment_votes_ins() RETURNS TRIGGER AS $$
             weight = atan2(vote_count + 1, 20) * (vote_sum + NEW.vote) 
                 / (weight_sum + abs(NEW.vote)) / pi() * 2
         FROM cmnt
-        WHERE user_id = cmnt.author_id 
+        WHERE vote_weights.user_id = cmnt.user_id
             AND vote_weights.category = 
                 (SELECT id FROM categories WHERE "type" = 'comment');
 
@@ -1854,7 +1852,7 @@ CREATE OR REPLACE FUNCTION mindwell.comment_votes_upd() RETURNS TRIGGER AS $$
         WHERE id = NEW.comment_id;
         
         WITH cmnt AS (
-            SELECT author_id
+            SELECT user_id
             FROM mindwell.comments
             WHERE id = NEW.comment_id
         )
@@ -1864,7 +1862,7 @@ CREATE OR REPLACE FUNCTION mindwell.comment_votes_upd() RETURNS TRIGGER AS $$
             weight = atan2(vote_count, 20) * (vote_sum - OLD.vote + NEW.vote) 
                 / (weight_sum - abs(OLD.vote) + abs(NEW.vote)) / pi() * 2
         FROM cmnt
-        WHERE user_id = cmnt.author_id
+        WHERE vote_weights.user_id = cmnt.user_id
             AND vote_weights.category = 
                 (SELECT id FROM categories WHERE "type" = 'comment');
 
@@ -1886,7 +1884,7 @@ CREATE OR REPLACE FUNCTION mindwell.comment_votes_del() RETURNS TRIGGER AS $$
         WHERE id = OLD.comment_id;
         
         WITH cmnt AS (
-            SELECT author_id
+            SELECT user_id
             FROM mindwell.comments
             WHERE id = OLD.comment_id
         )
@@ -1899,7 +1897,7 @@ CREATE OR REPLACE FUNCTION mindwell.comment_votes_del() RETURNS TRIGGER AS $$
                     / (weight_sum - abs(OLD.vote)) / pi() * 2
                 END
         FROM cmnt
-        WHERE user_id = cmnt.author_id
+        WHERE vote_weights.user_id = cmnt.user_id
             AND vote_weights.category = 
                 (SELECT id FROM categories WHERE "type" = 'comment');
 
@@ -2450,11 +2448,11 @@ CREATE OR REPLACE FUNCTION mindwell.recalc_karma() RETURNS VOID AS $$
             ) / 5 AS karma
         FROM mindwell.users
         LEFT JOIN (
-            SELECT entries.author_id AS id, sum(entry_votes.vote) AS karma
+            SELECT entries.user_id AS id, sum(entry_votes.vote) AS karma
             FROM mindwell.entries
             JOIN mindwell.entry_votes ON entry_votes.entry_id = entries.id
             WHERE abs(entry_votes.vote) > 0.2 AND age(entries.created_at) <= interval '2 months'
-            GROUP BY entries.author_id
+            GROUP BY entries.user_id
         ) AS fek ON users.id = fek.id -- votes for users entries
         LEFT JOIN (
             SELECT entry_votes.user_id AS id, sum(entry_votes.vote) / 5 AS karma
@@ -2463,11 +2461,11 @@ CREATE OR REPLACE FUNCTION mindwell.recalc_karma() RETURNS VOID AS $$
             GROUP BY entry_votes.user_id
         ) AS bek ON users.id = bek.id -- entry votes by users
         LEFT JOIN (
-            SELECT comments.author_id AS id, sum(comment_votes.vote) AS karma
+            SELECT comments.user_id AS id, sum(comment_votes.vote) AS karma
             FROM mindwell.comments
             JOIN mindwell.comment_votes ON comment_votes.comment_id = comments.id
             WHERE abs(comment_votes.vote) > 0.2 AND age(comments.created_at) <= interval '2 months'
-            GROUP BY comments.author_id
+            GROUP BY comments.user_id
         ) AS fck ON users.id = fck.id -- votes for users comments
         LEFT JOIN (
             SELECT comment_votes.user_id AS id, sum(comment_votes.vote) / 5 AS karma
@@ -2479,16 +2477,56 @@ CREATE OR REPLACE FUNCTION mindwell.recalc_karma() RETURNS VOID AS $$
     UPDATE mindwell.users
     SET karma = upd.karma
     FROM upd
-    WHERE users.id = upd.id;
+    WHERE users.id = upd.id AND users.karma <> upd.karma;
 
     WITH upd AS (
         SELECT id, row_number() OVER (ORDER BY karma DESC, created_at ASC) as rank
         FROM mindwell.users
+        WHERE users.creator_id IS NULL
     )
     UPDATE mindwell.users
     SET rank = upd.rank
     FROM upd
-    WHERE users.id = upd.id;
+    WHERE users.id = upd.id AND users.rank <> upd.rank;
+
+    WITH upd AS (
+        SELECT users.id, (
+                users.karma * 4
+                + COALESCE(fek.karma, 0)
+                + COALESCE(fck.karma, 0) / 10
+            ) / 5 AS karma
+        FROM mindwell.users
+        LEFT JOIN (
+            SELECT entries.author_id AS id, sum(entry_votes.vote) AS karma
+            FROM mindwell.entries
+            JOIN mindwell.entry_votes ON entry_votes.entry_id = entries.id
+            WHERE entries.author_id <> entries.user_id
+                AND abs(entry_votes.vote) > 0.2 AND age(entries.created_at) <= interval '2 months'
+            GROUP BY entries.author_id
+        ) AS fek ON users.id = fek.id -- votes for users entries
+        LEFT JOIN (
+            SELECT comments.author_id AS id, sum(comment_votes.vote) AS karma
+            FROM mindwell.comments
+            JOIN mindwell.comment_votes ON comment_votes.comment_id = comments.id
+            WHERE comments.author_id <> comments.user_id
+                AND abs(comment_votes.vote) > 0.2 AND age(comments.created_at) <= interval '2 months'
+            GROUP BY comments.author_id
+        ) AS fck ON users.id = fck.id -- votes for users comments
+    )
+    UPDATE mindwell.users
+    SET karma = upd.karma
+    FROM upd
+    WHERE users.id = upd.id AND users.karma <> upd.karma;
+
+    WITH upd AS (
+        SELECT id, row_number() OVER (ORDER BY karma DESC, created_at ASC) as rank
+        FROM mindwell.users
+        WHERE users.creator_id IS NOT NULL
+    )
+    UPDATE mindwell.users
+    SET rank = upd.rank
+    FROM upd
+    WHERE users.id = upd.id AND users.rank <> upd.rank;
 $$ LANGUAGE SQL;
 
 

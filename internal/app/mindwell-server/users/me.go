@@ -219,7 +219,7 @@ func newMeEditor(srv *utils.MindwellServer) func(me.PutMeParams, *models.UserID)
 
 func newMyFollowersLoader(srv *utils.MindwellServer) func(me.GetMeFollowersParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeFollowersParams, userID *models.UserID) middleware.Responder {
-		return loadRelatedUsers(srv, userID, usersQueryToName, usersToNameQueryWhere,
+		return loadTlogRelatedUsers(srv, userID, usersQueryToName, usersToNameQueryWhere,
 			models.RelationshipRelationFollowed, userID.Name, models.FriendListRelationFollowers,
 			*params.After, *params.Before, *params.Limit)
 	}
@@ -227,7 +227,7 @@ func newMyFollowersLoader(srv *utils.MindwellServer) func(me.GetMeFollowersParam
 
 func newMyFollowingsLoader(srv *utils.MindwellServer) func(me.GetMeFollowingsParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeFollowingsParams, userID *models.UserID) middleware.Responder {
-		return loadRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
+		return loadTlogRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
 			models.RelationshipRelationFollowed, userID.Name, models.FriendListRelationFollowings,
 			*params.After, *params.Before, *params.Limit)
 	}
@@ -242,7 +242,7 @@ func newMyInvitedLoader(srv *utils.MindwellServer) func(me.GetMeInvitedParams, *
 
 func newMyIgnoredLoader(srv *utils.MindwellServer) func(me.GetMeIgnoredParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeIgnoredParams, userID *models.UserID) middleware.Responder {
-		return loadRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
+		return loadTlogRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
 			models.RelationshipRelationIgnored, userID.Name, models.FriendListRelationIgnored,
 			*params.After, *params.Before, *params.Limit)
 	}
@@ -250,7 +250,7 @@ func newMyIgnoredLoader(srv *utils.MindwellServer) func(me.GetMeIgnoredParams, *
 
 func newMyHiddenLoader(srv *utils.MindwellServer) func(me.GetMeHiddenParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeHiddenParams, userID *models.UserID) middleware.Responder {
-		return loadRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
+		return loadTlogRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
 			models.RelationshipRelationHidden, userID.Name, models.FriendListRelationHidden,
 			*params.After, *params.Before, *params.Limit)
 	}
@@ -258,7 +258,7 @@ func newMyHiddenLoader(srv *utils.MindwellServer) func(me.GetMeHiddenParams, *mo
 
 func newMyRequestedLoader(srv *utils.MindwellServer) func(me.GetMeRequestedParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeRequestedParams, userID *models.UserID) middleware.Responder {
-		return loadRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
+		return loadTlogRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
 			models.RelationshipRelationRequested, userID.Name, models.FriendListRelationRequested,
 			*params.After, *params.Before, *params.Limit)
 	}

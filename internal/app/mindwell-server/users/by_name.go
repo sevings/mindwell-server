@@ -9,7 +9,7 @@ import (
 
 func newUserLoader(srv *utils.MindwellServer) func(users.GetUsersNameParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameParams, userID *models.UserID) middleware.Responder {
-		const query = profileQuery + "WHERE lower(users.name) = lower($1)"
+		const query = profileQuery + "WHERE lower(users.name) = lower($1) AND users.creator_id IS NULL"
 
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			profile := loadUserProfile(srv, tx, query, userID, params.Name)
@@ -32,7 +32,7 @@ const invitedUsersQuery = usersQuerySelect + `, users.id FROM users, gender, use
 
 func newFollowersLoader(srv *utils.MindwellServer) func(users.GetUsersNameFollowersParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameFollowersParams, userID *models.UserID) middleware.Responder {
-		return loadRelatedUsers(srv, userID, usersQueryToName, usersToNameQueryWhere,
+		return loadTlogRelatedUsers(srv, userID, usersQueryToName, usersToNameQueryWhere,
 			models.RelationshipRelationFollowed, params.Name, models.FriendListRelationFollowers,
 			*params.After, *params.Before, *params.Limit)
 	}
@@ -40,7 +40,7 @@ func newFollowersLoader(srv *utils.MindwellServer) func(users.GetUsersNameFollow
 
 func newFollowingsLoader(srv *utils.MindwellServer) func(users.GetUsersNameFollowingsParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameFollowingsParams, userID *models.UserID) middleware.Responder {
-		return loadRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
+		return loadTlogRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
 			models.RelationshipRelationFollowed, params.Name, models.FriendListRelationFollowings,
 			*params.After, *params.Before, *params.Limit)
 	}
