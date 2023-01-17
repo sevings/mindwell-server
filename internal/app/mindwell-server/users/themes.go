@@ -15,7 +15,7 @@ import (
 )
 
 func loadTopThemes(srv *utils.MindwellServer, tx *utils.AutoTx, top string) []*models.Friend {
-	query := usersQuerySelect + ", false "
+	query := usersQuerySelect + ", 0 "
 
 	if top == "rank" {
 		query += "FROM users, gender, user_privacy WHERE creator_id IS NOT NULL" + usersQueryJoins + "ORDER BY rank ASC"

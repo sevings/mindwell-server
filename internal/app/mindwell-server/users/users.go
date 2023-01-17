@@ -8,6 +8,7 @@ import (
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"github.com/sevings/mindwell-server/utils"
+	"math"
 	"strconv"
 )
 
@@ -245,10 +246,10 @@ const usersQueryJoins = ` AND users.gender = gender.id AND users.privacy = user_
 const usersQueryEnd = `
  AND relations.type = relation.id AND relation.type = $2` + usersQueryJoins
 
-func loadUserList(srv *utils.MindwellServer, tx *utils.AutoTx, reverse bool) ([]*models.Friend, interface{}, interface{}) {
+func loadUserList(srv *utils.MindwellServer, tx *utils.AutoTx, reverse bool) ([]*models.Friend, float64, float64) {
 	list := make([]*models.Friend, 0, 50)
 
-	var nextBefore, nextAfter interface{}
+	var nextBefore, nextAfter float64
 
 	for {
 		var user models.Friend
@@ -275,7 +276,7 @@ func loadUserList(srv *utils.MindwellServer, tx *utils.AutoTx, reverse bool) ([]
 		user.Cover = srv.NewCover(user.ID, cover)
 		list = append(list, &user)
 
-		if nextAfter == nil {
+		if nextAfter < 1 {
 			nextAfter = nextBefore
 		}
 	}
@@ -315,7 +316,7 @@ func loadRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 	}
 
 	var list models.FriendList
-	var nextBefore, nextAfter interface{}
+	var nextBefore, nextAfter float64
 	list.Users, nextBefore, nextAfter = loadUserList(srv, tx, after > 0)
 
 	list.Subject = loadUser(srv, tx, loadUserQueryName, name)
@@ -334,7 +335,7 @@ func loadRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 		FROM users, relation, relations, gender, user_privacy
 		WHERE ` + queryWhere + " AND relations.changed_at < to_timestamp($3))"
 
-	list.NextBefore = utils.FormatFloat(nextBefore.(float64))
+	list.NextBefore = utils.FormatFloat(nextBefore)
 	list.HasBefore = tx.QueryBool(beforeQuery, name, related, nextBefore)
 
 	afterQuery := `SELECT EXISTS(
@@ -342,7 +343,7 @@ func loadRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 		FROM users, relation, relations, gender, user_privacy
 		WHERE ` + queryWhere + " AND relations.changed_at > to_timestamp($3))"
 
-	list.NextAfter = utils.FormatFloat(nextAfter.(float64))
+	list.NextAfter = utils.FormatFloat(nextAfter)
 	list.HasAfter = tx.QueryBool(afterQuery, name, related, nextAfter)
 
 	return &list
@@ -390,7 +391,7 @@ func loadInvitedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 		}
 
 		var list models.FriendList
-		var nextBefore, nextAfter interface{}
+		var nextBefore, nextAfter float64
 		list.Users, nextBefore, nextAfter = loadUserList(srv, tx, after > 0)
 
 		list.Subject = loadUser(srv, tx, loadUserQueryName, name)
@@ -410,7 +411,7 @@ func loadInvitedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 		FROM users, gender, user_privacy
 		WHERE ` + queryWhere + " AND users.id < $2)"
 
-		list.NextBefore = strconv.FormatInt(nextBefore.(int64), 10)
+		list.NextBefore = strconv.FormatInt(int64(math.Round(nextBefore)), 10)
 		list.HasBefore = tx.QueryBool(beforeQuery, name, nextBefore)
 
 		afterQuery := `SELECT EXISTS(
@@ -418,7 +419,7 @@ func loadInvitedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 		FROM users, gender, user_privacy
 		WHERE ` + queryWhere + " AND users.id > $2)"
 
-		list.NextAfter = strconv.FormatInt(nextAfter.(int64), 10)
+		list.NextAfter = strconv.FormatInt(int64(math.Round(nextAfter)), 10)
 		list.HasAfter = tx.QueryBool(afterQuery, name, nextAfter)
 
 		return users.NewGetUsersNameFollowersOK().WithPayload(&list)

@@ -161,7 +161,7 @@ func TestEditProfile(t *testing.T) {
 	user := *profiles[0]
 	user.AgeLowerBound = 30
 	user.AgeUpperBound = 35
-	user.Birthday = "1988-01-01T20:01:31.844+03:00"
+	user.Birthday = "1990-01-01T20:01:31.844+03:00"
 	user.City = "city edit"
 	user.Country = "country edit"
 	user.Gender = "female"

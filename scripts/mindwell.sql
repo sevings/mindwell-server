@@ -1,5 +1,7 @@
 -- noinspection SqlNoDataSourceInspectionForFile
 
+SET client_encoding = 'UTF8';
+
 CREATE SCHEMA "mindwell";
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm; -- search users
@@ -212,6 +214,12 @@ CREATE TRIGGER alw_adm_upd
 CREATE  OR REPLACE FUNCTION mindwell.is_online(last_seen_at TIMESTAMP WITH TIME ZONE) RETURNS BOOLEAN AS $$
     BEGIN
         RETURN now() - last_seen_at < interval '5 minutes';
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION mindwell.user_age(birthday date) RETURNS integer AS $$
+    BEGIN
+        RETURN extract(year from age(birthday))::integer;
     END;
 $$ LANGUAGE plpgsql;
 
@@ -1461,7 +1469,7 @@ CREATE OR REPLACE FUNCTION mindwell.dec_favorites() RETURNS TRIGGER AS $$
 
         UPDATE mindwell.entries
         SET favorites_count = favorites_count - 1
-        WHERE id = NEW.entry_id;
+        WHERE id = OLD.entry_id;
 
         RETURN NULL;
     END;
@@ -1690,7 +1698,6 @@ CREATE TABLE "mindwell"."comments" (
 	"user_id" Integer NOT NULL,
 	"entry_id" Integer NOT NULL,
 	"created_at" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	"content" Text NOT NULL,
     "edit_content" Text DEFAULT '' NOT NULL,
 	"rating" Real DEFAULT 0 NOT NULL,
     "up_votes" Integer DEFAULT 0 NOT NULL,

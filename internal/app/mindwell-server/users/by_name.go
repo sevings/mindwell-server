@@ -28,7 +28,7 @@ const usersFromNameQueryWhere = "relations.from_id = " + idFromName + " AND rela
 const usersQueryToName = usersQueryStart + usersToNameQueryWhere
 const usersQueryFromName = usersQueryStart + usersFromNameQueryWhere
 const invitedByQueryWhere = "invited_by = " + idFromName + usersQueryJoins
-const invitedUsersQuery = usersQuerySelect + `, users.id FROM users, gender, user_privacy WHERE ` + invitedByQueryWhere
+const invitedUsersQuery = usersQuerySelect + `, users.id::float FROM users, gender, user_privacy WHERE ` + invitedByQueryWhere
 
 func newFollowersLoader(srv *utils.MindwellServer) func(users.GetUsersNameFollowersParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameFollowersParams, userID *models.UserID) middleware.Responder {

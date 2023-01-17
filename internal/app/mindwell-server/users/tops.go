@@ -10,7 +10,7 @@ import (
 )
 
 func searchUsers(srv *utils.MindwellServer, tx *utils.AutoTx, queryWhere, searchQuery string) []*models.Friend {
-	query := usersQuerySelect + `, false 
+	query := usersQuerySelect + `, 0 
 					FROM (
 						SELECT *, $1 <<-> to_search_string(name, show_name, country, city) AS trgm_dist 
 						FROM users 
@@ -25,7 +25,7 @@ func searchUsers(srv *utils.MindwellServer, tx *utils.AutoTx, queryWhere, search
 }
 
 func loadTopUsers(srv *utils.MindwellServer, tx *utils.AutoTx, top string, userID *models.UserID) []*models.Friend {
-	query := usersQuerySelect + ", false "
+	query := usersQuerySelect + ", 0 "
 
 	if top == "rank" {
 		query += "FROM users, gender, user_privacy WHERE invited_by IS NOT NULL" + usersQueryJoins + "ORDER BY rank ASC"
