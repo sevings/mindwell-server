@@ -524,6 +524,32 @@ func postEntry(id *models.UserID, privacy string, live bool) *models.Entry {
 	return entry
 }
 
+func postThemeEntry(id *models.UserID, themeName string, isAnonymous bool) *models.Entry {
+	commentable := true
+	votable := true
+	live := true
+	title := ""
+	privacy := models.EntryPrivacyAll
+	params := themes.PostThemesNameTlogParams{
+		Name:          themeName,
+		Content:       "test test test" + utils.GenerateString(6),
+		Title:         &title,
+		Privacy:       privacy,
+		IsCommentable: &commentable,
+		IsVotable:     &votable,
+		InLive:        &live,
+		IsAnonymous:   &isAnonymous,
+	}
+	post := api.ThemesPostThemesNameTlogHandler.Handle
+	resp := post(params, id)
+	body := resp.(*themes.PostThemesNameTlogCreated)
+	entry := body.Payload
+
+	time.Sleep(10 * time.Millisecond)
+
+	return entry
+}
+
 func editEntryParams(entry *models.Entry) entries.PutEntriesIDParams {
 	return entries.PutEntriesIDParams{
 		Content:       entry.EditContent,

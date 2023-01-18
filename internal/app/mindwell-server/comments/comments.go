@@ -71,7 +71,7 @@ const commentQuery = `
 		up_votes, down_votes, votes.vote,
 		author_id, name, show_name, 
 		is_online(last_seen_at), users.creator_id IS NOT NULL,
-		avatar
+		avatar, user_id
 	FROM comments
 	JOIN users ON comments.author_id = users.id
 	LEFT JOIN (SELECT comment_id, vote FROM comment_votes WHERE user_id = $1) AS votes 
@@ -89,12 +89,12 @@ func commentVote(vote sql.NullFloat64) int64 {
 	}
 }
 
-func setCommentRights(comment *models.Comment, userID *models.UserID, entryAuthorID, themeCreatorID int64) {
+func setCommentRights(comment *models.Comment, userID *models.UserID, cmtUserID, entryUserID, themeCreatorID int64) {
 	comment.Rights = &models.CommentRights{
-		Edit:     comment.Author.ID == userID.ID,
-		Delete:   comment.Author.ID == userID.ID || entryAuthorID == userID.ID || themeCreatorID == userID.ID,
-		Vote:     comment.Author.ID != userID.ID && !userID.Ban.Vote,
-		Complain: comment.Author.ID != userID.ID,
+		Edit:     cmtUserID == userID.ID,
+		Delete:   cmtUserID == userID.ID || entryUserID == userID.ID || themeCreatorID == userID.ID,
+		Vote:     cmtUserID != userID.ID && !userID.Ban.Vote,
+		Complain: cmtUserID != userID.ID,
 	}
 }
 
@@ -117,6 +117,7 @@ func LoadComment(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 
 	var vote sql.NullFloat64
 	var avatar string
+	var cmtUserID int64
 	comment := models.Comment{
 		Author: &models.User{},
 		Rating: &models.Rating{
@@ -129,10 +130,10 @@ func LoadComment(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 		&comment.Rating.UpCount, &comment.Rating.DownCount, &vote,
 		&comment.Author.ID, &comment.Author.Name, &comment.Author.ShowName,
 		&comment.Author.IsOnline, &comment.Author.IsTheme,
-		&avatar)
+		&avatar, &cmtUserID)
 
 	entryUserID, themeCreatorID := LoadEntryAuthor(tx, comment.EntryID)
-	setCommentRights(&comment, userID, entryUserID, themeCreatorID)
+	setCommentRights(&comment, userID, cmtUserID, entryUserID, themeCreatorID)
 
 	setCommentText(&comment)
 
@@ -144,6 +145,10 @@ func LoadComment(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 	comment.Rating.ID = comment.ID
 
 	comment.Author.Avatar = srv.NewAvatar(avatar)
+
+	if comment.Author.IsTheme {
+		comment.Author.IsOnline = false
+	}
 
 	return &comment
 }
@@ -186,7 +191,7 @@ func newCommentEditor(srv *utils.MindwellServer) func(comments.PutCommentsIDPara
 				return comments.NewGetCommentsIDNotFound().WithPayload(err)
 			}
 
-			if comment.Author.ID != userID.ID {
+			if !comment.Rights.Edit {
 				err := srv.NewError(&i18n.Message{ID: "edit_not_your_comment", Other: "You can't edit someone else's comments."})
 				return comments.NewGetCommentsIDForbidden().WithPayload(err)
 			}
@@ -310,17 +315,18 @@ func LoadEntryComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *mode
 		}
 		var vote sql.NullFloat64
 		var avatar string
+		var cmtUserID int64
 		ok := tx.Scan(&comment.ID, &comment.EntryID,
 			&comment.CreatedAt, &comment.EditContent, &comment.Rating.Rating,
 			&comment.Rating.UpCount, &comment.Rating.DownCount, &vote,
 			&comment.Author.ID, &comment.Author.Name, &comment.Author.ShowName,
 			&comment.Author.IsOnline, &comment.Author.IsTheme,
-			&avatar)
+			&avatar, &cmtUserID)
 		if !ok {
 			break
 		}
 
-		setCommentRights(&comment, userID, entryUserID, themeCreatorID)
+		setCommentRights(&comment, userID, cmtUserID, entryUserID, themeCreatorID)
 		setCommentText(&comment)
 
 		if !comment.Rights.Edit {

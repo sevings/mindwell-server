@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func checkComment(t *testing.T, cmt *models.Comment, entry *models.Entry, userID *models.UserID, author *models.AuthProfile, content string) {
+func checkComment(t *testing.T, cmt *models.Comment, entry *models.Entry, userID *models.UserID, author *models.AuthProfile, cmtUserID int64, content string) {
 	req := require.New(t)
 
 	req.Equal(entry.ID, cmt.EntryID)
@@ -30,14 +30,15 @@ func checkComment(t *testing.T, cmt *models.Comment, entry *models.Entry, userID
 	req.Zero(cmt.Rating.DownCount)
 	req.Zero(cmt.Rating.Vote)
 
-	req.Equal(userID.ID == author.ID, cmt.Rights.Edit)
-	req.Equal(userID.ID == author.ID, cmt.Rights.Delete || userID.ID == entry.Author.ID)
-	req.Equal(userID.ID != author.ID && !userID.Ban.Vote, cmt.Rights.Vote)
-	req.Equal(userID.ID != author.ID, cmt.Rights.Complain)
+	req.Equal(userID.ID == cmtUserID, cmt.Rights.Edit)
+	req.Equal(userID.ID == cmtUserID || userID.ID == entry.Author.ID ||
+		(author.IsTheme && userID.ID == author.CreatedBy.ID), cmt.Rights.Delete)
+	req.Equal(userID.ID != cmtUserID && !userID.Ban.Vote, cmt.Rights.Vote)
+	req.Equal(userID.ID != cmtUserID, cmt.Rights.Complain)
 }
 
 func checkLoadComment(t *testing.T, commentID int64, userID *models.UserID, success bool,
-	author *models.AuthProfile, entry *models.Entry, content string) {
+	author *models.AuthProfile, entry *models.Entry, cmtUserID int64, content string) {
 
 	load := api.CommentsGetCommentsIDHandler.Handle
 	resp := load(comments.GetCommentsIDParams{ID: commentID}, userID)
@@ -48,7 +49,7 @@ func checkLoadComment(t *testing.T, commentID int64, userID *models.UserID, succ
 	}
 
 	cmt := body.Payload
-	checkComment(t, cmt, entry, userID, author, content)
+	checkComment(t, cmt, entry, userID, author, cmtUserID, content)
 }
 
 func checkPostComment(t *testing.T,
@@ -69,9 +70,9 @@ func checkPostComment(t *testing.T,
 	}
 
 	cmt := body.Payload
-	checkComment(t, cmt, entry, id, author, params.Content)
+	checkComment(t, cmt, entry, id, author, id.ID, params.Content)
 
-	checkLoadComment(t, cmt.ID, id, true, author, entry, params.Content)
+	checkLoadComment(t, cmt.ID, id, true, author, entry, id.ID, params.Content)
 
 	return cmt.ID
 }
@@ -94,9 +95,9 @@ func checkEditComment(t *testing.T,
 	}
 
 	cmt := body.Payload
-	checkComment(t, cmt, entry, id, author, content)
+	checkComment(t, cmt, entry, id, author, id.ID, content)
 
-	checkLoadComment(t, commentID, id, true, author, entry, content)
+	checkLoadComment(t, commentID, id, true, author, entry, id.ID, content)
 }
 
 func checkDeleteComment(t *testing.T, commentID int64, userID *models.UserID, success bool) {
@@ -167,6 +168,50 @@ func TestPrivateComments(t *testing.T) {
 	checkEditComment(t, id, "edited comment", entry, false, profiles[1], userIDs[1])
 	id = checkPostComment(t, entry, "blabla", false, profiles[1], userIDs[1])
 	checkEntryWatching(t, userIDs[1], entry.ID, false, false)
+
+	checkDeleteEntry(t, entry.ID, userIDs[0], true)
+}
+
+func TestAnonymousComments(t *testing.T) {
+	theme := createTestTheme(t, userIDs[0])
+	toTheme := &models.AuthProfile{Profile: *theme}
+	checkFollow(t, userIDs[1], nil, toTheme, models.RelationshipRelationFollowed, true)
+	entry := postThemeEntry(userIDs[1], theme.Name, true)
+
+	var id int64
+
+	id = checkPostComment(t, entry, "blabla", true, profiles[0], userIDs[0])
+	checkEditComment(t, id, "edited comment", entry, true, profiles[0], userIDs[0])
+	checkEntryWatching(t, userIDs[0], entry.ID, true, true)
+
+	checkEditComment(t, id, "e", entry, false, profiles[1], userIDs[1])
+	checkDeleteComment(t, id, userIDs[2], false)
+	checkDeleteComment(t, id, userIDs[0], true)
+
+	id = checkPostComment(t, entry, "blabla", true, toTheme, userIDs[1])
+	checkEditComment(t, id, "edited comment", entry, false, profiles[0], userIDs[0])
+	checkEditComment(t, id, "edited comment", entry, true, toTheme, userIDs[1])
+	checkEntryWatching(t, userIDs[1], entry.ID, true, true)
+	checkDeleteComment(t, id, userIDs[1], true)
+
+	id = checkPostComment(t, entry, "blabla", true, profiles[2], userIDs[2])
+	checkEditComment(t, id, "edited comment", entry, false, profiles[0], userIDs[0])
+	checkEditComment(t, id, "edited comment", entry, false, profiles[1], userIDs[1])
+	checkEditComment(t, id, "edited comment", entry, true, profiles[2], userIDs[2])
+	checkDeleteComment(t, id, userIDs[1], true)
+	checkEntryWatching(t, userIDs[2], entry.ID, true, true)
+
+	params := editEntryParams(entry)
+	commentable := false
+	params.IsCommentable = &commentable
+	editEntry(params, userIDs[1])
+
+	checkPostComment(t, entry, "bbb", true, toTheme, userIDs[1])
+	checkPostComment(t, entry, "cc", false, profiles[0], userIDs[0])
+	checkPostComment(t, entry, "d", false, profiles[2], userIDs[2])
+
+	commentable = true
+	editEntry(params, userIDs[1])
 
 	checkDeleteEntry(t, entry.ID, userIDs[0], true)
 }
