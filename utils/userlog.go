@@ -17,17 +17,19 @@ type userRequest struct {
 	dev  string
 	app  string
 	uid  string
+	uid2 string
 	at   time.Time
 }
 
 func (req userRequest) key() string {
 	var str strings.Builder
-	str.Grow(68)
+	str.Grow(84)
 
 	str.WriteString(req.ip)
 	str.WriteString(req.dev)
 	str.WriteString(req.app)
 	str.WriteString(req.uid)
+	str.WriteString(req.uid2)
 	str.WriteString(req.user)
 
 	return str.String()
@@ -69,6 +71,7 @@ func (ul *userLog) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	user := strings.SplitN(token, ".", 2)[0]
 
 	uid := r.Header.Get("X-Uid")
+	uid2 := r.Header.Get("X-Uid2")
 	app := r.Header.Get("X-App")
 	dev := r.Header.Get("X-Dev")
 	ip := r.Header.Get("X-Forwarded-For")
@@ -83,6 +86,7 @@ func (ul *userLog) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		dev:  dev,
 		app:  app,
 		uid:  uid,
+		uid2: uid2,
 		at:   at,
 	}
 }
@@ -124,6 +128,7 @@ func (ul *userLog) addRequest(req *userRequest) {
 		zap.String("dev", req.dev),
 		zap.String("app", req.app),
 		zap.String("uid", req.uid),
+		zap.String("uid2", req.uid2),
 	)
 
 	key := req.key()
@@ -147,7 +152,7 @@ func (ul *userLog) save(tx *AutoTx, req *userRequest, first bool) {
 		return
 	}
 
-	if req.app == "" && req.uid == "" && req.dev == "" {
+	if req.app == "" && req.uid == "" && req.uid2 == "" && req.dev == "" {
 		return
 	}
 
@@ -156,9 +161,11 @@ func (ul *userLog) save(tx *AutoTx, req *userRequest, first bool) {
 		ul.log.Warn("app id is invalid", zap.String("app", req.app))
 	}
 
-	uid, err := strconv.ParseUint(req.uid, 16, 32)
+	uid, _ := strconv.ParseUint(req.uid, 16, 32)
+
+	uid2, err := strconv.ParseUint(req.uid2, 16, 64)
 	if err != nil {
-		ul.log.Warn("uid is invalid", zap.String("uid", req.uid))
+		ul.log.Warn("uid2 is invalid", zap.String("uid2", req.uid2))
 	}
 
 	dev, err := strconv.ParseUint(req.dev, 16, 32)
@@ -169,9 +176,9 @@ func (ul *userLog) save(tx *AutoTx, req *userRequest, first bool) {
 	ip := strings.SplitN(req.ip, ",", 2)[0]
 
 	const query = `
-    INSERT INTO user_log(name, ip, user_agent, device, app, uid, at, first) 
-    VALUES(lower($1), $2, $3, $4, $5, $6, $7, $8)
+    INSERT INTO user_log(name, ip, user_agent, device, app, uid, uid2, at, first) 
+    VALUES(lower($1), $2, $3, $4, $5, $6, $7, $8, $9)
 `
 
-	tx.Exec(query, req.user, ip, req.ua, int32(dev), int64(app), int32(uid), req.at, first)
+	tx.Exec(query, req.user, ip, req.ua, int32(dev), int64(app), int32(uid), int64(uid2), req.at, first)
 }

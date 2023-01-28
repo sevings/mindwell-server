@@ -785,11 +785,17 @@ func (bot *TelegramBot) possibleAlts(atx *AutoTx, user string) string {
 		Where("ol.uid <> 0")
 	uidAlts := getAlts(uidQuery)
 
+	uid2Query := q.Clone().
+		Join("user_log AS ol", "ul.uid2 = ol.uid2").
+		Where("ol.uid2 <> 0")
+	uid2Alts := getAlts(uid2Query)
+
 	text := `Possible accounts of <a href="` + bot.url + "users/" + user + `">` + user + `</a>`
 	text += "\n<b>By IP</b>: " + ipAlts
 	text += "\n<b>By device</b>: " + devAlts
 	text += "\n<b>By app</b>: " + appAlts
 	text += "\n<b>By UID</b>: " + uidAlts
+	text += "\n<b>By UID2</b>: " + uid2Alts
 
 	return text
 }
