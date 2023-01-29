@@ -255,7 +255,7 @@ func loadUserByPassword(h utils.TokenHash, tx *utils.AutoTx, name, password stri
 	hash := h.PasswordHash(password)
 
 	const userIdQuery = `
-SELECT id, name
+SELECT id, name, user_ban > CURRENT_DATE
 FROM users
 WHERE password_hash = $2
 	AND (lower(name) = lower($1) OR lower(email) = lower($1))
@@ -263,7 +263,12 @@ WHERE password_hash = $2
 
 	var userID int64
 	var userName string
-	tx.Query(userIdQuery, name, hash).Scan(&userID, &userName)
+	var userBan bool
+	tx.Query(userIdQuery, name, hash).Scan(&userID, &userName, &userBan)
+
+	if userBan {
+		return 0, ""
+	}
 
 	return userID, userName
 }
@@ -430,7 +435,12 @@ RETURNING scope, refresh_thru
 		return postTokenBadRequest(models.OAuth2ErrorErrorInvalidToken)
 	}
 
-	userName := tx.QueryString("SELECT name FROM users WHERE id = $1", userID)
+	const nameQuery = "SELECT name FROM users WHERE id = $1 AND user_ban <= CURRENT_DATE"
+	userName := tx.QueryString(nameQuery, userID)
+	if userName == "" {
+		return postTokenBadRequest(models.OAuth2ErrorErrorInvalidToken)
+	}
+
 	resp := createTokens(h, tx, appID, userID, scope, userName)
 	if resp == nil {
 		return postTokenBadRequest(models.OAuth2ErrorErrorServerError)

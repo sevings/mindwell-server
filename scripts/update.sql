@@ -11,3 +11,8 @@ SELECT name, ip, to_hex(device) AS device, to_hex(app) AS app, to_hex(uid) AS ui
        to_char(at, 'YYYY.MM.DD HH24:MI:SS') AS at, first AS f
 FROM mindwell.user_log
 ORDER BY at DESC;
+
+ALTER TABLE users
+ADD COLUMN "user_ban" Date DEFAULT CURRENT_DATE NOT NULL;
+
+DROP FUNCTION ban_user(username text);

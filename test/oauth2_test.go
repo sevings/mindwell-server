@@ -511,3 +511,50 @@ func TestCodeFlow(t *testing.T) {
 
 	removeOAuth2App(app)
 }
+
+func TestBanUser(t *testing.T) {
+	req := require.New(t)
+	app := createOauth2App(4)
+
+	name := "test0"
+	pass := "test123"
+	params := oauth2.PostOauth2TokenParams{
+		GrantType:    "password",
+		ClientID:     app.id,
+		ClientSecret: &app.secret,
+		Username:     &name,
+		Password:     &pass,
+	}
+
+	token := loadOAuth2Token(t, params, true)
+	auth := srv.API.OAuth2PasswordAuth
+
+	id, err := auth(token.AccessToken, []string{"entries:read"})
+	req.Nil(err)
+
+	_, err = db.Exec("UPDATE users SET user_ban = CURRENT_DATE + interval '1 day' WHERE id = $1", id.ID)
+	req.Nil(err)
+
+	_, err = auth(token.AccessToken, []string{"entries:read"})
+	req.NotNil(err)
+
+	params.GrantType = "refresh_token"
+	params.RefreshToken = &token.RefreshToken
+	params.Username = nil
+	params.Password = nil
+
+	loadOAuth2Token(t, params, false)
+
+	params.GrantType = "password"
+	params.Username = &name
+	params.Password = &pass
+
+	loadOAuth2Token(t, params, false)
+
+	_, err = db.Exec("UPDATE users SET user_ban = CURRENT_DATE WHERE id = $1", id.ID)
+	req.Nil(err)
+
+	loadOAuth2Token(t, params, true)
+
+	removeOAuth2App(app)
+}

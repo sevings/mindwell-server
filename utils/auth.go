@@ -134,7 +134,7 @@ const CodeLength = 32
 
 func NewOAuth2User(h TokenHash, db *sql.DB, flowReq AuthFlow) func(string, []string) (*models.UserID, error) {
 	const query = `
-SELECT scope, flow, ban
+SELECT scope, flow, ban, user_ban > CURRENT_DATE
 FROM sessions
 JOIN users ON users.id = user_id
 JOIN apps ON apps.id = app_id
@@ -168,13 +168,13 @@ WHERE lower(users.name) = lower($1)
 
 		var scopeEx uint32
 		var flowEx AuthFlow
-		var ban bool
-		tx.Query(query, name, hash[:], now).Scan(&scopeEx, &flowEx, &ban)
-		if tx.Error() != nil {
+		var appBan, userBan bool
+		tx.Query(query, name, hash[:], now).Scan(&scopeEx, &flowEx, &appBan, &userBan)
+		if tx.Error() != nil || userBan {
 			return nil, errAccessToken
 		}
 
-		if ban || scopeEx&scopeReq != scopeReq || flowEx&flowReq != flowReq {
+		if appBan || scopeEx&scopeReq != scopeReq || flowEx&flowReq != flowReq {
 			return nil, errAccessDenied
 		}
 

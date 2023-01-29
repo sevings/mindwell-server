@@ -286,7 +286,7 @@ func (bot *TelegramBot) help(upd *tgbotapi.Update) string {
 Команды администрирования:
 <code>/hide {id или ссылка}</code> — скрыть запись.
 <code>/ban {live | vote | comment | invite | adm} {N} {login или ссылка}</code> — запретить пользователю выбранные действия на N дней, в случае adm — навсегда.
-<code>/ban user {login или ссылка}</code> — заблокировать пользователя.
+<code>/ban user {N} {login или ссылка}</code> — заблокировать пользователя на N дней.
 <code>/unban {login или ссылка}</code> — разблокировать пользователя.
 <code>/info {email, login или ссылка}</code> — информация о пользователе.
 <code>/alts {email, login или ссылка}</code> — искать альтернативные аккаунты пользователя.
@@ -352,17 +352,9 @@ func (bot *TelegramBot) ban(upd *tgbotapi.Update) string {
 		return "Укажи логин пользователя."
 	}
 
-	if args[0] == "user" {
-		return bot.banUser(login)
-	} else {
-		return bot.restrictUser(args[:len(args)-1], login)
-	}
-}
-
-func (bot *TelegramBot) restrictUser(args []string, login string) string {
-	dayCount := args[len(args)-1]
+	dayCount := args[len(args)-2]
 	banUntil := "CURRENT_DATE + interval '" + dayCount + " days'"
-	banTypes := args[:len(args)-1]
+	banTypes := args[:len(args)-2]
 	if len(banTypes) == 0 {
 		return "Укажи необходимые ограничения."
 	}
@@ -381,6 +373,8 @@ func (bot *TelegramBot) restrictUser(args []string, login string) string {
 			q.SetExpr("invite_ban", banUntil)
 		case "adm":
 			q.Set("adm_ban", true)
+		case "user":
+			q.SetExpr("user_ban", banUntil)
 		default:
 			q.Close()
 			return "Неизвестный аргумент: " + ban + "."
@@ -396,25 +390,6 @@ func (bot *TelegramBot) restrictUser(args []string, login string) string {
 	}
 
 	return "Пользователь " + login + " ограничен в правах на " + dayCount + " дней."
-}
-
-func (bot *TelegramBot) banUser(login string) string {
-	atx := NewAutoTx(bot.srv.DB)
-	defer atx.Finish()
-
-	const q = "SELECT ban_user($1)"
-	invitedBy := atx.QueryString(q, login)
-
-	if invitedBy == "" {
-		return "Пользователь не найден."
-	}
-
-	const emailQ = "SELECT email FROM users WHERE lower(name) = lower($1)"
-	email := atx.QueryString(emailQ, login)
-
-	link := bot.url + "users/" + invitedBy
-	return "Пользователь " + login +
-		` заблокирован. Приглашен <a href="` + link + `">` + invitedBy + `</a>. Почта ` + email + "."
 }
 
 func (bot *TelegramBot) unban(upd *tgbotapi.Update) string {
@@ -435,14 +410,13 @@ func (bot *TelegramBot) unban(upd *tgbotapi.Update) string {
 	atx := NewAutoTx(bot.srv.DB)
 	defer atx.Finish()
 
-	const q = "UPDATE users SET verified = true WHERE lower(name) = lower($1) RETURNING email"
-	email := atx.QueryString(q, login)
-	if email == "" {
+	const q = "UPDATE users SET user_ban = CURRENT_DATE WHERE lower(name) = lower($1) RETURNING id"
+	id := atx.QueryInt64(q, login)
+	if id == 0 {
 		return "Пользователь " + login + " не найден."
 	}
 
-	return "Пользователь " + login +
-		" разблокирован. Теперь можно запросить сброс пароля на почту " + email + "."
+	return "Пользователь " + login + " разблокирован."
 }
 
 func (bot *TelegramBot) create(upd *tgbotapi.Update) string {
