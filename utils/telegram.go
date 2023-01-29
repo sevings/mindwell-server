@@ -12,10 +12,9 @@ import (
 	"strings"
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
-	cache "github.com/patrickmn/go-cache"
+	"github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/patrickmn/go-cache"
 	"github.com/sevings/mindwell-server/models"
-	"golang.org/x/net/proxy"
 )
 
 const errorText = "Что-то пошло не так…"
@@ -99,39 +98,13 @@ func (bot *TelegramBot) isAdmin(upd *tgbotapi.Update) bool {
 	return false
 }
 
-func (bot *TelegramBot) connectToProxy() *http.Client {
-	auth := proxy.Auth{
-		User:     bot.srv.ConfigOptString("proxy.user"),
-		Password: bot.srv.ConfigOptString("proxy.password"),
-	}
-
-	if len(auth.User) == 0 {
-		return http.DefaultClient
-	}
-
-	url := bot.srv.ConfigString("proxy.url")
-	dialer, err := proxy.SOCKS5("tcp", url, &auth, proxy.Direct)
-	if err != nil {
-		bot.log.Error(err.Error())
-		return nil
-	}
-
-	tr := &http.Transport{Dial: dialer.Dial}
-	return &http.Client{
-		Transport: tr,
-	}
-}
-
 func (bot *TelegramBot) run() {
 	token := bot.srv.ConfigString("telegram.token")
 	if len(token) == 0 {
 		return
 	}
 
-	client := bot.connectToProxy()
-	if client == nil {
-		return
-	}
+	client := http.DefaultClient
 
 	api, err := tgbotapi.NewBotAPIWithClient(token, client)
 	if err != nil {
