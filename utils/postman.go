@@ -49,6 +49,7 @@ func (pm *Postman) Start(smtpHost string, smtpPort int) error {
 	if err == nil {
 		pm.Logger.Info(fmt.Sprintf("Connected to smtp://%s:%d", smtpHost, smtpPort))
 	} else {
+		close(pm.stop)
 		return err
 	}
 
