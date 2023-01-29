@@ -12,8 +12,8 @@ import (
 
 	"github.com/didip/tollbooth"
 	"github.com/didip/tollbooth/limiter"
-	errors "github.com/go-openapi/errors"
-	runtime "github.com/go-openapi/runtime"
+	"github.com/go-openapi/errors"
+	"github.com/go-openapi/runtime"
 	accountImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/account"
 	admImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/adm"
 	chatsImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/chats"
@@ -37,6 +37,7 @@ import (
 //go:generate swagger generate server --target .. --name  --spec ../web/swagger.yaml --principal models.UserID
 
 func configureFlags(api *operations.MindwellAPI) {
+	_ = api
 	// api.CommandLineOptionsGroups = []swag.CommandLineOptionsGroup{ ... }
 }
 
@@ -114,6 +115,7 @@ func configureAPI(api *operations.MindwellAPI) http.Handler {
 
 // The TLS configuration before HTTPS server starts.
 func configureTLS(tlsConfig *tls.Config) {
+	_ = tlsConfig
 	// Make all necessary changes to the TLS configuration here.
 }
 
@@ -122,6 +124,9 @@ func configureTLS(tlsConfig *tls.Config) {
 // This function can be called multiple times, depending on the number of serving schemes.
 // scheme value will be set accordingly: "http", "https" or "unix"
 func configureServer(s *http.Server, scheme, addr string) {
+	_ = s
+	_ = scheme
+	_ = addr
 }
 
 // The middleware configuration is for the handler executors. These do not apply to the swagger.json document.
