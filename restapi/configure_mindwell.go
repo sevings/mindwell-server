@@ -101,6 +101,14 @@ func configureAPI(api *operations.MindwellAPI) http.Handler {
 
 	api.AddMiddlewareFor("GET", "/me", utils.CreateUserLog(srv.DB, srv.LogRequest()))
 
+	regLmt := tollbooth.NewLimiter(1/3600.0, &limiter.ExpirableOptions{DefaultExpirationTTL: time.Hour})
+	regLmt.SetIPLookups([]string{"X-Forwarded-For"})
+	regLmt.SetMessage(`{"message":"Слишком много регистраций. Попробуйте позже."}`)
+	regLmt.SetMessageContentType("application/json")
+	api.AddMiddlewareFor("POST", "/account/register", func(handler http.Handler) http.Handler {
+		return tollbooth.LimitHandler(regLmt, handler)
+	})
+
 	return setupGlobalMiddleware(api.Serve(setupMiddlewares))
 }
 
@@ -121,8 +129,6 @@ func configureServer(s *http.Server, scheme, addr string) {
 func setupMiddlewares(handler http.Handler) http.Handler {
 	lmt := tollbooth.NewLimiter(3, &limiter.ExpirableOptions{DefaultExpirationTTL: time.Hour})
 	lmt.SetIPLookups([]string{"X-Forwarded-For"})
-	// lmt.SetHeader("X-User-Key", []string{})
-	// lmt.SetHeaderEntryExpirationTTL(time.Hour)
 	lmt.SetMessage(`{"message":"You have reached maximum request limit."}`)
 	lmt.SetMessageContentType("application/json")
 
