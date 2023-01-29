@@ -2573,7 +2573,7 @@ CREATE OR REPLACE FUNCTION mindwell.delete_user(user_name TEXT) RETURNS VOID AS 
         WHERE notifications.user_id = del_id OR
             CASE (SELECT "type" FROM notification_type WHERE notification_type.id = notifications."type")
             WHEN 'comment' THEN
-                (SELECT author_id FROM comments WHERE comments.id = notifications.subject_id) = del_id
+                (SELECT user_id FROM comments WHERE comments.id = notifications.subject_id) = del_id
             WHEN 'invite' THEN
                 FALSE
             ELSE 
@@ -2583,8 +2583,8 @@ CREATE OR REPLACE FUNCTION mindwell.delete_user(user_name TEXT) RETURNS VOID AS 
         DELETE FROM complains WHERE user_id = del_id;
 
         DELETE FROM mindwell.images WHERE images.user_id = del_id;
-        DELETE FROM mindwell.entries WHERE author_id = del_id;
-        DELETE FROM mindwell.comments WHERE author_id = del_id;
+        DELETE FROM mindwell.entries WHERE user_id = del_id;
+        DELETE FROM mindwell.comments WHERE user_id = del_id;
         DELETE FROM mindwell.users WHERE id = del_id;
     END;
 $$ LANGUAGE plpgsql;
