@@ -34,7 +34,6 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.AccountGetAccountNameNameHandler = account.GetAccountNameNameHandlerFunc(newNameChecker(srv))
 
 	srv.API.AccountPostAccountRegisterHandler = account.PostAccountRegisterHandlerFunc(newRegistrator(srv))
-	srv.API.AccountPostAccountLoginHandler = account.PostAccountLoginHandlerFunc(newLoginer(srv))
 	srv.API.AccountPostAccountPasswordHandler = account.PostAccountPasswordHandlerFunc(newPasswordUpdater(srv))
 	srv.API.AccountPostAccountEmailHandler = account.PostAccountEmailHandlerFunc(newEmailUpdater(srv))
 	srv.API.AccountGetAccountInvitesHandler = account.GetAccountInvitesHandlerFunc(newInvitesLoader(srv))
@@ -372,31 +371,6 @@ func newRegistrator(srv *utils.MindwellServer) func(account.PostAccountRegisterP
 	}
 }
 
-const authProfileQueryByPassword = authProfileQuery + `
-	WHERE users.password_hash = $2
-		AND (lower(users.name) = lower($1) OR lower(users.email) = lower($1))
-`
-
-func newLoginer(srv *utils.MindwellServer) func(account.PostAccountLoginParams) middleware.Responder {
-	return func(params account.PostAccountLoginParams) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			params.Name = strings.TrimSpace(params.Name)
-			params.Password = strings.TrimSpace(params.Password)
-
-			hash := srv.TokenHash().PasswordHash(params.Password)
-			user := loadAuthProfile(srv, tx, authProfileQueryByPassword, params.Name, hash)
-			if tx.Error() != nil {
-				err := srv.NewError(&i18n.Message{ID: "invalid_name_or_password", Other: "Name or password is invalid."})
-				return account.NewPostAccountLoginBadRequest().WithPayload(err)
-			}
-
-			user.Account.Email = utils.HideEmail(user.Account.Email)
-
-			return account.NewPostAccountLoginOK().WithPayload(user)
-		})
-	}
-}
-
 func setPassword(srv *utils.MindwellServer, tx *utils.AutoTx, params account.PostAccountPasswordParams, userID *models.UserID) bool {
 	const q = `
         update users
@@ -532,7 +506,7 @@ func newInvitesLoader(srv *utils.MindwellServer) func(account.GetAccountInvitesP
 			invites := loadInvites(tx, userID)
 			if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
 				err := srv.NewError(nil)
-				return account.NewPostAccountLoginBadRequest().WithPayload(err)
+				return account.NewGetAccountVerificationEmailBadRequest().WithPayload(err)
 			}
 
 			res := account.GetAccountInvitesOKBody{Invites: invites}
@@ -552,7 +526,7 @@ func newVerificationSender(srv *utils.MindwellServer) func(account.PostAccountVe
 			tx.Query(q, userID.ID).Scan(&verified, &email, &name)
 			if tx.Error() != nil {
 				err := srv.NewError(nil)
-				return account.NewPostAccountLoginBadRequest().WithPayload(err)
+				return account.NewGetAccountVerificationEmailBadRequest().WithPayload(err)
 			}
 
 			if verified {

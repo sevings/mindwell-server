@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"strings"
 	"testing"
 
 	accountImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/account"
@@ -129,24 +128,16 @@ func checkInvites(t *testing.T, userID *models.UserID, size int) {
 }
 
 func checkLogin(t *testing.T, user *models.AuthProfile, name, password string) {
-	params := account.PostAccountLoginParams{
-		Name:     name,
-		Password: password,
-	}
+	const q = `SELECT TRUE FROM users 
+            WHERE (lower(name) = lower($1) OR lower(email) = lower($1)) AND password_hash = $2`
+	hash := srv.TokenHash().PasswordHash(password)
 
-	login := api.AccountPostAccountLoginHandler.Handle
-	resp := login(params)
-	body, ok := resp.(*account.PostAccountLoginOK)
-	if !ok {
-		badBody, ok := resp.(*account.PostAccountLoginBadRequest)
-		if ok {
-			t.Fatal(badBody.Payload.Message)
-		}
+	row := db.QueryRow(q, name, hash)
+	var ok bool
+	err := row.Scan(&ok)
 
-		t.Fatal("login error")
-	}
-
-	require.Equal(t, user, body.Payload)
+	require.True(t, ok)
+	require.Nil(t, err)
 }
 
 func changePassword(t *testing.T, userID *models.UserID, old, upd, email string, ok bool) {
@@ -294,9 +285,7 @@ func TestRegister(t *testing.T) {
 	checkName(t, "testtEst", false)
 	checkEmail(t, "testeMAil@example.com", true, false)
 	checkLogin(t, user, params.Name, params.Password)
-	checkLogin(t, user, strings.ToUpper(params.Name), params.Password)
 	checkLogin(t, user, params.Email, params.Password)
-	checkLogin(t, user, strings.ToUpper(params.Email), params.Password)
 
 	esm.CheckEmail(t, "testemail@example.com")
 	checkVerify(t, userID, "testemail@example.com")

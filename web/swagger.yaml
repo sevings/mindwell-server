@@ -972,30 +972,6 @@ paths:
           description: email or name already exists
           schema:
             $ref: '#/definitions/Error'
-  /account/login:
-    post:
-      consumes:
-        - multipart/form-data
-        - application/x-www-form-urlencoded
-      parameters:
-        - in: formData
-          name: name
-          type: string
-          minLength: 1
-          maxLength: 500
-          required: true
-        - $ref: '#/parameters/password'
-      tags:
-        - account
-      responses:
-        200:
-          description: OK
-          schema:
-            $ref: '#/definitions/AuthProfile'
-        400:
-          description: User not found
-          schema:
-            $ref: '#/definitions/Error'
   /account/verification:
     post:
       summary: request verification email
