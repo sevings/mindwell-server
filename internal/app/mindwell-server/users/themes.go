@@ -144,9 +144,12 @@ func newThemeCreator(srv *utils.MindwellServer) func(themes.PostThemesParams, *m
 			return themes.NewPostThemesForbidden().WithPayload(err)
 		}
 
+		name := strings.TrimSpace(params.Name)
+		showName := strings.TrimSpace(params.ShowName)
+
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			const idQ = "SELECT id FROM users WHERE lower(name) = lower($1)"
-			oldID := tx.QueryInt64(idQ, params.Name)
+			oldID := tx.QueryInt64(idQ, name)
 			if oldID > 0 {
 				err := srv.NewError(&i18n.Message{ID: "theme_name_is_not_free", Other: "Theme name is not free."})
 				return themes.NewPostThemesBadRequest().WithPayload(err)
@@ -160,7 +163,7 @@ func newThemeCreator(srv *utils.MindwellServer) func(themes.PostThemesParams, *m
 			}
 
 			const query = profileQuery + "WHERE users.id = $1 AND users.creator_id IS NOT NULL"
-			themeID := createTheme(srv, tx, userID, params.Name, params.ShowName)
+			themeID := createTheme(srv, tx, userID, name, showName)
 			theme := loadUserProfile(srv, tx, query, userID, themeID)
 			if theme.ID == 0 {
 				err := srv.NewError(nil)
