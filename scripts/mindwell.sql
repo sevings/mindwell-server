@@ -74,6 +74,13 @@ BEGIN
 END
 $$ LANGUAGE plpgsql IMMUTABLE;
 
+CREATE OR REPLACE FUNCTION to_search_string(email TEXT)
+    RETURNS TEXT AS $$
+BEGIN
+    RETURN left(email, position('@' in email) - 1);
+END
+$$ LANGUAGE plpgsql IMMUTABLE;
+
 -- CREATE TABLE "users" ----------------------------------------
 CREATE TABLE "mindwell"."users" (
 	"id" Serial NOT NULL,
@@ -165,6 +172,11 @@ CREATE INDEX "index_user_rank" ON "mindwell"."users" USING btree( "rank" );
 -- CREATE INDEX "index_user_search" ----------------------------
 CREATE INDEX "index_user_search" ON "mindwell"."users" USING GIST 
     (to_search_string("name", "show_name", "country", "city") gist_trgm_ops);
+-- -------------------------------------------------------------
+
+-- CREATE INDEX "index_user_search_email" ----------------------
+CREATE INDEX "index_user_search_email" ON "mindwell"."users" USING GIST
+    (to_search_string("email") gist_trgm_ops);
 -- -------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION mindwell.count_invited_upd() RETURNS TRIGGER AS $$

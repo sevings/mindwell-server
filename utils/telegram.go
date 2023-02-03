@@ -662,26 +662,30 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 		return "Укажи не более двух аккаунтов."
 	}
 
+	emails := make([]string, 2, 2)
+
 	atx := NewAutoTx(bot.srv.DB)
 	defer atx.Finish()
 
-	q := `SELECT true FROM users WHERE lower(name) = lower($1)`
-	if !atx.QueryBool(q, users[0]) {
+	q := `SELECT email FROM users WHERE lower(name) = lower($1)`
+	emails[0] = atx.QueryString(q, users[0])
+	if emails[0] == "" {
 		return "Пользователь " + users[0] + " не найден."
 	}
 
 	if len(users) == 1 {
-		return bot.possibleAlts(atx, users[0])
+		return bot.possibleAlts(atx, users[0], emails[0])
 	}
 
-	if !atx.QueryBool(q, users[1]) {
+	emails[1] = atx.QueryString(q, users[1])
+	if emails[1] == "" {
 		return "Пользователь " + users[1] + " не найден."
 	}
 
-	return bot.compareUsers(atx, users[0], users[1])
+	return bot.compareUsers(atx, users[0], users[1], emails[0], emails[1])
 }
 
-func (bot *TelegramBot) possibleAlts(atx *AutoTx, user string) string {
+func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string) string {
 	getAlts := func(q *sqlf.Stmt) string {
 		atx.QueryStmt(q)
 
@@ -737,17 +741,28 @@ func (bot *TelegramBot) possibleAlts(atx *AutoTx, user string) string {
 		Where("ol.uid2 <> 0")
 	uid2Alts := getAlts(uid2Query)
 
+	emailSubQuery := sqlf.Select("id, name").
+		Select("to_search_string(?) <<-> to_search_string(email) AS dist", email).
+		From("users").OrderBy("dist ASC, id DESC").Limit(11)
+	emailQuery := sqlf.Select("name").
+		Select("100 - round(dist * 100)").
+		From("").SubQuery("(", ") AS u", emailSubQuery).
+		Where("lower(name) <> lower(?)", user).
+		Where("dist < 0.6")
+	emailAlts := getAlts(emailQuery)
+
 	text := `Possible accounts of <a href="` + bot.url + "users/" + user + `">` + user + `</a>`
 	text += "\n<b>By IP</b>: " + ipAlts
 	text += "\n<b>By device</b>: " + devAlts
 	text += "\n<b>By app</b>: " + appAlts
 	text += "\n<b>By UID</b>: " + uidAlts
 	text += "\n<b>By UID2</b>: " + uid2Alts
+	text += "\n<b>By email</b>: " + emailAlts
 
 	return text
 }
 
-func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB string) string {
+func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB, emailA, emailB string) string {
 	getCounts := func(q *sqlf.Stmt) string {
 		atx.QueryStmt(q)
 
@@ -832,6 +847,8 @@ func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB string) string {
 	text += "\n<b>IPs used only by " + userB + "</b>:\n" + diffIpsB
 	text += "\n<b>Apps used only by " + userA + "</b>:\n" + diffAppsA
 	text += "\n<b>Apps used only by " + userB + "</b>:\n" + diffAppsB
+	text += "\n<b>" + userA + "'s email</b>: " + emailA
+	text += "\n<b>" + userB + "'s email</b>: " + emailB
 
 	return text
 }
