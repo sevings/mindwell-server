@@ -23,7 +23,7 @@ Usage: mindwell-helper [option]
 Options are:
 %s		- set grandfathers in adm and sent emails to them.
 %s		- send email reminders.
-%s      - import user request log.
+%s		- import user request log.
 %s		- print this help message.
 `, admArg, mailArg, logArg, helpArg)
 }
@@ -36,12 +36,11 @@ func main() {
 
 	cfg := utils.LoadConfig("configs/server")
 
-	domain, _ := cfg.String("mailgun.domain")
-	apiKey, _ := cfg.String("mailgun.api_key")
 	baseURL, _ := cfg.String("server.base_url")
 	support, _ := cfg.String("server.support")
+	moderator, _ := cfg.String("server.moderator")
 
-	if len(domain) == 0 || len(apiKey) == 0 || len(baseURL) == 0 {
+	if len(support) == 0 || len(moderator) == 0 || len(baseURL) == 0 {
 		log.Println("Check config consistency")
 	}
 
@@ -51,7 +50,20 @@ func main() {
 	}
 
 	emailLog := zapLog.With(zap.String("type", "email"))
-	mail := utils.NewPostman(domain, apiKey, baseURL, support, emailLog)
+
+	mail := &utils.Postman{
+		BaseUrl:   baseURL,
+		Support:   support,
+		Moderator: moderator,
+		Logger:    emailLog,
+	}
+
+	smtpHost, _ := cfg.String("email.host")
+	smtpPort, _ := cfg.Int("email.port")
+	err = mail.Start(smtpHost, smtpPort)
+	if err != nil {
+		log.Println(err.Error())
+	}
 
 	db := utils.OpenDatabase(cfg)
 	tx := utils.NewAutoTx(db)
