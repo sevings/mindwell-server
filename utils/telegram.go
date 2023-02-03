@@ -658,6 +658,13 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 	}
 
 	users := strings.Split(arg, " ")
+
+	limit := 10
+	if l, err := strconv.ParseInt(users[len(users)-1], 10, 8); err == nil {
+		limit = int(l)
+		users = users[:len(users)-1]
+	}
+
 	if len(users) > 2 {
 		return "Укажи не более двух аккаунтов."
 	}
@@ -674,7 +681,7 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 	}
 
 	if len(users) == 1 {
-		return bot.possibleAlts(atx, users[0], emails[0])
+		return bot.possibleAlts(atx, users[0], emails[0], limit)
 	}
 
 	emails[1] = atx.QueryString(q, users[1])
@@ -682,10 +689,10 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 		return "Пользователь " + users[1] + " не найден."
 	}
 
-	return bot.compareUsers(atx, users[0], users[1], emails[0], emails[1])
+	return bot.compareUsers(atx, users[0], users[1], emails[0], emails[1], limit)
 }
 
-func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string) string {
+func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string, limit int) string {
 	getAlts := func(q *sqlf.Stmt) string {
 		atx.QueryStmt(q)
 
@@ -712,7 +719,7 @@ func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string) string {
 		Where("ul.first <> ol.first").
 		GroupBy("ul.name").
 		OrderBy("cnt DESC").
-		Limit(10)
+		Limit(limit)
 
 	ipQuery := q.Clone().
 		Join("user_log AS ol", "ul.ip = ol.ip").
@@ -743,7 +750,7 @@ func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string) string {
 
 	emailSubQuery := sqlf.Select("id, name").
 		Select("to_search_string(?) <<-> to_search_string(email) AS dist", email).
-		From("users").OrderBy("dist ASC, id DESC").Limit(11)
+		From("users").OrderBy("dist ASC, id DESC").Limit(limit + 1)
 	emailQuery := sqlf.Select("name").
 		Select("100 - round(dist * 100)").
 		From("").SubQuery("(", ") AS u", emailSubQuery).
@@ -762,7 +769,7 @@ func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string) string {
 	return text
 }
 
-func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB, emailA, emailB string) string {
+func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB, emailA, emailB string, limit int) string {
 	getCounts := func(q *sqlf.Stmt) string {
 		atx.QueryStmt(q)
 
@@ -791,7 +798,7 @@ func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB, emailA, emailB s
 			Where("ol.name = lower(?)", userB).
 			Where("ul.first <> ol.first").
 			OrderBy("cnt DESC").
-			Limit(10)
+			Limit(limit)
 	}
 
 	commonIpsQ := commonQuery().
@@ -814,7 +821,7 @@ func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB, emailA, emailB s
 			From("").SubQuery("(", ") AS ul", sub).
 			Where("ol.name = lower(?)", a).
 			OrderBy("cnt DESC").
-			Limit(10)
+			Limit(limit)
 	}
 
 	diffIpsQ := func(a, b string) *sqlf.Stmt {
