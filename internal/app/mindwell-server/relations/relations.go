@@ -59,7 +59,7 @@ func newToRelationSetter(srv *utils.MindwellServer) func(relations.PutRelationsT
 			isPrivate := isPrivateTlog(tx, params.Name)
 			var relation *models.Relationship
 			var ok bool
-			if params.R == models.RelationshipRelationIgnored || !isPrivate {
+			if !isPrivate || params.R == models.RelationshipRelationIgnored || params.R == models.RelationshipRelationHidden {
 				relation, ok = setRelationship(tx, uID.Name, params.Name, params.R)
 			} else {
 				relation, ok = setRelationship(tx, uID.Name, params.Name, models.RelationshipRelationRequested)
