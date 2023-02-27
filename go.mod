@@ -11,15 +11,9 @@ require (
 	github.com/didip/tollbooth v4.0.2+incompatible
 	github.com/disintegration/imaging v1.6.2
 	github.com/go-openapi/errors v0.20.1
-	github.com/go-openapi/loads v0.20.2
 	github.com/go-openapi/runtime v0.19.31
-	github.com/go-openapi/spec v0.20.3
-	github.com/go-openapi/strfmt v0.20.2
-	github.com/go-openapi/swag v0.19.15
-	github.com/go-openapi/validate v0.20.2
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible
 	github.com/golang-jwt/jwt/v4 v4.4.1
-	github.com/jessevdk/go-flags v1.5.0
 	github.com/leporo/sqlf v1.1.1
 	github.com/lib/pq v1.10.3
 	github.com/matcornic/hermes/v2 v2.1.0
@@ -32,8 +26,7 @@ require (
 	github.com/zpatrick/go-config v0.0.0-20191118215128-80ba6b3e54f6
 	gitlab.com/golang-commonmark/markdown v0.0.0-20191127184510-91b5b3c99c19
 	go.uber.org/zap v1.19.0
-	golang.org/x/net v0.0.0-20210903162142-ad29c8ab022f
-	golang.org/x/text v0.3.7
+	golang.org/x/text v0.3.8
 	gopkg.in/gographics/imagick.v2 v2.6.0
 )
 
@@ -50,12 +43,16 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/docker/go-units v0.4.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-ini/ini v1.62.0 // indirect
 	github.com/go-openapi/analysis v0.20.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.19.5 // indirect
+	github.com/go-openapi/loads v0.20.2 // indirect
+	github.com/go-openapi/spec v0.20.3 // indirect
+	github.com/go-openapi/strfmt v0.20.2 // indirect
+	github.com/go-openapi/swag v0.19.15 // indirect
+	github.com/go-openapi/validate v0.20.2 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/go-test/deep v1.0.8 // indirect
 	github.com/google/uuid v1.1.1 // indirect
@@ -89,7 +86,7 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9 // indirect
 	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8 // indirect
-	golang.org/x/sys v0.0.0-20210423082822-04245dca01da // indirect
+	golang.org/x/net v0.0.0-20210903162142-ad29c8ab022f // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
