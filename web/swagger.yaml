@@ -880,6 +880,12 @@ parameters:
     type: string
     maxLength: 100
     default: ""
+  source:
+    in: query
+    name: source
+    type: string
+    enum: [all, users, themes]
+    default: all
 paths:
   /account/email/{email}:
     get:
@@ -2707,6 +2713,7 @@ paths:
         - $ref: '#/parameters/before'
         - $ref: '#/parameters/tag'
         - $ref: '#/parameters/query'
+        - $ref: '#/parameters/source'
         - in: query
           name: section
           type: string
@@ -2763,6 +2770,7 @@ paths:
         - $ref: '#/parameters/limit'
         - $ref: '#/parameters/tag'
         - $ref: '#/parameters/query'
+        - $ref: '#/parameters/source'
         - in: query
           name: category
           type: string

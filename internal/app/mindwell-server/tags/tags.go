@@ -55,7 +55,7 @@ func liveTagsQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 		Where("age(entries.created_at) <= interval '1 month'").
 		OrderBy("cnt DESC").
 		OrderBy("max(entries.created_at) DESC")
-	return entriesImpl.AddLiveInvitedQuery(q, userID, "")
+	return entriesImpl.AddLiveInvitedQuery(q, userID, "", "all")
 }
 
 func loadTags(tx *utils.AutoTx) *models.TagList {

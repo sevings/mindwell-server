@@ -129,10 +129,24 @@ func addRelationsFromMeQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
 		LeftJoin("relations_from_me", "relations_from_me.to_id = entries.author_id")
 }
 
-func addLiveQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt {
+func addSourceQuery(q *sqlf.Stmt, source string) *sqlf.Stmt {
+	switch source {
+	case "all":
+		return q
+	case "users":
+		return q.Where("authors.creator_id IS NULL")
+	case "themes":
+		return q.Where("authors.creator_id IS NOT NULL")
+	}
+
+	return q
+}
+
+func addLiveQuery(q *sqlf.Stmt, userID *models.UserID, tag, source string) *sqlf.Stmt {
 	addRelationsToMeQuery(q, userID)
 	addRelationsFromMeQuery(q, userID)
 	addTagQuery(q, tag)
+	addSourceQuery(q, source)
 
 	return q.
 		Where("entries.in_live").
@@ -156,32 +170,32 @@ END
 		Where("(relations_from_me.type IS NULL OR relations_from_me.type NOT IN ('ignored', 'hidden'))")
 }
 
-func AddLiveInvitedQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt {
-	return addLiveQuery(q, userID, tag).
+func AddLiveInvitedQuery(q *sqlf.Stmt, userID *models.UserID, tag, source string) *sqlf.Stmt {
+	return addLiveQuery(q, userID, tag, source).
 		Where("(authors.invited_by IS NOT NULL OR authors.creator_id IS NOT NULL)")
 }
 
-func liveInvitedQuery(userID *models.UserID, limit int64, tag string) *sqlf.Stmt {
+func liveInvitedQuery(userID *models.UserID, limit int64, tag, source string) *sqlf.Stmt {
 	q := feedQuery(userID, limit)
-	return AddLiveInvitedQuery(q, userID, tag)
+	return AddLiveInvitedQuery(q, userID, tag, source)
 }
 
 func addLiveWaitingQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt {
-	return addLiveQuery(q, userID, tag).
+	return addLiveQuery(q, userID, tag, "all").
 		Where("authors.invited_by IS NULL AND authors.creator_id IS NULL").
 		Where("now() - entries.created_at <= interval '3 months'")
 }
 
-func addLiveCommentsQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt {
-	return addLiveQuery(q, userID, tag).
+func addLiveCommentsQuery(q *sqlf.Stmt, userID *models.UserID, tag, source string) *sqlf.Stmt {
+	return addLiveQuery(q, userID, tag, source).
 		Where("(authors.invited_by IS NOT NULL OR authors.creator_id IS NOT NULL)").
 		Where("entries.comments_count > 0").
 		OrderBy("last_comment DESC")
 }
 
-func liveCommentsQuery(userID *models.UserID, limit int64, tag string) *sqlf.Stmt {
+func liveCommentsQuery(userID *models.UserID, limit int64, tag, source string) *sqlf.Stmt {
 	q := feedQuery(userID, limit)
-	return addLiveCommentsQuery(q, userID, tag)
+	return addLiveCommentsQuery(q, userID, tag, source)
 }
 
 func AddEntryOpenQuery(q *sqlf.Stmt, userID *models.UserID, showMe bool) *sqlf.Stmt {
@@ -426,8 +440,8 @@ func loadLiveFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 	return feed
 }
 
-func loadLiveCommentsFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, tag string, limit int64) *models.Feed {
-	query := liveCommentsQuery(userID, limit, tag)
+func loadLiveCommentsFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, tag, source string, limit int64) *models.Feed {
+	query := liveCommentsQuery(userID, limit, tag, source)
 	tx.QueryStmt(query)
 	return loadFeed(srv, tx, userID, false)
 }
@@ -437,10 +451,10 @@ func newLiveLoader(srv *utils.MindwellServer) func(entries.GetEntriesLiveParams,
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			var feed *models.Feed
 			if *params.Section == "entries" {
-				add := func(q *sqlf.Stmt) { AddLiveInvitedQuery(q, userID, *params.Tag) }
+				add := func(q *sqlf.Stmt) { AddLiveInvitedQuery(q, userID, *params.Tag, *params.Source) }
 				feed = loadLiveFeed(srv, tx, userID, add, *params.Before, *params.After, *params.Query, *params.Limit)
 			} else if *params.Section == "comments" {
-				feed = loadLiveCommentsFeed(srv, tx, userID, *params.Tag, *params.Limit)
+				feed = loadLiveCommentsFeed(srv, tx, userID, *params.Tag, *params.Source, *params.Limit)
 			} else if *params.Section == "waiting" {
 				add := func(q *sqlf.Stmt) { addLiveWaitingQuery(q, userID, *params.Tag) }
 				feed = loadLiveFeed(srv, tx, userID, add, *params.Before, *params.After, *params.Query, *params.Limit)
@@ -451,7 +465,7 @@ func newLiveLoader(srv *utils.MindwellServer) func(entries.GetEntriesLiveParams,
 	}
 }
 
-func loadBestFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, category, tag, search string, limit int64) *models.Feed {
+func loadBestFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, category, tag, search, source string, limit int64) *models.Feed {
 	var interval string
 	if category == "month" {
 		interval = "1 month"
@@ -462,7 +476,7 @@ func loadBestFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 		interval = "1 month"
 	}
 
-	query := liveInvitedQuery(userID, limit, "").
+	query := liveInvitedQuery(userID, limit, "", "all").
 		Where("entries.created_at >= CURRENT_TIMESTAMP - interval '" + interval + "'").
 		OrderBy("entries.rating DESC")
 
@@ -470,6 +484,7 @@ func loadBestFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 		OrderBy("entries.created_at DESC")
 
 	addTagQuery(query, tag)
+	addSourceQuery(query, source)
 	query = addSearchQuery(query, search)
 	tx.QueryStmt(query)
 
@@ -481,7 +496,7 @@ func loadBestFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 func newBestLoader(srv *utils.MindwellServer) func(entries.GetEntriesBestParams, *models.UserID) middleware.Responder {
 	return func(params entries.GetEntriesBestParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			feed := loadBestFeed(srv, tx, userID, *params.Category, *params.Tag, *params.Query, *params.Limit)
+			feed := loadBestFeed(srv, tx, userID, *params.Category, *params.Tag, *params.Query, *params.Source, *params.Limit)
 			return entries.NewGetEntriesBestOK().WithPayload(feed)
 		})
 	}

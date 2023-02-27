@@ -571,7 +571,7 @@ func editEntry(params entries.PutEntriesIDParams, id *models.UserID) *models.Ent
 	return entry
 }
 
-func checkLoadLiveAll(t *testing.T, id *models.UserID, limit int64, section, before, after, tag, query string, size int) *models.Feed {
+func checkLoadLiveAll(t *testing.T, id *models.UserID, limit int64, section, before, after, tag, query, source string, size int) *models.Feed {
 	params := entries.GetEntriesLiveParams{
 		Limit:   &limit,
 		Before:  &before,
@@ -579,6 +579,7 @@ func checkLoadLiveAll(t *testing.T, id *models.UserID, limit int64, section, bef
 		Section: &section,
 		Tag:     &tag,
 		Query:   &query,
+		Source:  &source,
 	}
 
 	load := api.EntriesGetEntriesLiveHandler.Handle
@@ -595,15 +596,19 @@ func checkLoadLiveAll(t *testing.T, id *models.UserID, limit int64, section, bef
 }
 
 func checkLoadLive(t *testing.T, id *models.UserID, limit int64, section, before, after string, size int) *models.Feed {
-	return checkLoadLiveAll(t, id, limit, section, before, after, "", "", size)
+	return checkLoadLiveAll(t, id, limit, section, before, after, "", "", "all", size)
 }
 
 func checkLoadLiveTag(t *testing.T, id *models.UserID, limit int64, section, before, after, tag string, size int) *models.Feed {
-	return checkLoadLiveAll(t, id, limit, section, before, after, tag, "", size)
+	return checkLoadLiveAll(t, id, limit, section, before, after, tag, "", "all", size)
 }
 
 func checkLoadLiveSearch(t *testing.T, id *models.UserID, limit int64, section, query string, size int) *models.Feed {
-	return checkLoadLiveAll(t, id, limit, section, "", "", "", query, size)
+	return checkLoadLiveAll(t, id, limit, section, "", "", "", query, "all", size)
+}
+
+func checkLoadLiveSource(t *testing.T, id *models.UserID, limit int64, section, source string, size int) *models.Feed {
+	return checkLoadLiveAll(t, id, limit, section, "", "", "", "", source, size)
 }
 
 func TestLoadLive(t *testing.T) {
@@ -613,11 +618,11 @@ func TestLoadLive(t *testing.T) {
 
 	e3 := postEntry(userIDs[3], models.EntryPrivacyAll, true)
 	e2 := postEntry(userIDs[0], models.EntryPrivacyAll, true)
-	postEntry(userIDs[0], models.EntryPrivacyAll, false)
-	postEntry(userIDs[0], models.EntryPrivacySome, true)
-	postEntry(userIDs[1], models.EntryPrivacyMe, true)
+	x3 := postEntry(userIDs[0], models.EntryPrivacyAll, false)
+	x2 := postEntry(userIDs[0], models.EntryPrivacySome, true)
+	x1 := postEntry(userIDs[1], models.EntryPrivacyMe, true)
 	e1 := postEntry(userIDs[1], models.EntryPrivacyInvited, true)
-	postEntry(userIDs[2], models.EntryPrivacyFollowers, false)
+	x0 := postEntry(userIDs[2], models.EntryPrivacyFollowers, false)
 	e0 := postEntry(userIDs[2], models.EntryPrivacyRegistered, true)
 
 	feed := checkLoadLive(t, userIDs[0], 10, "entries", "", "", 3)
@@ -710,6 +715,22 @@ func TestLoadLive(t *testing.T) {
 	compareEntries(t, e2, feed.Entries[1], userIDs[0])
 
 	checkUnfollow(t, userIDs[0], userIDs[2])
+
+	theme := createTestTheme(t, userIDs[1])
+	e4 := createThemeEntry(t, userIDs[1], theme.Name, models.EntryPrivacyAll, true, true, true, false)
+
+	checkLoadLiveSource(t, userIDs[0], 10, "entries", "users", 3)
+	checkLoadLiveSource(t, userIDs[0], 10, "entries", "themes", 1)
+
+	checkDeleteEntry(t, e0.ID, userIDs[2], true)
+	checkDeleteEntry(t, e1.ID, userIDs[1], true)
+	checkDeleteEntry(t, e2.ID, userIDs[0], true)
+	checkDeleteEntry(t, e3.ID, userIDs[3], true)
+	checkDeleteEntry(t, e4.ID, userIDs[1], true)
+	checkDeleteEntry(t, x0.ID, userIDs[2], true)
+	checkDeleteEntry(t, x1.ID, userIDs[1], true)
+	checkDeleteEntry(t, x2.ID, userIDs[0], true)
+	checkDeleteEntry(t, x3.ID, userIDs[0], true)
 }
 
 func checkLoadTlogAll(t *testing.T, tlog, user *models.UserID, success bool, limit int64, before, after, tag, sort, query string, size int) *models.Feed {
@@ -754,10 +775,6 @@ func checkLoadTlogSearch(t *testing.T, tlog, user *models.UserID, success bool, 
 }
 
 func TestLoadTlog(t *testing.T) {
-	utils.ClearDatabase(db)
-	userIDs, profiles = registerTestUsers(db)
-	esm.Clear()
-
 	noAuthUser := utils.NoAuthUser()
 
 	e3 := postEntry(userIDs[0], models.EntryPrivacyAll, true)
@@ -1360,6 +1377,16 @@ func TestLoadLiveComments(t *testing.T) {
 	checkLoadLive(t, userIDs[0], 10, "comments", "", "", 1)
 	checkLoadLive(t, userIDs[1], 10, "comments", "", "", 2)
 	checkUnfollow(t, userIDs[0], userIDs[1])
+
+	checkLoadLiveSource(t, userIDs[0], 10, "comments", "users", 2)
+	checkLoadLiveSource(t, userIDs[0], 10, "comments", "themes", 0)
+
+	checkDeleteEntry(t, es[0].ID, userIDs[0], true)
+	checkDeleteEntry(t, es[1].ID, userIDs[0], true)
+	checkDeleteEntry(t, es[2].ID, userIDs[0], true)
+	checkDeleteEntry(t, es[3].ID, userIDs[1], true)
+	checkDeleteEntry(t, es[4].ID, userIDs[1], true)
+	checkDeleteEntry(t, es[5].ID, userIDs[1], true)
 }
 
 func checkLoadWatching(t *testing.T, id *models.UserID, limit int64, size int) *models.Feed {
@@ -1380,10 +1407,6 @@ func checkLoadWatching(t *testing.T, id *models.UserID, limit int64, size int) *
 }
 
 func TestLoadWatching(t *testing.T) {
-	utils.ClearDatabase(db)
-	userIDs, profiles = registerTestUsers(db)
-	esm.Clear()
-
 	es := make([]*models.Entry, 4)
 
 	es[0] = postEntry(userIDs[0], models.EntryPrivacyAll, true) // 2
