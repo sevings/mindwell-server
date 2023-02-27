@@ -353,8 +353,13 @@ func (bot *TelegramBot) ban(upd *tgbotapi.Update) string {
 	}
 
 	dayCount := args[len(args)-2]
+	banCount := len(args) - 2
+	if _, err := strconv.Atoi(dayCount); err != nil {
+		dayCount = "7300"
+		banCount++
+	}
 	banUntil := "CURRENT_DATE + interval '" + dayCount + " days'"
-	banTypes := args[:len(args)-2]
+	banTypes := args[:banCount]
 	if len(banTypes) == 0 {
 		return "Укажи необходимые ограничения."
 	}
