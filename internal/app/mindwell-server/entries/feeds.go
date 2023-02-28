@@ -476,7 +476,7 @@ func loadBestFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 		interval = "1 month"
 	}
 
-	query := liveInvitedQuery(userID, limit, "", "all").
+	query := liveInvitedQuery(userID, limit, "", source).
 		Where("entries.created_at >= CURRENT_TIMESTAMP - interval '" + interval + "'").
 		OrderBy("entries.rating DESC")
 
