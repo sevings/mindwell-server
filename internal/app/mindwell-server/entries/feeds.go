@@ -484,7 +484,6 @@ func loadBestFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 		OrderBy("entries.created_at DESC")
 
 	addTagQuery(query, tag)
-	addSourceQuery(query, source)
 	query = addSearchQuery(query, search)
 	tx.QueryStmt(query)
 
