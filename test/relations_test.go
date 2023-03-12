@@ -179,6 +179,14 @@ func TestRelationship(t *testing.T) {
 
 	checkUnfollow(t, userIDs[0], userIDs[1])
 	checkUnfollow(t, userIDs[1], userIDs[0])
+
+	userIDs[0].Verified = false
+
+	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationFollowed, false)
+	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationIgnored, true)
+	checkUnfollow(t, userIDs[0], userIDs[1])
+
+	userIDs[0].Verified = true
 }
 
 func TestInvite(t *testing.T) {

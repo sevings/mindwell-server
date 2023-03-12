@@ -229,6 +229,7 @@ func removeUserRestrictions(db *sql.DB, userIDs []*models.UserID) {
 		user.Ban.Comment = false
 		user.Ban.Live = false
 		user.Ban.Vote = false
+		user.Verified = true
 	}
 }
 

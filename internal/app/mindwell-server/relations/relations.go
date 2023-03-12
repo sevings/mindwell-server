@@ -49,6 +49,11 @@ func newToRelationSetter(srv *utils.MindwellServer) func(relations.PutRelationsT
 			}
 
 			if params.R == models.RelationshipRelationFollowed {
+				if !uID.Verified {
+					err := srv.NewError(&i18n.Message{ID: "verify_email", Other: "You have to verify your email first."})
+					return relations.NewPutRelationsToNameForbidden().WithPayload(err)
+				}
+
 				toRelation := relationship(tx, params.Name, uID.Name)
 				if toRelation.Relation == models.RelationshipRelationIgnored {
 					err := srv.NewError(&i18n.Message{ID: "relation_from_ignored", Other: "You can't follow this user."})
