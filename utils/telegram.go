@@ -36,6 +36,7 @@ type TelegramBot struct {
 	srv    *MindwellServer
 	api    *tgbotapi.BotAPI
 	url    string
+	ipAPI  string
 	log    *zap.Logger
 	admins []int64
 	logins *cache.Cache
@@ -56,6 +57,7 @@ func NewTelegramBot(srv *MindwellServer) *TelegramBot {
 	bot := &TelegramBot{
 		srv:    srv,
 		url:    srv.ConfigString("server.base_url"),
+		ipAPI:  srv.ConfigOptString("server.ip_api"),
 		log:    srv.LogTelegram(),
 		admins: srv.ConfigInt64s("telegram.admins"),
 		logins: cache.New(10*time.Minute, 10*time.Minute),
@@ -64,6 +66,12 @@ func NewTelegramBot(srv *MindwellServer) *TelegramBot {
 		send:   make(chan func(), 200),
 		stop:   make(chan interface{}),
 	}
+
+	if bot.ipAPI == "" {
+		bot.ipAPI = "http://%s/"
+	}
+
+	bot.ipAPI = `<a href="` + bot.ipAPI + `">%s</a>`
 
 	go bot.run()
 
@@ -760,7 +768,7 @@ func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string, limit int)
 		Select("100 - round(dist * 100)").
 		From("").SubQuery("(", ") AS u", emailSubQuery).
 		Where("lower(name) <> lower(?)", user).
-		Where("dist < 0.6")
+		Where("dist < 0.5")
 	emailAlts := getAlts(emailQuery)
 
 	text := `Possible accounts of <a href="` + bot.url + "users/" + user + `">` + user + `</a>`
@@ -775,7 +783,7 @@ func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string, limit int)
 }
 
 func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB, emailA, emailB string, limit int) string {
-	getCounts := func(q *sqlf.Stmt) string {
+	getCountsFmt := func(q *sqlf.Stmt, format func(string) string) string {
 		atx.QueryStmt(q)
 
 		var result []string
@@ -788,12 +796,20 @@ func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB, emailA, emailB s
 				break
 			}
 
-			data = fmt.Sprintf("%s (%d, %s — %s)", data, cnt,
+			data = fmt.Sprintf(format(data)+" (%d, %s — %s)", cnt,
 				from.Format("02.01.2006"), to.Format("02.01.2006"))
 			result = append(result, data)
 		}
 
 		return strings.Join(result, "\n")
+	}
+
+	getCounts := func(q *sqlf.Stmt) string {
+		return getCountsFmt(q, func(data string) string { return data })
+	}
+
+	fmtIP := func(ip string) string {
+		return fmt.Sprintf(bot.ipAPI, ip, ip)
 	}
 
 	commonQuery := func() *sqlf.Stmt {
@@ -811,7 +827,7 @@ func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB, emailA, emailB s
 		Where("(CASE WHEN ul.at > ol.at THEN ul.at - ol.at ELSE ol.at - ul.at END) < interval '1 hour'").
 		Select("ul.ip").
 		GroupBy("ul.ip")
-	commonIps := getCounts(commonIpsQ)
+	commonIps := getCountsFmt(commonIpsQ, fmtIP)
 
 	commonAppsQ := commonQuery().
 		Join("user_log AS ol", "ul.app = ol.app AND ul.device = ol.device").
@@ -837,8 +853,8 @@ func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB, emailA, emailB s
 			GroupBy("ol.ip")
 	}
 
-	diffIpsA := getCounts(diffIpsQ(userA, userB))
-	diffIpsB := getCounts(diffIpsQ(userB, userA))
+	diffIpsA := getCountsFmt(diffIpsQ(userA, userB), fmtIP)
+	diffIpsB := getCountsFmt(diffIpsQ(userB, userA), fmtIP)
 
 	diffAppsQ := func(a, b string) *sqlf.Stmt {
 		return diffQuery(a, b).
