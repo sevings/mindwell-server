@@ -2507,6 +2507,7 @@ CREATE OR REPLACE FUNCTION mindwell.recalc_karma() RETURNS VOID AS $$
             WHERE comment_votes.vote < 0 AND age(comment_votes.created_at) <= interval '2 months'
             GROUP BY comment_votes.user_id
         ) AS bck ON users.id = bck.id -- comment votes by users
+        WHERE users.creator_id IS NULL
     )
     UPDATE mindwell.users
     SET karma = upd.karma
@@ -2546,6 +2547,7 @@ CREATE OR REPLACE FUNCTION mindwell.recalc_karma() RETURNS VOID AS $$
                 AND abs(comment_votes.vote) > 0.2 AND age(comments.created_at) <= interval '2 months'
             GROUP BY comments.author_id
         ) AS fck ON users.id = fck.id -- votes for users comments
+        WHERE users.creator_id IS NOT NULL
     )
     UPDATE mindwell.users
     SET karma = upd.karma
