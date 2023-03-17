@@ -2536,7 +2536,7 @@ CREATE OR REPLACE FUNCTION mindwell.recalc_karma() RETURNS VOID AS $$
             FROM mindwell.entries
             JOIN mindwell.entry_votes ON entry_votes.entry_id = entries.id
             WHERE entries.author_id <> entries.user_id
-                AND abs(entry_votes.vote) > 0.2 AND age(entries.created_at) <= interval '2 months'
+                AND entry_votes.vote > 0.2 AND age(entries.created_at) <= interval '2 months'
             GROUP BY entries.author_id
         ) AS fek ON users.id = fek.id -- votes for users entries
         LEFT JOIN (
@@ -2544,7 +2544,7 @@ CREATE OR REPLACE FUNCTION mindwell.recalc_karma() RETURNS VOID AS $$
             FROM mindwell.comments
             JOIN mindwell.comment_votes ON comment_votes.comment_id = comments.id
             WHERE comments.author_id <> comments.user_id
-                AND abs(comment_votes.vote) > 0.2 AND age(comments.created_at) <= interval '2 months'
+                AND comment_votes.vote > 0.2 AND age(comments.created_at) <= interval '2 months'
             GROUP BY comments.author_id
         ) AS fck ON users.id = fck.id -- votes for users comments
         WHERE users.creator_id IS NOT NULL
