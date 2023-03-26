@@ -552,3 +552,32 @@ func (pm *Postman) SendReminder(address, name, gender string) {
 	subj := "Мы соскучились"
 	pm.send(email, address, subj, name)
 }
+
+func (pm *Postman) SendSurvey(address, name, surveyUrl string) {
+	email := hermes.Email{
+		Body: hermes.Body{
+			Intros: []string{
+				"мы изучаем мнение пользователей Mindwell, которые прекратили " +
+					"вести свои тлоги. Пожалуйста, пройди наш небольшой опрос — " +
+					"это займёт около 10 минут.",
+			},
+			Actions: []hermes.Action{
+				{
+					Instructions: "Ссылка на опрос:",
+					Button: hermes.Button{
+						Color: "#22BC66",
+						Text:  "Опрос",
+						Link:  surveyUrl,
+					},
+				},
+			},
+			Outros: []string{
+				"Твоё мнение о сервисе действительно важно для нас. " +
+					"Возможно, именно ты сможешь помочь нам стать лучше.",
+			},
+		},
+	}
+
+	subj := name + ", нам важно твое мнение"
+	pm.send(email, address, subj, name)
+}

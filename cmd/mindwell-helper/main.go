@@ -14,6 +14,7 @@ const admArg = "adm"
 const helpArg = "help"
 const mailArg = "mail"
 const logArg = "log"
+const surveyArg = "survey"
 
 func printHelp() {
 	log.Printf(
@@ -23,9 +24,10 @@ Usage: mindwell-helper [option]
 Options are:
 %s		- set grandfathers in adm and sent emails to them.
 %s		- send email reminders.
+%s		- send email survey.
 %s		- import user request log.
 %s		- print this help message.
-`, admArg, mailArg, logArg, helpArg)
+`, admArg, mailArg, surveyArg, logArg, helpArg)
 }
 
 func main() {
@@ -65,6 +67,8 @@ func main() {
 		log.Println(err.Error())
 	}
 
+	surveyUrl, _ := cfg.String("email.survey")
+
 	db := utils.OpenDatabase(cfg)
 	tx := utils.NewAutoTx(db)
 	defer tx.Finish()
@@ -76,6 +80,8 @@ func main() {
 			helper.UpdateAdm(tx, mail)
 		case mailArg:
 			helper.SendReminders(tx, mail)
+		case surveyArg:
+			helper.SendSurvey(tx, mail, surveyUrl)
 		case logArg:
 			helper.ImportUserLog(tx)
 		case helpArg:
