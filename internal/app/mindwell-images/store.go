@@ -8,18 +8,142 @@ import (
 
 	"github.com/sevings/mindwell-server/utils"
 
+	"github.com/davidbyttow/govips/v2/vips"
 	"github.com/sevings/mindwell-server/models"
-	"gopkg.in/gographics/imagick.v2/imagick"
 )
 
 const imageExtensionJpg = "jpg"
 const imageExtensionGif = "gif"
 
+type pageList []*vips.ImageRef
+
+func newPageList(img *vips.ImageRef) pageList {
+	return []*vips.ImageRef{img}
+}
+
+func (pl *pageList) size() int {
+	return len(*pl)
+}
+
+func (pl *pageList) width() int {
+	return pl.first().Width()
+}
+
+func (pl *pageList) height() int {
+	return pl.first().Height()
+}
+
+func (pl *pageList) first() *vips.ImageRef {
+	return (*pl)[0]
+}
+
+func (pl *pageList) split() error {
+	img := pl.first()
+
+	pages := img.Pages()
+	if pages == 1 {
+		return nil
+	}
+
+	width := img.Width()
+	height := img.PageHeight()
+
+	err := img.SetPages(1)
+	if err != nil {
+		return err
+	}
+
+	err = img.SetPageHeight(img.Height())
+	if err != nil {
+		return err
+	}
+
+	*pl = make([]*vips.ImageRef, 0, img.Pages())
+	for i := 0; i < pages; i++ {
+		var page *vips.ImageRef
+		page, err = img.Copy()
+		if err != nil {
+			return err
+		}
+
+		err = page.ExtractArea(0, i*height, width, height)
+		if err != nil {
+			return err
+		}
+
+		*pl = append(*pl, page)
+	}
+
+	return nil
+}
+
+func (pl *pageList) join() error {
+	if pl.size() == 1 {
+		return nil
+	}
+
+	img := pl.first()
+
+	err := img.ArrayJoin((*pl)[1:], 1)
+	if err != nil {
+		return err
+	}
+
+	err = img.SetPages(pl.size())
+	if err != nil {
+		return err
+	}
+
+	err = img.SetPageHeight(img.Height() / pl.size())
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (pl *pageList) copy() (pageList, error) {
+	pages := make([]*vips.ImageRef, 0, pl.size())
+
+	for _, p := range *pl {
+		page, err := p.Copy()
+		if err != nil {
+			return nil, err
+		}
+
+		pages = append(pages, page)
+	}
+
+	return pages, nil
+}
+
+func (pl *pageList) close() {
+	for _, p := range *pl {
+		p.Close()
+	}
+}
+
+func (pl *pageList) thumbnail(width, height int) error {
+	crop := vips.InterestingAttention
+	if pl.size() > 1 {
+		crop = vips.InterestingCentre
+	}
+
+	for _, page := range *pl {
+		err := page.ThumbnailWithSize(width, height, crop, vips.SizeDown)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 type imageStore struct {
 	savePath  string
 	saveName  string
 	extension string
-	mw        *imagick.MagickWand
+	pages     pageList
 	mi        *MindwellImages
 	err       error
 }
@@ -37,13 +161,12 @@ func newImageStore(mi *MindwellImages) *imageStore {
 	return &imageStore{
 		savePath: path,
 		saveName: name[2:],
-		mw:       imagick.NewMagickWand(),
 		mi:       mi,
 	}
 }
 
 func (is *imageStore) Destroy() {
-	is.mw.Destroy()
+	is.pages.close()
 }
 
 func (is *imageStore) Error() error {
@@ -63,7 +186,7 @@ func (is *imageStore) FileExtension() string {
 }
 
 func (is *imageStore) IsAnimated() bool {
-	return is.extension == imageExtensionGif
+	return is.pages.size() > 1
 }
 
 func (is *imageStore) ReadImage(r io.ReadCloser) {
@@ -75,12 +198,19 @@ func (is *imageStore) ReadImage(r io.ReadCloser) {
 		return
 	}
 
-	is.err = is.mw.ReadImageBlob(blob)
+	params := &vips.ImportParams{}
+	params.AutoRotate.Set(true)
+	params.NumPages.Set(-1)
+
+	var img *vips.ImageRef
+	img, is.err = vips.LoadImageFromBuffer(blob, params)
 	if is.err != nil {
 		return
 	}
 
-	if is.mw.GetNumberImages() == 1 {
+	is.pages = newPageList(img)
+
+	if img.Pages() == 1 {
 		is.extension = imageExtensionJpg
 	} else {
 		is.extension = imageExtensionGif
@@ -92,141 +222,91 @@ func (is *imageStore) SetID(id int64) {
 }
 
 func (is *imageStore) PrepareImage() {
-	if is.extension == imageExtensionGif {
-		is.prepareGif()
-	} else {
-		is.prepareJpeg()
-	}
-
-	is.err = is.mw.StripImage()
+	is.err = is.pages.split()
 }
 
-func (is *imageStore) prepareGif() {
-	wand := is.mw.CoalesceImages()
-	is.mw.Destroy()
-	is.mw = wand
-}
-
-func (is *imageStore) prepareJpeg() {
-	orient := is.mw.GetImageOrientation()
-	if orient == imagick.ORIENTATION_TOP_LEFT {
-		return
-	}
-
-	pw := imagick.NewPixelWand()
-	defer pw.Destroy()
-
-	switch orient {
-	case imagick.ORIENTATION_TOP_RIGHT:
-		is.mw.FlopImage()
-	case imagick.ORIENTATION_BOTTOM_RIGHT:
-		is.mw.RotateImage(pw, 180)
-	case imagick.ORIENTATION_BOTTOM_LEFT:
-		is.mw.FlopImage()
-		is.mw.RotateImage(pw, 180)
-	case imagick.ORIENTATION_LEFT_TOP:
-		is.mw.FlopImage()
-		is.mw.RotateImage(pw, -90)
-	case imagick.ORIENTATION_RIGHT_TOP:
-		is.mw.RotateImage(pw, 90)
-	case imagick.ORIENTATION_RIGHT_BOTTOM:
-		is.mw.FlopImage()
-		is.mw.RotateImage(pw, 90)
-	case imagick.ORIENTATION_LEFT_BOTTOM:
-		is.mw.RotateImage(pw, -90)
-	}
-}
-
-func (is *imageStore) Fill(size uint, folder string) *models.ImageSize {
+func (is *imageStore) Fill(size int, folder string) *models.ImageSize {
 	return is.FillRect(size, size, folder)
 }
 
-func (is *imageStore) FillRect(width, height uint, folder string) *models.ImageSize {
+func (is *imageStore) FillRect(width, height int, folder string) *models.ImageSize {
 	if is.err != nil {
 		return nil
 	}
 
-	originWidth := is.mw.GetImageWidth()
-	originHeight := is.mw.GetImageHeight()
+	originWidth := is.pages.width()
+	originHeight := is.pages.height()
 
 	ratio := float64(width) / float64(height)
 	originRatio := float64(originWidth) / float64(originHeight)
 
-	crop := math.Abs(ratio-originRatio) > 0.01
-
 	cropWidth, cropHeight := originWidth, originHeight
 
 	if ratio < originRatio {
-		cropWidth = uint(float64(originHeight) * ratio)
+		cropWidth = int(math.RoundToEven(float64(originHeight) * ratio))
 	} else {
-		cropHeight = uint(float64(originWidth) / ratio)
+		cropHeight = int(math.RoundToEven(float64(originWidth) / ratio))
 	}
 
 	if width > originWidth || height > originHeight {
 		width, height = cropWidth, cropHeight
 	}
 
-	x := int(originWidth-cropWidth) / 2
-	y := int(originHeight-cropHeight) / 2
-
-	wand := is.mw.Clone()
-	defer wand.Destroy()
-
-	wand.ResetIterator()
-	for wand.NextImage() {
-		if crop {
-			is.err = wand.CropImage(cropWidth, cropHeight, x, y)
-			if is.err != nil {
-				return nil
-			}
-		}
-
-		is.err = wand.ThumbnailImage(width, height)
-		if is.err != nil {
-			return nil
-		}
-	}
-
-	return is.saveImageSize(wand, folder, width, height)
-}
-
-func (is *imageStore) Fit(size uint, folder string) *models.ImageSize {
-	return is.FitRect(size, size, folder)
-}
-
-func (is *imageStore) FitRect(width, height uint, folder string) *models.ImageSize {
+	var pages pageList
+	pages, is.err = is.pages.copy()
 	if is.err != nil {
 		return nil
 	}
 
-	wand := is.mw.Clone()
-	defer wand.Destroy()
+	defer pages.close()
 
-	originHeight := is.mw.GetImageHeight()
-	originWidth := is.mw.GetImageWidth()
+	is.err = pages.thumbnail(width, height)
+	if is.err != nil {
+		return nil
+	}
+
+	return is.saveImageSize(pages, folder)
+}
+
+func (is *imageStore) Fit(size int, folder string) *models.ImageSize {
+	return is.FitRect(size, size, folder)
+}
+
+func (is *imageStore) FitRect(width, height int, folder string) *models.ImageSize {
+	if is.err != nil {
+		return nil
+	}
+
+	var pages pageList
+	pages, is.err = is.pages.copy()
+	if is.err != nil {
+		return nil
+	}
+
+	defer pages.close()
+
+	originHeight := is.pages.height()
+	originWidth := is.pages.width()
 
 	if originHeight < height && originWidth < width {
-		return is.saveImageSize(wand, folder, width, height)
+		return is.saveImageSize(pages, folder)
 	}
 
 	ratio := float64(width) / float64(height)
 	originRatio := float64(originWidth) / float64(originHeight)
 
 	if ratio > originRatio {
-		width = uint(float64(height) * originRatio)
+		width = int(math.RoundToEven(float64(height) * originRatio))
 	} else {
-		height = uint(float64(width) / originRatio)
+		height = int(math.RoundToEven(float64(width) / originRatio))
 	}
 
-	wand.ResetIterator()
-	for wand.NextImage() {
-		is.err = wand.ResizeImage(width, height, imagick.FILTER_CUBIC, 0.5)
-		if is.err != nil {
-			return nil
-		}
+	is.err = pages.thumbnail(width, height)
+	if is.err != nil {
+		return nil
 	}
 
-	return is.saveImageSize(wand, folder, width, height)
+	return is.saveImageSize(pages, folder)
 }
 
 func (is *imageStore) FolderRemove(folder, path string) {
@@ -241,21 +321,27 @@ func (is *imageStore) FolderRemove(folder, path string) {
 	is.err = os.Remove(is.Folder() + folder + "/" + path)
 }
 
-func (is *imageStore) saveImageSize(wand *imagick.MagickWand, folder string, width, height uint) *models.ImageSize {
-	img := &models.ImageSize{
-		Width:  int64(width),
-		Height: int64(height),
-		URL:    is.saveImage(wand, folder, is.extension),
+func (is *imageStore) saveImageSize(pages pageList, folder string) *models.ImageSize {
+	imgSize := &models.ImageSize{
+		Width:  int64(pages.width()),
+		Height: int64(pages.height()),
 	}
 
-	if is.extension == imageExtensionGif {
-		img.Preview = is.saveImage(wand, folder, imageExtensionJpg)
+	if is.IsAnimated() {
+		imgSize.Preview = is.saveImage(pages.first(), folder, imageExtensionJpg)
+
+		is.err = pages.join()
+		if is.err != nil {
+			return nil
+		}
 	}
 
-	return img
+	imgSize.URL = is.saveImage(pages.first(), folder, is.extension)
+
+	return imgSize
 }
 
-func (is *imageStore) saveImage(wand *imagick.MagickWand, folder, extension string) string {
+func (is *imageStore) saveImage(img *vips.ImageRef, folder, extension string) string {
 	path := folder + "/" + is.savePath
 	is.err = os.MkdirAll(is.Folder()+path, 0777)
 	if is.err != nil {
@@ -265,9 +351,9 @@ func (is *imageStore) saveImage(wand *imagick.MagickWand, folder, extension stri
 	fileName := path + is.saveName + "." + extension
 
 	if extension == imageExtensionJpg {
-		is.saveJpeg(wand, fileName)
+		is.saveJpeg(img, fileName)
 	} else {
-		is.saveGif(wand, fileName)
+		is.saveGif(img, fileName)
 	}
 
 	if is.err != nil {
@@ -277,43 +363,30 @@ func (is *imageStore) saveImage(wand *imagick.MagickWand, folder, extension stri
 	return is.mi.BaseURL() + fileName
 }
 
-func (is *imageStore) saveJpeg(wand *imagick.MagickWand, fileName string) {
-	is.err = wand.SetImageCompression(imagick.COMPRESSION_JPEG)
+func (is *imageStore) saveJpeg(img *vips.ImageRef, fileName string) {
+	params := vips.NewJpegExportParams()
+	params.StripMetadata = true
+	params.Quality = 80
+	params.Interlace = true
+
+	var buf []byte
+	buf, _, is.err = img.ExportJpeg(params)
 	if is.err != nil {
 		return
 	}
 
-	is.err = wand.SetImageInterlaceScheme(imagick.INTERLACE_JPEG)
-	if is.err != nil {
-		return
-	}
-
-	is.err = wand.SetImageCompressionQuality(80)
-	if is.err != nil {
-		return
-	}
-
-	is.err = wand.WriteImage(is.Folder() + fileName)
+	is.err = os.WriteFile(is.Folder()+fileName, buf, 0644)
 }
 
-func (is *imageStore) saveGif(wand *imagick.MagickWand, fileName string) {
-	wand = wand.DeconstructImages()
-	defer wand.Destroy()
+func (is *imageStore) saveGif(img *vips.ImageRef, fileName string) {
+	params := vips.NewGifExportParams()
+	params.StripMetadata = true
 
-	is.err = wand.OptimizeImageTransparency()
+	var buf []byte
+	buf, _, is.err = img.ExportGIF(params)
 	if is.err != nil {
 		return
 	}
 
-	is.err = wand.SetImageCompression(imagick.COMPRESSION_LZW)
-	if is.err != nil {
-		return
-	}
-
-	is.err = wand.SetImageInterlaceScheme(imagick.INTERLACE_GIF)
-	if is.err != nil {
-		return
-	}
-
-	is.err = wand.WriteImages(is.Folder()+fileName, true)
+	is.err = os.WriteFile(is.Folder()+fileName, buf, 0644)
 }

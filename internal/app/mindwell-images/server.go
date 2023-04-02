@@ -82,15 +82,19 @@ func (mi *MindwellImages) DB() *sql.DB {
 }
 
 func (mi *MindwellImages) LogApi() *zap.Logger {
-	return mi.log.With(zap.String("type", "api"))
+	return mi.TypedLog("api")
 }
 
 func (mi *MindwellImages) LogImages() *zap.Logger {
-	return mi.log.With(zap.String("type", "images"))
+	return mi.TypedLog("images")
 }
 
 func (mi *MindwellImages) LogSystem() *zap.Logger {
-	return mi.log.With(zap.String("type", "system"))
+	return mi.TypedLog("system")
+}
+
+func (mi *MindwellImages) TypedLog(tpe string) *zap.Logger {
+	return mi.log.With(zap.String("type", tpe))
 }
 
 func (mi *MindwellImages) QueueAction(is *imageStore, ID int64, action string) {

@@ -8,6 +8,7 @@ require (
 	github.com/aofei/cameron v1.2.1
 	github.com/carlescere/scheduler v0.0.0-20170109141437-ee74d2f83d82
 	github.com/centrifugal/gocent v2.2.0+incompatible
+	github.com/davidbyttow/govips/v2 v2.11.0
 	github.com/didip/tollbooth v4.0.2+incompatible
 	github.com/disintegration/imaging v1.6.2
 	github.com/go-openapi/errors v0.20.1
@@ -32,9 +33,8 @@ require (
 	github.com/zpatrick/go-config v0.0.0-20191118215128-80ba6b3e54f6
 	gitlab.com/golang-commonmark/markdown v0.0.0-20191127184510-91b5b3c99c19
 	go.uber.org/zap v1.19.0
-	golang.org/x/net v0.7.0
-	golang.org/x/text v0.7.0
-	gopkg.in/gographics/imagick.v2 v2.6.0
+	golang.org/x/net v0.8.0
+	golang.org/x/text v0.8.0
 )
 
 require (
@@ -88,8 +88,8 @@ require (
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/crypto v0.1.0 // indirect
-	golang.org/x/image v0.5.0 // indirect
-	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/image v0.6.0 // indirect
+	golang.org/x/sys v0.6.0 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

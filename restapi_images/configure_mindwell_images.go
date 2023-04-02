@@ -1,7 +1,9 @@
 package restapi_images
 
+import "C"
 import (
 	"crypto/tls"
+	"github.com/davidbyttow/govips/v2/vips"
 	"log"
 	"math/rand"
 	"net/http"
@@ -11,8 +13,6 @@ import (
 	"github.com/didip/tollbooth/limiter"
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/runtime"
-	"gopkg.in/gographics/imagick.v2/imagick"
-
 	imagesImpl "github.com/sevings/mindwell-server/internal/app/mindwell-images"
 	"github.com/sevings/mindwell-server/restapi_images/operations"
 	"github.com/sevings/mindwell-server/restapi_images/operations/images"
@@ -58,10 +58,27 @@ func configureAPI(api *operations.MindwellImagesAPI) http.Handler {
 
 	api.ServerShutdown = func() {
 		mi.Shutdown()
-		imagick.Terminate()
+		vips.Shutdown()
 	}
 
-	imagick.Initialize()
+	vips.LoggingSettings(func(messageDomain string, messageLevel vips.LogLevel, message string) {
+		switch messageLevel {
+		case vips.LogLevelError:
+			mi.TypedLog(messageDomain).Error(message)
+		case vips.LogLevelCritical:
+			mi.TypedLog(messageDomain).Error(message)
+		case vips.LogLevelWarning:
+			mi.TypedLog(messageDomain).Warn(message)
+		case vips.LogLevelMessage:
+			mi.TypedLog(messageDomain).Info(message)
+		case vips.LogLevelInfo:
+			mi.TypedLog(messageDomain).Info(message)
+		case vips.LogLevelDebug:
+			mi.TypedLog(messageDomain).Debug(message)
+		}
+	}, vips.LogLevelWarning)
+
+	vips.Startup(nil)
 
 	return setupGlobalMiddleware(api.Serve(setupMiddlewares))
 }
