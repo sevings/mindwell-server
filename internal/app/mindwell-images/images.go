@@ -53,8 +53,9 @@ func NewImageUploader(mi *MindwellImages) func(images.PostImagesParams, *models.
 		}
 
 		return utils.Transact(mi.DB(), func(tx *utils.AutoTx) middleware.Responder {
-			tx.Query("INSERT INTO images(user_id, path, extension, processing) VALUES($1, 'processing', $2, $3) RETURNING id",
-				userID.ID, store.FileExtension(), img.Processing)
+			const query = `INSERT INTO images(user_id, path, extension, preview_extension, processing) 
+				VALUES($1, 'processing', $2, $3, $4) RETURNING id`
+			tx.Query(query, userID.ID, store.FileExtension(), store.PreviewExtension(), img.Processing)
 			tx.Scan(&img.ID)
 
 			store.SetID(img.ID)
@@ -76,11 +77,11 @@ func NewImageLoader(mi *MindwellImages) func(images.GetImagesIDParams, *models.U
 	return func(params images.GetImagesIDParams, userID *models.UserID) middleware.Responder {
 		return utils.Transact(mi.DB(), func(tx *utils.AutoTx) middleware.Responder {
 			var authorID int64
-			var path, extension string
+			var path, extension, previewExt string
 			var processing bool
 
-			tx.Query("SELECT user_id, path, extension, processing FROM images WHERE id = $1", params.ID).
-				Scan(&authorID, &path, &extension, &processing)
+			const query = `SELECT user_id, path, extension, preview_extension, processing FROM images WHERE id = $1`
+			tx.Query(query, params.ID).Scan(&authorID, &path, &extension, &previewExt, &processing)
 			if authorID == 0 {
 				return images.NewGetImagesIDNotFound()
 			}
@@ -102,7 +103,7 @@ func NewImageLoader(mi *MindwellImages) func(images.GetImagesIDParams, *models.U
 				Author: &models.User{
 					ID: authorID,
 				},
-				IsAnimated: extension == imageExtensionGif && !processing,
+				IsAnimated: previewExt != "" && !processing,
 				Processing: processing,
 			}
 
@@ -123,7 +124,7 @@ func NewImageLoader(mi *MindwellImages) func(images.GetImagesIDParams, *models.U
 
 			var previewPath string
 			if img.IsAnimated {
-				previewPath = path + ".jpg"
+				previewPath = path + "." + previewExt
 			}
 
 			for tx.Scan(&width, &height, &size) {

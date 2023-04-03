@@ -40,11 +40,13 @@ func loadImageNotCached(srv *MindwellServer, tx *AutoTx, imageID int64) *models.
 	baseURL := srv.ConfigString("images.base_url")
 
 	var authorID int64
-	var path, extension string
+	var path, extension, previewExt string
 	var processing bool
 
-	tx.Query("SELECT user_id, path, extension, processing FROM images WHERE id = $1", imageID).
-		Scan(&authorID, &path, &extension, &processing)
+	const loadQuery = `SELECT user_id, path, extension, preview_extension, processing FROM images WHERE id = $1`
+
+	tx.Query(loadQuery, imageID).
+		Scan(&authorID, &path, &extension, &previewExt, &processing)
 	if authorID == 0 {
 		return nil
 	}
@@ -54,7 +56,7 @@ func loadImageNotCached(srv *MindwellServer, tx *AutoTx, imageID int64) *models.
 		Author: &models.User{
 			ID: authorID,
 		},
-		IsAnimated: extension == imageExtensionGif && !processing,
+		IsAnimated: previewExt != "" && !processing,
 		Processing: processing,
 	}
 
@@ -67,7 +69,7 @@ func loadImageNotCached(srv *MindwellServer, tx *AutoTx, imageID int64) *models.
 
 	var previewPath string
 	if img.IsAnimated {
-		previewPath = path + ".jpg"
+		previewPath = path + "." + previewExt
 	}
 
 	var width, height int64

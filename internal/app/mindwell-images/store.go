@@ -12,8 +12,8 @@ import (
 	"github.com/sevings/mindwell-server/models"
 )
 
-const imageExtensionJpg = "jpg"
-const imageExtensionGif = "gif"
+const imageExtensionPng = "png"
+const imageExtensionWebp = "webp"
 
 type pageList []*vips.ImageRef
 
@@ -140,12 +140,11 @@ func (pl *pageList) thumbnail(width, height int) error {
 }
 
 type imageStore struct {
-	savePath  string
-	saveName  string
-	extension string
-	pages     pageList
-	mi        *MindwellImages
-	err       error
+	savePath string
+	saveName string
+	pages    pageList
+	mi       *MindwellImages
+	err      error
 }
 
 type storeError string
@@ -182,11 +181,23 @@ func (is *imageStore) FileName() string {
 }
 
 func (is *imageStore) FileExtension() string {
-	return is.extension
+	return imageExtensionWebp
+}
+
+func (is *imageStore) PreviewExtension() string {
+	if is.IsAnimated() {
+		return imageExtensionPng
+	}
+
+	return ""
 }
 
 func (is *imageStore) IsAnimated() bool {
-	return is.pages.size() > 1
+	if is.pages.size() > 1 {
+		return true
+	}
+
+	return is.pages.first().Pages() > 1
 }
 
 func (is *imageStore) ReadImage(r io.ReadCloser) {
@@ -209,12 +220,6 @@ func (is *imageStore) ReadImage(r io.ReadCloser) {
 	}
 
 	is.pages = newPageList(img)
-
-	if img.Pages() == 1 {
-		is.extension = imageExtensionJpg
-	} else {
-		is.extension = imageExtensionGif
-	}
 }
 
 func (is *imageStore) SetID(id int64) {
@@ -328,7 +333,7 @@ func (is *imageStore) saveImageSize(pages pageList, folder string) *models.Image
 	}
 
 	if is.IsAnimated() {
-		imgSize.Preview = is.saveImage(pages.first(), folder, imageExtensionJpg)
+		imgSize.Preview = is.saveImage(pages.first(), folder, imageExtensionPng)
 
 		is.err = pages.join()
 		if is.err != nil {
@@ -336,7 +341,7 @@ func (is *imageStore) saveImageSize(pages pageList, folder string) *models.Image
 		}
 	}
 
-	imgSize.URL = is.saveImage(pages.first(), folder, is.extension)
+	imgSize.URL = is.saveImage(pages.first(), folder, imageExtensionWebp)
 
 	return imgSize
 }
@@ -350,10 +355,10 @@ func (is *imageStore) saveImage(img *vips.ImageRef, folder, extension string) st
 
 	fileName := path + is.saveName + "." + extension
 
-	if extension == imageExtensionJpg {
-		is.saveJpeg(img, fileName)
+	if extension == imageExtensionPng {
+		is.savePng(img, fileName)
 	} else {
-		is.saveGif(img, fileName)
+		is.saveWebp(img, fileName)
 	}
 
 	if is.err != nil {
@@ -363,14 +368,14 @@ func (is *imageStore) saveImage(img *vips.ImageRef, folder, extension string) st
 	return is.mi.BaseURL() + fileName
 }
 
-func (is *imageStore) saveJpeg(img *vips.ImageRef, fileName string) {
-	params := vips.NewJpegExportParams()
+func (is *imageStore) savePng(img *vips.ImageRef, fileName string) {
+	params := vips.NewPngExportParams()
 	params.StripMetadata = true
-	params.Quality = 80
-	params.Interlace = true
+	params.Bitdepth = 8
+	params.Palette = true
 
 	var buf []byte
-	buf, _, is.err = img.ExportJpeg(params)
+	buf, _, is.err = img.ExportPng(params)
 	if is.err != nil {
 		return
 	}
@@ -378,12 +383,13 @@ func (is *imageStore) saveJpeg(img *vips.ImageRef, fileName string) {
 	is.err = os.WriteFile(is.Folder()+fileName, buf, 0644)
 }
 
-func (is *imageStore) saveGif(img *vips.ImageRef, fileName string) {
-	params := vips.NewGifExportParams()
+func (is *imageStore) saveWebp(img *vips.ImageRef, fileName string) {
+	params := vips.NewWebpExportParams()
 	params.StripMetadata = true
+	params.Quality = 70
 
 	var buf []byte
-	buf, _, is.err = img.ExportGIF(params)
+	buf, _, is.err = img.ExportWebp(params)
 	if is.err != nil {
 		return
 	}

@@ -167,8 +167,11 @@ func (ip *ImageProcessor) deleteAlbumPhoto() {
 	tx := utils.NewAutoTx(ip.mi.DB())
 	defer tx.Finish()
 
-	var path, extension string
-	tx.Query("DELETE FROM images WHERE id = $1 RETURNING path, extension", ip.ID).Scan(&path, &extension)
+	const deleteQuery = `DELETE FROM images WHERE id = $1 RETURNING path, extension, preview_extension`
+
+	var path, extension, previewExt string
+	tx.Query(deleteQuery, ip.ID).
+		Scan(&path, &extension, &previewExt)
 	if tx.Error() != nil {
 		return
 	}
@@ -179,8 +182,8 @@ func (ip *ImageProcessor) deleteAlbumPhoto() {
 	ip.is.FolderRemove("albums/medium", filePath)
 	ip.is.FolderRemove("albums/large", filePath)
 
-	if extension == imageExtensionGif {
-		previewPath := path + ".jpg"
+	if previewExt != "" {
+		previewPath := path + "." + previewExt
 		ip.is.FolderRemove("albums/thumbnails", previewPath)
 		ip.is.FolderRemove("albums/small", previewPath)
 		ip.is.FolderRemove("albums/medium", previewPath)
