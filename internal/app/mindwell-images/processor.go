@@ -65,7 +65,7 @@ func (ip *ImageProcessor) logError() {
 }
 
 func (ip *ImageProcessor) saveAvatar() {
-	ip.is.PrepareImage()
+	ip.is.PrepareFill(124)
 
 	ip.is.Fill(124, "avatars/124")
 	ip.is.Fill(92, "avatars/92")
@@ -99,7 +99,7 @@ func (ip *ImageProcessor) saveAvatar() {
 }
 
 func (ip *ImageProcessor) saveCover() {
-	ip.is.PrepareImage()
+	ip.is.PrepareFillRect(1920, 640)
 
 	ip.is.FillRect(1920, 640, "covers/1920")
 	ip.is.FillRect(318, 122, "covers/318")
@@ -131,12 +131,12 @@ func (ip *ImageProcessor) saveCover() {
 }
 
 func (ip *ImageProcessor) saveAlbumPhoto() {
-	ip.is.PrepareImage()
+	ip.is.PrepareFit(1440)
 
-	thumbnail := ip.is.Fill(100, "albums/thumbnails")
-	small := ip.is.Fit(480, "albums/small")
-	medium := ip.is.Fit(960, "albums/medium")
 	large := ip.is.Fit(1440, "albums/large")
+	medium := ip.is.Fit(960, "albums/medium")
+	small := ip.is.Fit(480, "albums/small")
+	thumbnail := ip.is.Fill(100, "albums/thumbnails")
 
 	if ip.is.Error() != nil {
 		ip.logError()

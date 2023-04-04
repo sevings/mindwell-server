@@ -123,6 +123,48 @@ func (pl *pageList) close() {
 	}
 }
 
+func (pl *pageList) calcFill(width int, height int) (int, int) {
+	originWidth := pl.width()
+	originHeight := pl.height()
+
+	ratio := float64(width) / float64(height)
+	originRatio := float64(originWidth) / float64(originHeight)
+
+	cropWidth, cropHeight := originWidth, originHeight
+
+	if ratio < originRatio {
+		cropWidth = int(math.RoundToEven(float64(originHeight) * ratio))
+	} else {
+		cropHeight = int(math.RoundToEven(float64(originWidth) / ratio))
+	}
+
+	if width > originWidth || height > originHeight {
+		width, height = cropWidth, cropHeight
+	}
+
+	return width, height
+}
+
+func (pl *pageList) calcFit(width int, height int) (int, int, bool) {
+	originHeight := pl.height()
+	originWidth := pl.width()
+
+	if originHeight < height && originWidth < width {
+		return width, height, true
+	}
+
+	ratio := float64(width) / float64(height)
+	originRatio := float64(originWidth) / float64(originHeight)
+
+	if ratio > originRatio {
+		width = int(math.RoundToEven(float64(height) * originRatio))
+	} else {
+		height = int(math.RoundToEven(float64(width) / originRatio))
+	}
+
+	return width, height, false
+}
+
 func (pl *pageList) thumbnail(width, height int) error {
 	crop := vips.InterestingAttention
 	if pl.size() > 1 {
@@ -226,8 +268,34 @@ func (is *imageStore) SetID(id int64) {
 	is.saveName = is.saveName + strconv.FormatInt(id, 32)
 }
 
-func (is *imageStore) PrepareImage() {
+func (is *imageStore) PrepareFill(maxSize int) {
+	is.PrepareFillRect(maxSize, maxSize)
+}
+
+func (is *imageStore) PrepareFillRect(maxWidth, maxHeight int) {
 	is.err = is.pages.split()
+	if is.err != nil {
+		return
+	}
+
+	width, height := is.pages.calcFill(maxWidth, maxHeight)
+	is.err = is.pages.thumbnail(width, height)
+}
+
+func (is *imageStore) PrepareFit(maxSize int) {
+	is.PrepareFitRect(maxSize, maxSize)
+}
+
+func (is *imageStore) PrepareFitRect(maxWidth, maxHeight int) {
+	is.err = is.pages.split()
+	if is.err != nil {
+		return
+	}
+
+	width, height, fits := is.pages.calcFit(maxWidth, maxHeight)
+	if !fits {
+		is.err = is.pages.thumbnail(width, height)
+	}
 }
 
 func (is *imageStore) Fill(size int, folder string) *models.ImageSize {
@@ -239,24 +307,6 @@ func (is *imageStore) FillRect(width, height int, folder string) *models.ImageSi
 		return nil
 	}
 
-	originWidth := is.pages.width()
-	originHeight := is.pages.height()
-
-	ratio := float64(width) / float64(height)
-	originRatio := float64(originWidth) / float64(originHeight)
-
-	cropWidth, cropHeight := originWidth, originHeight
-
-	if ratio < originRatio {
-		cropWidth = int(math.RoundToEven(float64(originHeight) * ratio))
-	} else {
-		cropHeight = int(math.RoundToEven(float64(originWidth) / ratio))
-	}
-
-	if width > originWidth || height > originHeight {
-		width, height = cropWidth, cropHeight
-	}
-
 	var pages pageList
 	pages, is.err = is.pages.copy()
 	if is.err != nil {
@@ -265,6 +315,7 @@ func (is *imageStore) FillRect(width, height int, folder string) *models.ImageSi
 
 	defer pages.close()
 
+	width, height = pages.calcFill(width, height)
 	is.err = pages.thumbnail(width, height)
 	if is.err != nil {
 		return nil
@@ -290,20 +341,11 @@ func (is *imageStore) FitRect(width, height int, folder string) *models.ImageSiz
 
 	defer pages.close()
 
-	originHeight := is.pages.height()
-	originWidth := is.pages.width()
+	var fits bool
+	width, height, fits = pages.calcFit(width, height)
 
-	if originHeight < height && originWidth < width {
+	if fits {
 		return is.saveImageSize(pages, folder)
-	}
-
-	ratio := float64(width) / float64(height)
-	originRatio := float64(originWidth) / float64(originHeight)
-
-	if ratio > originRatio {
-		width = int(math.RoundToEven(float64(height) * originRatio))
-	} else {
-		height = int(math.RoundToEven(float64(width) / originRatio))
 	}
 
 	is.err = pages.thumbnail(width, height)
