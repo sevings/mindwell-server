@@ -166,7 +166,7 @@ func (pl *pageList) calcFit(width int, height int) (int, int, bool) {
 }
 
 func (pl *pageList) thumbnail(width, height int) error {
-	crop := vips.InterestingAttention
+	crop := vips.InterestingEntropy
 	if pl.size() > 1 {
 		crop = vips.InterestingCentre
 	}
