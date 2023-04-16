@@ -245,7 +245,7 @@ func (is *imageStore) IsAnimated() bool {
 func (is *imageStore) ReadImage(r io.ReadCloser) {
 	defer r.Close()
 
-	blob := make([]byte, 5*1024*1024)
+	blob := make([]byte, 10*1024*1024)
 	_, is.err = r.Read(blob)
 	if is.err != nil {
 		return
