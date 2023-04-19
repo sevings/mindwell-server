@@ -38,7 +38,7 @@ type TelegramBot struct {
 	url    string
 	ipAPI  string
 	log    *zap.Logger
-	admins []int64
+	admins []int
 	logins *cache.Cache
 	cmts   *cache.Cache
 	msgs   *cache.Cache
@@ -59,7 +59,7 @@ func NewTelegramBot(srv *MindwellServer) *TelegramBot {
 		url:    srv.ConfigString("server.base_url"),
 		ipAPI:  srv.ConfigOptString("server.ip_api"),
 		log:    srv.LogTelegram(),
-		admins: srv.ConfigInt64s("telegram.admins"),
+		admins: srv.ConfigInts("telegram.admins"),
 		logins: cache.New(10*time.Minute, 10*time.Minute),
 		cmts:   cache.New(12*time.Hour, 1*time.Hour),
 		msgs:   cache.New(12*time.Hour, 1*time.Hour),
@@ -95,7 +95,7 @@ func (bot *TelegramBot) sendMessage(chat int64, text string) {
 }
 
 func (bot *TelegramBot) isAdmin(upd *tgbotapi.Update) bool {
-	chat := upd.Message.Chat.ID
+	chat := upd.Message.From.ID
 
 	for _, admin := range bot.admins {
 		if admin == chat {

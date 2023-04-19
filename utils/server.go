@@ -149,6 +149,21 @@ func (srv *MindwellServer) ConfigInt(field string) int {
 	return value
 }
 
+func (srv *MindwellServer) ConfigInts(field string) []int {
+	var values []int
+
+	for _, str := range srv.ConfigStrings(field) {
+		value, err := strconv.ParseInt(str, 10, 32)
+		if err == nil {
+			values = append(values, int(value))
+		} else {
+			srv.LogSystem().Warn(err.Error())
+		}
+	}
+
+	return values
+}
+
 func (srv *MindwellServer) ConfigInt64(field string) int64 {
 	strValue := srv.ConfigString(field)
 	value, err := strconv.ParseInt(strValue, 10, 64)
