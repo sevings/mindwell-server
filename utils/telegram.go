@@ -197,6 +197,10 @@ func (bot *TelegramBot) command(upd tgbotapi.Update) {
 		reply = bot.help(&upd)
 	case "hide":
 		reply = bot.hide(&upd)
+	case "unlive":
+		reply = bot.unlive(&upd)
+	case "shut":
+		reply = bot.shut(&upd)
 	case "ban":
 		reply = bot.ban(&upd)
 	case "unban":
@@ -322,12 +326,13 @@ func (bot *TelegramBot) help(upd *tgbotapi.Update) string {
 
 Команды администрирования:
 <code>/hide {id или ссылка}</code> — скрыть запись.
+<code>/unlive {id или ссылка}</code> — убрать запись из Прямого эфира.
+<code>/shut {id или ссылка}</code> — запретить комментирование записи.
 <code>/ban {live | vote | comment | invite | adm} {N} {login или ссылка}</code> — запретить пользователю выбранные действия на N дней, в случае adm — навсегда.
 <code>/ban user {N} {login или ссылка}</code> — заблокировать пользователя на N дней.
 <code>/unban {login или ссылка}</code> — разблокировать пользователя.
 <code>/info {email, login или ссылка}</code> — информация о пользователе.
 <code>/alts {email, login или ссылка}</code> — искать альтернативные аккаунты пользователя.
-<code>/delete {email}</code> — удалить пользователя.
 <code>/create app {dev_name} {public | private} {code | password} {redirect_uri} {name} {show_name} {platform} {info}</code> - создать приложение.
 <code>/create theme {name} {creator}</code> — создать тему.
 /stat — статистика сервера.
@@ -337,17 +342,26 @@ func (bot *TelegramBot) help(upd *tgbotapi.Update) string {
 	return text
 }
 
-func (bot *TelegramBot) hide(upd *tgbotapi.Update) string {
+func (bot *TelegramBot) entryCommand(upd *tgbotapi.Update) (int64, string) {
 	if !bot.isAdmin(upd) {
-		return unrecognisedText
+		return 0, unrecognisedText
 	}
 
 	if upd.Message.From == nil {
-		return errorText
+		return 0, errorText
 	}
 
 	url := upd.Message.CommandArguments()
 	id, errStr := extractEntryID(url)
+	if errStr != "" {
+		return 0, errStr
+	}
+
+	return id, ""
+}
+
+func (bot *TelegramBot) hide(upd *tgbotapi.Update) string {
+	id, errStr := bot.entryCommand(upd)
 	if errStr != "" {
 		return errStr
 	}
@@ -362,6 +376,42 @@ func (bot *TelegramBot) hide(upd *tgbotapi.Update) string {
 	}
 
 	return "Запись скрыта."
+}
+
+func (bot *TelegramBot) unlive(upd *tgbotapi.Update) string {
+	id, errStr := bot.entryCommand(upd)
+	if errStr != "" {
+		return errStr
+	}
+
+	atx := NewAutoTx(bot.srv.DB)
+	defer atx.Finish()
+
+	const q = "UPDATE entries SET in_live = FALSE WHERE id = $1"
+	atx.Exec(q, id)
+	if atx.RowsAffected() < 1 {
+		return "Запись не найдена."
+	}
+
+	return "Запись убрана из Прямого эфира."
+}
+
+func (bot *TelegramBot) shut(upd *tgbotapi.Update) string {
+	id, errStr := bot.entryCommand(upd)
+	if errStr != "" {
+		return errStr
+	}
+
+	atx := NewAutoTx(bot.srv.DB)
+	defer atx.Finish()
+
+	const q = "UPDATE entries SET is_commentable = FALSE WHERE id = $1"
+	atx.Exec(q, id)
+	if atx.RowsAffected() < 1 {
+		return "Запись не найдена."
+	}
+
+	return "Комментарии к записи отключены."
 }
 
 func (bot *TelegramBot) ban(upd *tgbotapi.Update) string {
