@@ -321,27 +321,34 @@ func (ntf *CompositeNotifier) SendNewAccept(tx *AutoTx, from, to string) {
 	ntf.Ntf.Notify(tx, fromID, typeAccept, to)
 }
 
-func (ntf *CompositeNotifier) SendNewCommentComplain(tx *AutoTx, commentID int64, from, content string) {
+func (ntf *CompositeNotifier) SendNewCommentComplain(tx *AutoTx, commentID, fromID int64, content string) {
 	const q = `
-		SELECT entry_id, edit_content, name 
-		FROM comments, users 
-		WHERE comments.id = $1 AND users.id = comments.author_id`
+		SELECT entry_id, edit_content, author_id 
+		FROM comments 
+		WHERE comments.id = $1`
 
-	var entryID int64
-	var comment, against string
-	tx.Query(q, commentID).Scan(&entryID, &comment, &against)
+	var entryID, authorID int64
+	var comment string
+	tx.Query(q, commentID).Scan(&entryID, &comment, &authorID)
+
+	from := LoadUser(tx, fromID)
+	against := LoadUser(tx, authorID)
 
 	ntf.Tg.SendCommentComplain(from, against, content, comment, commentID, entryID)
 }
 
-func (ntf *CompositeNotifier) SendNewEntryComplain(tx *AutoTx, entryID int64, from, content string) {
+func (ntf *CompositeNotifier) SendNewEntryComplain(tx *AutoTx, entryID, fromID int64, content string) {
 	const q = `
-		SELECT edit_content, name
-		FROM entries, users 
-		WHERE entries.id = $1 AND users.id = entries.author_id`
+		SELECT edit_content, author_id
+		FROM entries 
+		WHERE entries.id = $1`
 
-	var entry, against string
-	tx.Query(q, entryID).Scan(&entry, &against)
+	var entry string
+	var authorID int64
+	tx.Query(q, entryID).Scan(&entry, &authorID)
+
+	from := LoadUser(tx, fromID)
+	against := LoadUser(tx, authorID)
 
 	ntf.Tg.SendEntryComplain(from, against, content, entry, entryID)
 }

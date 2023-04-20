@@ -627,14 +627,14 @@ WHERE lower(users.email) = lower($1) OR lower(users.name) = lower($1)`
 
 	var invitedByLink string
 	if invitedByName.Valid && invitedByShowName.Valid {
-		invitedByLink = fmt.Sprintf(`<a href="%susers/%s">%s</a>`, bot.url, invitedByName.String, invitedByShowName.String)
+		invitedByLink = bot.userNameLink(invitedByName.String, invitedByShowName.String)
 	} else {
 		invitedByLink = "(not invited)"
 	}
 
 	var text string
 	text += "\n<b>id</b>: " + strconv.FormatInt(id, 10)
-	text += "\n<b>url</b>: " + `<a href="` + bot.url + "users/" + name + `">` + showName + `</a>`
+	text += "\n<b>url</b>: " + bot.userNameLink(name, showName)
 	text += "\n<b>email</b>: " + email
 	text += "\n<b>verified</b>: " + strconv.FormatBool(verified)
 	text += "\n<b>created at</b>: " + createdAt.Format("15:04:05 02 Jan 2006 MST")
@@ -720,7 +720,7 @@ func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string, limit int)
 				break
 			}
 
-			alt = fmt.Sprintf(`<a href="%susers/%s">%s</a> (%d)`, bot.url, alt, alt, cnt)
+			alt = fmt.Sprintf(`%s (%d)`, bot.userNameLink(alt, alt), cnt)
 			alts = append(alts, alt)
 		}
 
@@ -773,7 +773,7 @@ func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string, limit int)
 		Where("dist < 0.5")
 	emailAlts := getAlts(emailQuery)
 
-	text := `Possible accounts of <a href="` + bot.url + "users/" + user + `">` + user + `</a>`
+	text := "Possible accounts of" + bot.userNameLink(user, user)
 	text += "\n<b>By IP</b>: " + ipAlts
 	text += "\n<b>By device</b>: " + devAlts
 	text += "\n<b>By app</b>: " + appAlts
@@ -869,8 +869,8 @@ func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB, emailA, emailB s
 	diffAppsA := getCounts(diffAppsQ(userA, userB))
 	diffAppsB := getCounts(diffAppsQ(userB, userA))
 
-	text := fmt.Sprintf(`Comparison of <a href="%susers/%s">%s</a> and <a href="%susers/%s">%s</a>`,
-		bot.url, userA, userA, bot.url, userB, userB)
+	text := fmt.Sprintf(`Comparison of %s and %s`,
+		bot.userNameLink(userA, userA), bot.userNameLink(userB, userB))
 	text += "\n<b>Common IPs</b>:\n" + commonIps
 	text += "\n<b>Common apps</b>:\n" + commonApps
 	text += "\n<b>IPs used only by " + userA + "</b>:\n" + diffIpsA
@@ -916,7 +916,7 @@ WHERE entries.id = $1`
 		return fmt.Sprintf("Запись %d не найдена.", id)
 	}
 
-	text := fmt.Sprintf("Голоса за запись %d автора <a href=\"%susers/%s\">%s</a>\n", id, bot.url, author, author)
+	text := fmt.Sprintf("Голоса за запись %d автора %s\n", id, bot.userNameLink(author, author))
 
 	const votesQuery = `SELECT name, vote > 0, entry_votes.created_at
 FROM entry_votes
@@ -938,7 +938,7 @@ ORDER BY created_at DESC`
 			vote = "против"
 		}
 		at := createdAt.Format("02.01.2006 15:04")
-		text += fmt.Sprintf(`<a href="%susers/%s">%s</a> %s (%s)`, bot.url, name, name, vote, at)
+		text += fmt.Sprintf(`%s %s (%s)`, bot.userNameLink(name, name), vote, at)
 		text += "\n"
 	}
 
@@ -1185,7 +1185,7 @@ func (bot *TelegramBot) SendNewFollower(chat int64, fromName, fromShowName, from
 		ending = "ся"
 	}
 
-	link := `<a href="` + bot.url + `users/` + fromName + `">` + fromShowName + `</a>`
+	link := bot.userNameLink(fromName, fromShowName)
 
 	var text string
 	if toPrivate {
@@ -1209,7 +1209,7 @@ func (bot *TelegramBot) SendNewAccept(chat int64, fromName, fromShowName, fromGe
 		ending = ""
 	}
 
-	link := `<a href="` + bot.url + `users/` + fromName + `">` + fromShowName + `</a>`
+	link := bot.userNameLink(fromName, fromShowName)
 	text := link + " разрешил" + ending + " тебе читать свой тлог."
 
 	bot.sendMessage(chat, text)
@@ -1236,7 +1236,7 @@ func (bot *TelegramBot) SendInvited(chat int64, fromName, fromShowName, fromGend
 		ending = ""
 	}
 
-	link := `<a href="` + bot.url + `users/` + fromName + `">` + fromShowName + `</a>`
+	link := bot.userNameLink(fromName, fromShowName)
 	text := link + " отправил" + ending + " тебе приглашение на Mindwell. " +
 		"Теперь тебе доступны все функции сайта (при отсутствии других ограничений)."
 
@@ -1348,13 +1348,22 @@ func (bot *TelegramBot) SendRemoveMessage(messageID int64) {
 	}
 }
 
-func (bot *TelegramBot) SendCommentComplain(from, against, content, comment string, commentID, entryID int64) {
+func (bot *TelegramBot) userNameLink(name, showName string) string {
+	return fmt.Sprintf(`<a href="%susers/%s">%s</a>`, bot.url, name, tgHtmlEsc.Replace(showName))
+
+}
+
+func (bot *TelegramBot) userLink(user *models.User) string {
+	return bot.userNameLink(user.Name, user.ShowName)
+}
+
+func (bot *TelegramBot) SendCommentComplain(from, against *models.User, content, comment string, commentID, entryID int64) {
 	if bot.api == nil || bot.group == 0 {
 		return
 	}
 
-	text := "Пользователь " + from + " пожаловался на комментарий " +
-		strconv.FormatInt(commentID, 10) + " от " + against + ". " +
+	text := "Пользователь " + bot.userLink(from) + " пожаловался на комментарий " +
+		strconv.FormatInt(commentID, 10) + " от " + bot.userLink(against) + ". " +
 		"Текст комментария:\n\n«" + comment + "»\n\n"
 
 	if content != "" {
@@ -1367,11 +1376,11 @@ func (bot *TelegramBot) SendCommentComplain(from, against, content, comment stri
 	bot.sendMessage(bot.group, text)
 }
 
-func (bot *TelegramBot) SendEntryComplain(from, against, content, entry string, entryID int64) {
+func (bot *TelegramBot) SendEntryComplain(from, against *models.User, content, entry string, entryID int64) {
 	entry, _ = CutText(entry, 2048)
 
-	text := "Пользователь " + from + " пожаловался на запись " +
-		strconv.FormatInt(entryID, 10) + " от " + against + ". " +
+	text := "Пользователь " + bot.userLink(from) + " пожаловался на запись " +
+		strconv.FormatInt(entryID, 10) + " от " + bot.userLink(against) + ". " +
 		"Текст записи:\n\n«" + entry + "»\n\n"
 
 	if content != "" {

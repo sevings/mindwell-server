@@ -188,6 +188,21 @@ func CanViewEntry(tx *AutoTx, userID *models.UserID, entryID int64) bool {
 	return false
 }
 
+func LoadUser(tx *AutoTx, id int64) *models.User {
+	const query = `
+SELECT id, name, show_name,
+is_online(last_seen_at) AND creator_id IS NULL, creator_id IS NOT NULL
+FROM users
+WHERE id = $1`
+
+	var user models.User
+
+	tx.Query(query, id).Scan(&user.ID, &user.Name, &user.ShowName,
+		&user.IsOnline, &user.IsTheme)
+
+	return &user
+}
+
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 const (
 	letterIdxBits = 6                    // 6 bits to represent a letter index

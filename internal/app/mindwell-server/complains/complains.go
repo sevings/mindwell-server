@@ -64,7 +64,7 @@ func newEntryComplainer(srv *utils.MindwellServer) func(entries.PostEntriesIDCom
 			}
 
 			tx.Exec(createQuery, userID.ID, "entry", params.ID, *params.Content)
-			srv.Ntf.SendNewEntryComplain(tx, params.ID, userID.Name, *params.Content)
+			srv.Ntf.SendNewEntryComplain(tx, params.ID, userID.ID, *params.Content)
 			return entries.NewPostEntriesIDComplainNoContent()
 		})
 	}
@@ -99,7 +99,7 @@ func newCommentComplainer(srv *utils.MindwellServer) func(comments.PostCommentsI
 			}
 
 			tx.Exec(createQuery, userID.ID, "comment", params.ID, *params.Content)
-			srv.Ntf.SendNewCommentComplain(tx, params.ID, userID.Name, *params.Content)
+			srv.Ntf.SendNewCommentComplain(tx, params.ID, userID.ID, *params.Content)
 			return comments.NewPostCommentsIDComplainNoContent()
 		})
 	}
