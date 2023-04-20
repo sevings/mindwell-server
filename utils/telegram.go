@@ -1077,10 +1077,6 @@ ORDER BY sex`
 		addInt64(gender+" gender users", count)
 	}
 
-	const themesQuery = `SELECT count(*) FROM users WHERE creator_id IS NOT NULL`
-	themes := atx.QueryInt64(themesQuery)
-	addInt64("themes", themes)
-
 	const newUsersMonthQuery = `SELECT count(*) FROM users WHERE now() - created_at < interval '1 month' AND last_seen_at > created_at`
 	newUsersMonth := atx.QueryInt64(newUsersMonthQuery)
 	addInt64("last month new users", newUsersMonth)
@@ -1103,6 +1099,10 @@ FROM entries
 WHERE now() - created_at < interval '1 month'`
 	postingUsersMonth := atx.QueryInt64(postingUsersMonthQuery)
 	addInt64("last month posting users", postingUsersMonth)
+
+	const themesQuery = `SELECT count(*) FROM users WHERE creator_id IS NOT NULL`
+	themes := atx.QueryInt64(themesQuery)
+	addInt64("themes", themes)
 
 	const chatsQuery = `
 SELECT count(*)
