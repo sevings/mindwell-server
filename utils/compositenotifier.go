@@ -331,7 +331,7 @@ func (ntf *CompositeNotifier) SendNewCommentComplain(tx *AutoTx, commentID int64
 	var comment, against string
 	tx.Query(q, commentID).Scan(&entryID, &comment, &against)
 
-	ntf.Mail.SendCommentComplain(from, against, content, comment, commentID, entryID)
+	ntf.Tg.SendCommentComplain(from, against, content, comment, commentID, entryID)
 }
 
 func (ntf *CompositeNotifier) SendNewEntryComplain(tx *AutoTx, entryID int64, from, content string) {
@@ -343,7 +343,7 @@ func (ntf *CompositeNotifier) SendNewEntryComplain(tx *AutoTx, entryID int64, fr
 	var entry, against string
 	tx.Query(q, entryID).Scan(&entry, &against)
 
-	ntf.Mail.SendEntryComplain(from, against, content, entry, entryID)
+	ntf.Tg.SendEntryComplain(from, against, content, entry, entryID)
 }
 
 const retryQuery = `

@@ -39,6 +39,7 @@ type TelegramBot struct {
 	ipAPI  string
 	log    *zap.Logger
 	admins []int
+	group  int64
 	logins *cache.Cache
 	cmts   *cache.Cache
 	msgs   *cache.Cache
@@ -60,6 +61,7 @@ func NewTelegramBot(srv *MindwellServer) *TelegramBot {
 		ipAPI:  srv.ConfigOptString("server.ip_api"),
 		log:    srv.LogTelegram(),
 		admins: srv.ConfigInts("telegram.admins"),
+		group:  srv.ConfigInt64("telegram.admin_group"),
 		logins: cache.New(10*time.Minute, 10*time.Minute),
 		cmts:   cache.New(12*time.Hour, 1*time.Hour),
 		msgs:   cache.New(12*time.Hour, 1*time.Hour),
@@ -1344,4 +1346,40 @@ func (bot *TelegramBot) SendRemoveMessage(messageID int64) {
 			}
 		}
 	}
+}
+
+func (bot *TelegramBot) SendCommentComplain(from, against, content, comment string, commentID, entryID int64) {
+	if bot.api == nil || bot.group == 0 {
+		return
+	}
+
+	text := "Пользователь " + from + " пожаловался на комментарий " +
+		strconv.FormatInt(commentID, 10) + " от " + against + ". " +
+		"Текст комментария:\n\n«" + comment + "»\n\n"
+
+	if content != "" {
+		text += "Пояснение:\n«" + content + "»\n\n"
+	}
+
+	link := bot.url + "entries/" + strconv.FormatInt(entryID, 10) + "#comments"
+	text += `К <a href="` + link + `">записи</a>`
+
+	bot.sendMessage(bot.group, text)
+}
+
+func (bot *TelegramBot) SendEntryComplain(from, against, content, entry string, entryID int64) {
+	entry, _ = CutText(entry, 2048)
+
+	text := "Пользователь " + from + " пожаловался на запись " +
+		strconv.FormatInt(entryID, 10) + " от " + against + ". " +
+		"Текст записи:\n\n«" + entry + "»\n\n"
+
+	if content != "" {
+		text += "Пояснение:\n«" + content + "»\n\n"
+	}
+
+	link := bot.url + "entries/" + strconv.FormatInt(entryID, 10)
+	text += `<a href="` + link + `">Запись</a>`
+
+	bot.sendMessage(bot.group, text)
 }
