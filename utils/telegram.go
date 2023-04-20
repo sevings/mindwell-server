@@ -66,6 +66,7 @@ type TelegramBot struct {
 	ipAPI  string
 	log    *zap.Logger
 	admins []int
+	moders []int
 	group  int64
 	logins *cache.Cache
 	cmts   *cache.Cache
@@ -88,6 +89,7 @@ func NewTelegramBot(srv *MindwellServer) *TelegramBot {
 		ipAPI:  srv.ConfigOptString("server.ip_api"),
 		log:    srv.LogTelegram(),
 		admins: srv.ConfigInts("telegram.admins"),
+		moders: srv.ConfigInts("telegram.moderators"),
 		group:  srv.ConfigInt64("telegram.admin_group"),
 		logins: cache.New(10*time.Minute, 10*time.Minute),
 		cmts:   cache.New(12*time.Hour, 1*time.Hour),
@@ -123,16 +125,24 @@ func (bot *TelegramBot) sendMessage(chat int64, text string) {
 	bot.send <- func() { bot.sendMessageNow(chat, text) }
 }
 
-func (bot *TelegramBot) isAdmin(upd *tgbotapi.Update) bool {
-	chat := upd.Message.From.ID
+func inGroup(upd *tgbotapi.Update, ids []int) bool {
+	from := upd.Message.From.ID
 
-	for _, admin := range bot.admins {
-		if admin == chat {
+	for _, id := range ids {
+		if id == from {
 			return true
 		}
 	}
 
 	return false
+}
+
+func (bot *TelegramBot) isAdmin(upd *tgbotapi.Update) bool {
+	return inGroup(upd, bot.admins)
+}
+
+func (bot *TelegramBot) isModerator(upd *tgbotapi.Update) bool {
+	return bot.isAdmin(upd) || inGroup(upd, bot.moders)
 }
 
 func (bot *TelegramBot) run() {
@@ -321,18 +331,25 @@ func (bot *TelegramBot) help(upd *tgbotapi.Update) string {
 /logout — не получать больше уведомления на этот аккаунт.
 /help — вывести данную краткую справку.`
 
+	if bot.isModerator(upd) {
+		text += `
+
+Команды модерации:
+<code>/hide {id или ссылка}</code> — скрыть запись.
+<code>/unlive {id или ссылка}</code> — убрать запись из Прямого эфира.
+<code>/shut {id или ссылка}</code> — запретить комментирование записи.`
+	}
+
 	if bot.isAdmin(upd) {
 		text += `
 
 Команды администрирования:
-<code>/hide {id или ссылка}</code> — скрыть запись.
-<code>/unlive {id или ссылка}</code> — убрать запись из Прямого эфира.
-<code>/shut {id или ссылка}</code> — запретить комментирование записи.
 <code>/ban {live | vote | comment | invite | adm} {N} {login или ссылка}</code> — запретить пользователю выбранные действия на N дней, в случае adm — навсегда.
 <code>/ban user {N} {login или ссылка}</code> — заблокировать пользователя на N дней.
 <code>/unban {login или ссылка}</code> — разблокировать пользователя.
 <code>/info {email, login или ссылка}</code> — информация о пользователе.
 <code>/alts {email, login или ссылка}</code> — искать альтернативные аккаунты пользователя.
+<code>/votes {id или ссылка}</code> — посмотреть голоса за запись.
 <code>/create app {dev_name} {public | private} {code | password} {redirect_uri} {name} {show_name} {platform} {info}</code> - создать приложение.
 <code>/create theme {name} {creator}</code> — создать тему.
 /stat — статистика сервера.
@@ -343,7 +360,7 @@ func (bot *TelegramBot) help(upd *tgbotapi.Update) string {
 }
 
 func (bot *TelegramBot) entryCommand(upd *tgbotapi.Update) (int64, string) {
-	if !bot.isAdmin(upd) {
+	if !bot.isModerator(upd) {
 		return 0, unrecognisedText
 	}
 
