@@ -29,8 +29,35 @@ var tgHtmlEsc = strings.NewReplacer(
 	"\r", "",
 )
 
-var idRe = regexp.MustCompile(`\d+$`)
-var loginRe = regexp.MustCompile(`[0-9\-_]*[a-zA-Z][a-zA-Z0-9\-_]*$`)
+var idRe = regexp.MustCompile(`(\d+)(?:#comments)?$`)
+var loginRe = regexp.MustCompile(`/users/([0-9\-_]*[a-zA-Z][a-zA-Z0-9\-_]*)(?:/entries)?$`)
+
+func extractEntryID(url string) (int64, string) {
+	match := idRe.FindStringSubmatch(url)
+	if len(match) < 2 {
+		return 0, "Укажи ID записи."
+	}
+
+	id, err := strconv.ParseInt(match[1], 10, 64)
+	if err != nil {
+		return 0, err.Error()
+	}
+
+	return id, ""
+}
+
+func extractLogin(url string) string {
+	if !strings.Contains(url, "/") {
+		return url
+	}
+
+	match := loginRe.FindStringSubmatch(url)
+	if len(match) < 2 {
+		return ""
+	}
+
+	return match[1]
+}
 
 type TelegramBot struct {
 	srv    *MindwellServer
@@ -320,14 +347,9 @@ func (bot *TelegramBot) hide(upd *tgbotapi.Update) string {
 	}
 
 	url := upd.Message.CommandArguments()
-	strID := idRe.FindString(url)
-	if strID == "" {
-		return "Укажи ID записи."
-	}
-
-	id, err := strconv.ParseInt(strID, 10, 64)
-	if err != nil {
-		return err.Error()
+	id, errStr := extractEntryID(url)
+	if errStr != "" {
+		return errStr
 	}
 
 	atx := NewAutoTx(bot.srv.DB)
@@ -336,10 +358,10 @@ func (bot *TelegramBot) hide(upd *tgbotapi.Update) string {
 	const q = "UPDATE entries SET visible_for = (SELECT id FROM entry_privacy WHERE type = 'me') WHERE id = $1"
 	atx.Exec(q, id)
 	if atx.RowsAffected() < 1 {
-		return "Запись " + strID + " не найдена."
+		return "Запись не найдена."
 	}
 
-	return "Запись " + strID + " скрыта."
+	return "Запись скрыта."
 }
 
 func (bot *TelegramBot) ban(upd *tgbotapi.Update) string {
@@ -357,7 +379,7 @@ func (bot *TelegramBot) ban(upd *tgbotapi.Update) string {
 	}
 
 	url := args[len(args)-1]
-	login := loginRe.FindString(url)
+	login := extractLogin(url)
 	if login == "" {
 		return "Укажи логин пользователя."
 	}
@@ -417,7 +439,7 @@ func (bot *TelegramBot) unban(upd *tgbotapi.Update) string {
 	}
 
 	url := upd.Message.CommandArguments()
-	login := loginRe.FindString(url)
+	login := extractLogin(url)
 	if login == "" {
 		return "Укажи логин пользователя."
 	}
@@ -581,9 +603,7 @@ func (bot *TelegramBot) info(upd *tgbotapi.Update) string {
 	}
 
 	arg := upd.Message.CommandArguments()
-	if strings.Contains(arg, "/") {
-		arg = loginRe.FindString(arg)
-	}
+	arg = extractLogin(arg)
 	if arg == "" {
 		return "Укажи логин или адрес почты."
 	}
@@ -665,9 +685,7 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 	}
 
 	arg := upd.Message.CommandArguments()
-	if strings.Contains(arg, "/") {
-		arg = loginRe.FindString(arg)
-	}
+	arg = extractLogin(arg)
 	if arg == "" {
 		return "Укажи логин."
 	}
@@ -893,14 +911,9 @@ func (bot *TelegramBot) votes(upd *tgbotapi.Update) string {
 	}
 
 	url := upd.Message.CommandArguments()
-	strID := idRe.FindString(url)
-	if strID == "" {
-		return "Укажи ID записи."
-	}
-
-	id, err := strconv.ParseInt(strID, 10, 64)
-	if err != nil {
-		return err.Error()
+	id, errStr := extractEntryID(url)
+	if errStr != "" {
+		return errStr
 	}
 
 	atx := NewAutoTx(bot.srv.DB)
