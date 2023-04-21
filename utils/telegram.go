@@ -141,7 +141,11 @@ func (bot *TelegramBot) isAdmin(upd *tgbotapi.Update) bool {
 }
 
 func (bot *TelegramBot) isModerator(upd *tgbotapi.Update) bool {
-	return bot.isAdmin(upd) || inGroup(upd, bot.moders)
+	if bot.isAdmin(upd) {
+		return true
+	}
+
+	return inGroup(upd, bot.moders) && upd.Message.Chat.ID == bot.group
 }
 
 func (bot *TelegramBot) run() {
