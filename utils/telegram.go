@@ -125,6 +125,10 @@ func (bot *TelegramBot) sendMessage(chat int64, text string) {
 }
 
 func inGroup(upd *tgbotapi.Update, ids []int64) bool {
+	if upd.Message.From == nil {
+		return false
+	}
+
 	from := upd.Message.From.ID
 
 	for _, id := range ids {
@@ -358,10 +362,6 @@ func (bot *TelegramBot) entryCommand(upd *tgbotapi.Update) (int64, string) {
 		return 0, unrecognisedText
 	}
 
-	if upd.Message.From == nil {
-		return 0, errorText
-	}
-
 	url := upd.Message.CommandArguments()
 	id, errStr := extractEntryID(url)
 	if errStr != "" {
@@ -430,10 +430,6 @@ func (bot *TelegramBot) ban(upd *tgbotapi.Update) string {
 		return unrecognisedText
 	}
 
-	if upd.Message.From == nil {
-		return errorText
-	}
-
 	args := strings.Split(upd.Message.CommandArguments(), " ")
 	if len(args) < 2 {
 		return "Укажи необходимые аргументы."
@@ -495,10 +491,6 @@ func (bot *TelegramBot) unban(upd *tgbotapi.Update) string {
 		return unrecognisedText
 	}
 
-	if upd.Message.From == nil {
-		return errorText
-	}
-
 	url := upd.Message.CommandArguments()
 	login := extractLogin(url)
 	if login == "" {
@@ -520,10 +512,6 @@ func (bot *TelegramBot) unban(upd *tgbotapi.Update) string {
 func (bot *TelegramBot) create(upd *tgbotapi.Update) string {
 	if !bot.isAdmin(upd) {
 		return unrecognisedText
-	}
-
-	if upd.Message.From == nil {
-		return errorText
 	}
 
 	args := strings.Split(upd.Message.CommandArguments(), "\n")
@@ -659,10 +647,6 @@ func (bot *TelegramBot) info(upd *tgbotapi.Update) string {
 		return unrecognisedText
 	}
 
-	if upd.Message.From == nil {
-		return errorText
-	}
-
 	arg := upd.Message.CommandArguments()
 	arg = extractLogin(arg)
 	if arg == "" {
@@ -739,10 +723,6 @@ WHERE lower(users.email) = lower($1) OR lower(users.name) = lower($1)`
 func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 	if !bot.isAdmin(upd) {
 		return unrecognisedText
-	}
-
-	if upd.Message.From == nil {
-		return errorText
 	}
 
 	arg := upd.Message.CommandArguments()
@@ -967,10 +947,6 @@ func (bot *TelegramBot) votes(upd *tgbotapi.Update) string {
 		return unrecognisedText
 	}
 
-	if upd.Message.From == nil {
-		return errorText
-	}
-
 	url := upd.Message.CommandArguments()
 	id, errStr := extractEntryID(url)
 	if errStr != "" {
@@ -1022,10 +998,6 @@ ORDER BY created_at DESC`
 func (bot *TelegramBot) stat(upd *tgbotapi.Update) string {
 	if !bot.isAdmin(upd) {
 		return unrecognisedText
-	}
-
-	if upd.Message.From == nil {
-		return errorText
 	}
 
 	atx := NewAutoTx(bot.srv.DB)
