@@ -6,13 +6,12 @@ import (
 	"github.com/leporo/sqlf"
 	"go.uber.org/zap"
 	"math/rand"
-	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/patrickmn/go-cache"
 	"github.com/sevings/mindwell-server/models"
 )
@@ -65,8 +64,8 @@ type TelegramBot struct {
 	url    string
 	ipAPI  string
 	log    *zap.Logger
-	admins []int
-	moders []int
+	admins []int64
+	moders []int64
 	group  int64
 	logins *cache.Cache
 	cmts   *cache.Cache
@@ -88,8 +87,8 @@ func NewTelegramBot(srv *MindwellServer) *TelegramBot {
 		url:    srv.ConfigString("server.base_url"),
 		ipAPI:  srv.ConfigOptString("server.ip_api"),
 		log:    srv.LogTelegram(),
-		admins: srv.ConfigInts("telegram.admins"),
-		moders: srv.ConfigInts("telegram.moderators"),
+		admins: srv.ConfigInt64s("telegram.admins"),
+		moders: srv.ConfigInt64s("telegram.moderators"),
 		group:  srv.ConfigInt64("telegram.admin_group"),
 		logins: cache.New(10*time.Minute, 10*time.Minute),
 		cmts:   cache.New(12*time.Hour, 1*time.Hour),
@@ -125,7 +124,7 @@ func (bot *TelegramBot) sendMessage(chat int64, text string) {
 	bot.send <- func() { bot.sendMessageNow(chat, text) }
 }
 
-func inGroup(upd *tgbotapi.Update, ids []int) bool {
+func inGroup(upd *tgbotapi.Update, ids []int64) bool {
 	from := upd.Message.From.ID
 
 	for _, id := range ids {
@@ -151,9 +150,7 @@ func (bot *TelegramBot) run() {
 		return
 	}
 
-	client := http.DefaultClient
-
-	api, err := tgbotapi.NewBotAPIWithClient(token, client)
+	api, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		bot.log.Error(err.Error())
 		return
@@ -167,10 +164,7 @@ func (bot *TelegramBot) run() {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
-	updates, err := bot.api.GetUpdatesChan(u)
-	if err != nil {
-		bot.log.Error(err.Error())
-	}
+	updates := bot.api.GetUpdatesChan(u)
 
 	for {
 		select {
@@ -1231,7 +1225,7 @@ func (bot *TelegramBot) SendRemoveComment(commentID int64) {
 	bot.send <- func() {
 		for _, msgID := range msgIDs {
 			msg := tgbotapi.NewDeleteMessage(msgID.chat, msgID.msg)
-			_, err := bot.api.DeleteMessage(msg)
+			_, err := bot.api.Request(msg)
 			if err != nil {
 				bot.log.Error(err.Error())
 			}
@@ -1424,7 +1418,7 @@ func (bot *TelegramBot) SendRemoveMessage(messageID int64) {
 	bot.send <- func() {
 		for _, msgID := range msgIDs {
 			msg := tgbotapi.NewDeleteMessage(msgID.chat, msgID.msg)
-			_, err := bot.api.DeleteMessage(msg)
+			_, err := bot.api.Request(msg)
 			if err != nil {
 				bot.log.Error(err.Error())
 			}
