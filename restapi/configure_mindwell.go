@@ -67,9 +67,11 @@ func configureAPI(api *operations.MindwellAPI) http.Handler {
 
 	smtpHost := srv.ConfigString("email.host")
 	smtpPort := srv.ConfigInt("email.port")
-	err = pm.Start(smtpHost, smtpPort)
-	if err != nil {
-		systemLogger.Error(err.Error())
+	if smtpHost != "" && smtpPort > 0 {
+		err = pm.Start(smtpHost, smtpPort)
+		if err != nil {
+			systemLogger.Error(err.Error())
+		}
 	}
 
 	srv.Ntf.Mail = pm

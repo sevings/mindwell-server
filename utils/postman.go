@@ -113,8 +113,10 @@ func (pm *Postman) Start(smtpHost string, smtpPort int) error {
 }
 
 func (pm *Postman) Stop() {
-	close(pm.ch)
-	<-pm.stop
+	if pm.ch != nil {
+		close(pm.ch)
+		<-pm.stop
+	}
 }
 
 func (pm *Postman) send(email hermes.Email, address, subj, name string) {

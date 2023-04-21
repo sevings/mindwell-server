@@ -115,6 +115,10 @@ func (srv *MindwellServer) ConfigStrings(field string) []string {
 		srv.LogSystem().Warn(err.Error())
 	}
 
+	if value == "" {
+		return nil
+	}
+
 	return strings.Split(value, ";")
 }
 
