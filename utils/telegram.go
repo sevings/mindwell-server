@@ -268,7 +268,7 @@ func (bot *TelegramBot) start(upd *tgbotapi.Update) string {
 }
 
 func (bot *TelegramBot) login(upd *tgbotapi.Update) string {
-	if upd.Message.From == nil {
+	if upd.Message.Chat == nil {
 		return errorText
 	}
 
@@ -298,11 +298,7 @@ func (bot *TelegramBot) login(upd *tgbotapi.Update) string {
 }
 
 func (bot *TelegramBot) logout(upd *tgbotapi.Update) string {
-	if upd.Message.From == nil {
-		return errorText
-	}
-
-	from := upd.Message.From.ID
+	from := upd.Message.Chat.ID
 
 	const q = `
 		UPDATE users
