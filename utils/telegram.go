@@ -832,7 +832,7 @@ func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string, limit int)
 		Where("dist < 0.5")
 	emailAlts := getAlts(emailQuery)
 
-	text := "Possible accounts of" + bot.userNameLink(user, user)
+	text := "Possible accounts of " + bot.userNameLink(user, user)
 	text += "\n<b>By IP</b>: " + ipAlts
 	text += "\n<b>By device</b>: " + devAlts
 	text += "\n<b>By app</b>: " + appAlts
