@@ -346,7 +346,7 @@ func (bot *TelegramBot) help(upd *tgbotapi.Update) string {
 <code>/ban user {N} {login или ссылка}</code> — заблокировать пользователя на N дней.
 <code>/unban {login или ссылка}</code> — разблокировать пользователя.
 <code>/info {email, login или ссылка}</code> — информация о пользователе.
-<code>/alts {email, login или ссылка}</code> — искать альтернативные аккаунты пользователя.
+<code>/alts {login или ссылка}</code> — искать альтернативные аккаунты пользователя.
 <code>/votes {id или ссылка}</code> — посмотреть голоса за запись.
 <code>/create app {dev_name} {public | private} {code | password} {redirect_uri} {name} {show_name} {platform} {info}</code> - создать приложение.
 <code>/create theme {name} {creator}</code> — создать тему.
@@ -726,17 +726,24 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 	}
 
 	arg := upd.Message.CommandArguments()
-	arg = extractLogin(arg)
-	if arg == "" {
-		return "Укажи логин."
-	}
-
-	users := strings.Split(arg, " ")
+	args := strings.Split(arg, " ")
 
 	limit := 10
-	if l, err := strconv.ParseInt(users[len(users)-1], 10, 8); err == nil {
+	if l, err := strconv.ParseInt(args[len(args)-1], 10, 8); err == nil {
 		limit = int(l)
-		users = users[:len(users)-1]
+		args = args[:len(args)-1]
+	}
+
+	var users []string
+	for _, login := range args {
+		login = extractLogin(login)
+		if login != "" {
+			users = append(users, login)
+		}
+	}
+
+	if len(users) == 0 {
+		return "Укажи логин."
 	}
 
 	if len(users) > 2 {
