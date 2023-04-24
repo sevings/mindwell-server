@@ -225,6 +225,8 @@ func (bot *TelegramBot) command(upd tgbotapi.Update) {
 		reply = bot.alts(&upd)
 	case "votes":
 		reply = bot.votes(&upd)
+	case "cross":
+		reply = bot.crossVotes(&upd)
 	case "stat":
 		reply = bot.stat(&upd)
 	default:
@@ -347,6 +349,7 @@ func (bot *TelegramBot) help(upd *tgbotapi.Update) string {
 <code>/unban {login или ссылка}</code> — разблокировать пользователя.
 <code>/info {email, login или ссылка}</code> — информация о пользователе.
 <code>/alts {login или ссылка}</code> — искать альтернативные аккаунты пользователя.
+<code>/cross {login или ссылка} {login или ссылка}</code> — искать пересечения голосов пользователей.
 <code>/votes {id или ссылка}</code> — посмотреть голоса за запись.
 <code>/create app {dev_name} {public | private} {code | password} {redirect_uri} {name} {show_name} {platform} {info}</code> - создать приложение.
 <code>/create theme {name} {creator}</code> — создать тему.
@@ -1002,6 +1005,173 @@ ORDER BY created_at DESC`
 	return text
 }
 
+func (bot *TelegramBot) crossVotes(upd *tgbotapi.Update) string {
+	if !bot.isAdmin(upd) {
+		return unrecognisedText
+	}
+
+	arg := upd.Message.CommandArguments()
+	args := strings.Split(arg, " ")
+
+	var logins []string
+	for _, login := range args {
+		login = extractLogin(login)
+		if login != "" {
+			logins = append(logins, login)
+		}
+	}
+
+	if len(logins) != 2 {
+		return "Укажи двух пользователей."
+	}
+
+	atx := NewAutoTx(bot.srv.DB)
+	defer atx.Finish()
+
+	var users []*models.User
+	users = append(users, LoadUserByName(atx, logins[0]))
+	if users[0].ID == 0 {
+		return fmt.Sprintf("Логин %s не найден", logins[0])
+	}
+
+	users = append(users, LoadUserByName(atx, logins[1]))
+	if users[1].ID == 0 {
+		return fmt.Sprintf("Логин %s не найден", logins[1])
+	}
+
+	text := fmt.Sprintf("Cross voting of %s and %s\n",
+		bot.userLink(users[0]),
+		bot.userLink(users[1]))
+
+	voteStr := func(vote bool) string {
+		if vote {
+			return "liked"
+		}
+
+		return "disliked"
+	}
+
+	entryLink := func(id int64) string {
+		return fmt.Sprintf(`<a href="%sentries/%d">%d</a>`, bot.url, id, id)
+	}
+
+	text += "<b>Repeat voting for entries</b>:\n"
+
+	const repeatEntryQuery = `
+SELECT entries.id, authors.name, authors.show_name, v1.vote > 0, v2.vote > 0
+FROM entry_votes v1
+JOIN entry_votes v2 ON v1.entry_id = v2.entry_id
+JOIN entries ON v1.entry_id = entries.id
+JOIN users authors ON entries.author_id = authors.id
+WHERE v1.user_id = $1 AND v2.user_id = $2
+ORDER BY entries.id
+`
+
+	atx.Query(repeatEntryQuery, users[0].ID, users[1].ID)
+	for {
+		var entryID int64
+		var authorName, authorShowName string
+		var vote1, vote2 bool
+		ok := atx.Scan(&entryID, &authorName, &authorShowName, &vote1, &vote2)
+		if !ok {
+			break
+		}
+
+		text += fmt.Sprintf("%s %s and %s %s %s's entry %s\n",
+			users[0].ShowName, voteStr(vote1),
+			users[1].ShowName, voteStr(vote2),
+			bot.userNameLink(authorName, authorShowName),
+			entryLink(entryID))
+	}
+
+	text += "<b>Cross voting for entries</b>:\n"
+
+	const crossEntryQuery = `
+SELECT entries.id, authors.show_name, u.show_name, v.vote > 0
+FROM entry_votes v
+JOIN users u ON v.user_id = u.id
+JOIN entries ON v.entry_id = entries.id
+JOIN users authors ON entries.author_id = authors.id
+WHERE u.id IN ($1, $2)
+  AND authors.id IN ($1, $2)
+ORDER BY u.name, entries.id
+`
+
+	atx.Query(crossEntryQuery, users[0].ID, users[1].ID)
+	for {
+		var entryID int64
+		var author, user string
+		var vote bool
+		ok := atx.Scan(&entryID, &author, &user, &vote)
+		if !ok {
+			break
+		}
+
+		text += fmt.Sprintf("%s %s %s's entry %s\n",
+			user, voteStr(vote),
+			author, entryLink(entryID))
+	}
+
+	text += "<b>Repeat voting for comments</b>:\n"
+
+	const repeatCommentQuery = `
+SELECT comments.id, comments.entry_id, authors.name, authors.show_name, v1.vote > 0, v2.vote > 0
+FROM comment_votes v1
+JOIN comment_votes v2 ON v1.comment_id = v2.comment_id
+JOIN comments ON v1.comment_id = comments.id
+JOIN users authors ON comments.author_id = authors.id
+WHERE v1.user_id = $1 AND v2.user_id = $2
+ORDER BY comments.id
+`
+
+	atx.Query(repeatCommentQuery, users[0].ID, users[1].ID)
+	for {
+		var commentID, entryID int64
+		var authorName, authorShowName string
+		var vote1, vote2 bool
+		ok := atx.Scan(&commentID, &entryID, &authorName, &authorShowName, &vote1, &vote2)
+		if !ok {
+			break
+		}
+
+		text += fmt.Sprintf("%s %s and %s %s %s's comment %d on entry %s\n",
+			users[0].ShowName, voteStr(vote1),
+			users[1].ShowName, voteStr(vote2),
+			bot.userNameLink(authorName, authorShowName),
+			commentID, entryLink(entryID))
+	}
+
+	text += "<b>Cross voting for comments</b>:\n"
+
+	const crossCommentQuery = `
+SELECT comments.id, comments.entry_id, authors.show_name, u.show_name, v.vote > 0
+FROM comment_votes v
+JOIN users u ON v.user_id = u.id
+JOIN comments ON v.comment_id = comments.id
+JOIN users authors ON comments.author_id = authors.id
+WHERE u.id IN ($1, $2)
+  AND authors.id IN ($1, $2)
+ORDER BY u.name, comments.id
+`
+
+	atx.Query(crossCommentQuery, users[0].ID, users[1].ID)
+	for {
+		var commentID, entryID int64
+		var author, user string
+		var vote bool
+		ok := atx.Scan(&commentID, &entryID, &author, &user, &vote)
+		if !ok {
+			break
+		}
+
+		text += fmt.Sprintf("%s %s %s's comment %d on entry %s\n",
+			user, voteStr(vote),
+			author, commentID, entryLink(entryID))
+	}
+
+	return text
+}
+
 func (bot *TelegramBot) stat(upd *tgbotapi.Update) string {
 	if !bot.isAdmin(upd) {
 		return unrecognisedText
@@ -1407,7 +1577,6 @@ func (bot *TelegramBot) SendRemoveMessage(messageID int64) {
 
 func (bot *TelegramBot) userNameLink(name, showName string) string {
 	return fmt.Sprintf(`<a href="%susers/%s">%s</a>`, bot.url, name, tgHtmlEsc.Replace(showName))
-
 }
 
 func (bot *TelegramBot) userLink(user *models.User) string {
