@@ -65,19 +65,6 @@ func HtmlContent(content string) string {
 	return "<p>" + content + "</p>"
 }
 
-const commentQuery = `
-	SELECT comments.id, entry_id,
-		extract(epoch from comments.created_at), edit_content, rating,
-		up_votes, down_votes, votes.vote,
-		author_id, name, show_name, 
-		is_online(last_seen_at), users.creator_id IS NOT NULL,
-		avatar, user_id
-	FROM comments
-	JOIN users ON comments.author_id = users.id
-	LEFT JOIN (SELECT comment_id, vote FROM comment_votes WHERE user_id = $1) AS votes 
-		ON comments.id = votes.comment_id 
-`
-
 func commentVote(vote sql.NullFloat64) int64 {
 	switch {
 	case !vote.Valid:
@@ -113,44 +100,17 @@ WHERE entries.id = $1`
 }
 
 func LoadComment(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, commentID int64) *models.Comment {
-	const q = commentQuery + " WHERE comments.id = $2"
+	q := baseFeedQuery(userID).
+		Where("comments.id = ?", commentID)
 
-	var vote sql.NullFloat64
-	var avatar string
-	var cmtUserID int64
-	comment := models.Comment{
-		Author: &models.User{},
-		Rating: &models.Rating{
-			IsVotable: true,
-		},
+	tx.QueryStmt(q)
+
+	cmts := loadFeed(srv, tx, userID, false)
+	if len(cmts.Data) > 0 {
+		return cmts.Data[0]
 	}
 
-	tx.Query(q, userID.ID, commentID).Scan(&comment.ID, &comment.EntryID,
-		&comment.CreatedAt, &comment.EditContent, &comment.Rating.Rating,
-		&comment.Rating.UpCount, &comment.Rating.DownCount, &vote,
-		&comment.Author.ID, &comment.Author.Name, &comment.Author.ShowName,
-		&comment.Author.IsOnline, &comment.Author.IsTheme,
-		&avatar, &cmtUserID)
-
-	entryUserID, themeCreatorID := LoadEntryAuthor(tx, comment.EntryID)
-	setCommentRights(&comment, userID, cmtUserID, entryUserID, themeCreatorID)
-
-	setCommentText(&comment)
-
-	if !comment.Rights.Edit {
-		comment.EditContent = ""
-	}
-
-	comment.Rating.Vote = commentVote(vote)
-	comment.Rating.ID = comment.ID
-
-	comment.Author.Avatar = srv.NewAvatar(avatar)
-
-	if comment.Author.IsTheme {
-		comment.Author.IsOnline = false
-	}
-
-	return &comment
+	return nil
 }
 
 func newCommentLoader(srv *utils.MindwellServer) func(comments.GetCommentsIDParams, *models.UserID) middleware.Responder {
@@ -269,8 +229,6 @@ func newCommentDeleter(srv *utils.MindwellServer) func(comments.DeleteCommentsID
 
 // LoadEntryComments loads comments for entry.
 func LoadEntryComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entryID, limit int64, afterS, beforeS string) *models.CommentList {
-	var list []*models.Comment
-
 	before, err := strconv.ParseInt(beforeS, 10, 64)
 	if len(beforeS) > 0 && err != nil {
 		srv.LogApi().Sugar().Warn("error parse before:", beforeS)
@@ -281,75 +239,29 @@ func LoadEntryComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *mode
 		srv.LogApi().Sugar().Warn("error parse after:", afterS)
 	}
 
-	entryUserID, themeCreatorID := LoadEntryAuthor(tx, entryID)
+	query := baseFeedQuery(userID)
 
 	if after > 0 {
-		const q = commentQuery + `
-			WHERE entry_id = $2 AND comments.id > $3
-			ORDER BY comments.id ASC
-			LIMIT $4`
-
-		tx.Query(q, userID.ID, entryID, after, limit)
+		query.Where("entry_id = ?", entryID).
+			Where("comments.id > ?", after).
+			OrderBy("comments.id ASC").
+			Limit(limit)
 	} else if before > 0 {
-		const q = commentQuery + `
-			WHERE entry_id = $2 AND comments.id < $3
-			ORDER BY comments.id DESC
-			LIMIT $4`
-
-		tx.Query(q, userID.ID, entryID, before, limit)
+		query.Where("entry_id = ?", entryID).
+			Where("comments.id < ?", after).
+			OrderBy("comments.id DESC").
+			Limit(limit)
 	} else {
-		const q = commentQuery + `
-			WHERE entry_id = $2
-			ORDER BY comments.id DESC
-			LIMIT $3`
-
-		tx.Query(q, userID.ID, entryID, limit)
+		query.Where("entry_id = ?", entryID).
+			OrderBy("comments.id DESC").
+			Limit(limit)
 	}
 
-	for {
-		comment := models.Comment{
-			Author: &models.User{},
-			Rating: &models.Rating{
-				IsVotable: true,
-			},
-		}
-		var vote sql.NullFloat64
-		var avatar string
-		var cmtUserID int64
-		ok := tx.Scan(&comment.ID, &comment.EntryID,
-			&comment.CreatedAt, &comment.EditContent, &comment.Rating.Rating,
-			&comment.Rating.UpCount, &comment.Rating.DownCount, &vote,
-			&comment.Author.ID, &comment.Author.Name, &comment.Author.ShowName,
-			&comment.Author.IsOnline, &comment.Author.IsTheme,
-			&avatar, &cmtUserID)
-		if !ok {
-			break
-		}
+	tx.QueryStmt(query)
+	cmts := loadFeed(srv, tx, userID, after <= 0)
 
-		setCommentRights(&comment, userID, cmtUserID, entryUserID, themeCreatorID)
-		setCommentText(&comment)
-
-		if !comment.Rights.Edit {
-			comment.EditContent = ""
-		}
-
-		comment.Rating.Vote = commentVote(vote)
-
-		comment.Rating.ID = comment.ID
-		comment.Author.Avatar = srv.NewAvatar(avatar)
-		list = append(list, &comment)
-	}
-
-	if after <= 0 {
-		for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 {
-			list[i], list[j] = list[j], list[i]
-		}
-	}
-
-	cmts := &models.CommentList{Data: list}
-
-	if len(list) > 0 {
-		nextBefore := list[0].ID
+	if len(cmts.Data) > 0 {
+		nextBefore := cmts.Data[0].ID
 		var hasBefore bool
 		tx.Query("SELECT EXISTS(SELECT 1 FROM comments WHERE entry_id = $1 AND comments.id < $2)", entryID, nextBefore)
 		tx.Scan(&hasBefore)
@@ -358,7 +270,7 @@ func LoadEntryComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *mode
 			cmts.HasBefore = hasBefore
 		}
 
-		nextAfter := list[len(list)-1].ID
+		nextAfter := cmts.Data[len(cmts.Data)-1].ID
 		cmts.NextAfter = strconv.FormatInt(nextAfter, 10)
 		tx.Query("SELECT EXISTS(SELECT 1 FROM comments WHERE entry_id = $1 AND comments.id > $2)", entryID, nextAfter)
 		tx.Scan(&cmts.HasAfter)
