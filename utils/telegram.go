@@ -1579,7 +1579,15 @@ func (bot *TelegramBot) userNameLink(name, showName string) string {
 	return fmt.Sprintf(`<a href="%susers/%s">%s</a>`, bot.url, name, tgHtmlEsc.Replace(showName))
 }
 
+func (bot *TelegramBot) themeNameLink(name, showName string) string {
+	return fmt.Sprintf(`<a href="%sthemes/%s">%s</a>`, bot.url, name, tgHtmlEsc.Replace(showName))
+}
+
 func (bot *TelegramBot) userLink(user *models.User) string {
+	if user.IsTheme {
+		return bot.themeNameLink(user.Name, user.ShowName)
+	}
+
 	return bot.userNameLink(user.Name, user.ShowName)
 }
 
