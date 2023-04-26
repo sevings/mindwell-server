@@ -5,9 +5,10 @@ import (
 	"github.com/leporo/sqlf"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/utils"
+	"strconv"
 )
 
-func baseFeedQuery(userID *models.UserID) *sqlf.Stmt {
+func baseFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 	return sqlf.Select("comments.id, entry_id").
 		Select("extract(epoch from comments.created_at), edit_content, rating").
 		Select("up_votes, down_votes, votes.vote").
@@ -18,7 +19,13 @@ func baseFeedQuery(userID *models.UserID) *sqlf.Stmt {
 		Join("users", "comments.author_id = users.id").
 		With("votes",
 			sqlf.Select("comment_id, vote").From("comment_votes").Where("user_id = ?", userID.ID)).
-		LeftJoin("votes", "comments.id = votes.comment_id ")
+		LeftJoin("votes", "comments.id = votes.comment_id ").
+		Limit(limit)
+}
+
+func entryFeedQuery(userID *models.UserID, entryID, limit int64) *sqlf.Stmt {
+	return baseFeedQuery(userID, limit).
+		Where("entry_id = ?", entryID)
 }
 
 func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, reverse bool) *models.CommentList {
@@ -91,4 +98,51 @@ func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID
 	}
 
 	return &models.CommentList{Data: list}
+}
+
+// LoadEntryComments loads comments for entry.
+func LoadEntryComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entryID, limit int64, afterS, beforeS string) *models.CommentList {
+	before, err := strconv.ParseInt(beforeS, 10, 64)
+	if len(beforeS) > 0 && err != nil {
+		srv.LogApi().Sugar().Warn("error parse before:", beforeS)
+	}
+
+	after, err := strconv.ParseInt(afterS, 10, 64)
+	if len(afterS) > 0 && err != nil {
+		srv.LogApi().Sugar().Warn("error parse after:", afterS)
+	}
+
+	query := entryFeedQuery(userID, entryID, limit)
+
+	if after > 0 {
+		query.Where("comments.id > ?", after).
+			OrderBy("comments.id ASC").
+			Limit(limit)
+	} else if before > 0 {
+		query.Where("comments.id < ?", after).
+			OrderBy("comments.id DESC")
+	} else {
+		query.OrderBy("comments.id DESC")
+	}
+
+	tx.QueryStmt(query)
+	cmts := loadFeed(srv, tx, userID, after <= 0)
+
+	if len(cmts.Data) > 0 {
+		nextBefore := cmts.Data[0].ID
+		var hasBefore bool
+		tx.Query("SELECT EXISTS(SELECT 1 FROM comments WHERE entry_id = $1 AND comments.id < $2)", entryID, nextBefore)
+		tx.Scan(&hasBefore)
+		if hasBefore {
+			cmts.NextBefore = strconv.FormatInt(nextBefore, 10)
+			cmts.HasBefore = hasBefore
+		}
+
+		nextAfter := cmts.Data[len(cmts.Data)-1].ID
+		cmts.NextAfter = strconv.FormatInt(nextAfter, 10)
+		tx.Query("SELECT EXISTS(SELECT 1 FROM comments WHERE entry_id = $1 AND comments.id > $2)", entryID, nextAfter)
+		tx.Scan(&cmts.HasAfter)
+	}
+
+	return cmts
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/go-openapi/runtime/middleware"
@@ -100,7 +99,7 @@ WHERE entries.id = $1`
 }
 
 func LoadComment(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, commentID int64) *models.Comment {
-	q := baseFeedQuery(userID).
+	q := baseFeedQuery(userID, 1).
 		Where("comments.id = ?", commentID)
 
 	tx.QueryStmt(q)
@@ -225,58 +224,6 @@ func newCommentDeleter(srv *utils.MindwellServer) func(comments.DeleteCommentsID
 			return comments.NewDeleteCommentsIDOK()
 		})
 	}
-}
-
-// LoadEntryComments loads comments for entry.
-func LoadEntryComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entryID, limit int64, afterS, beforeS string) *models.CommentList {
-	before, err := strconv.ParseInt(beforeS, 10, 64)
-	if len(beforeS) > 0 && err != nil {
-		srv.LogApi().Sugar().Warn("error parse before:", beforeS)
-	}
-
-	after, err := strconv.ParseInt(afterS, 10, 64)
-	if len(afterS) > 0 && err != nil {
-		srv.LogApi().Sugar().Warn("error parse after:", afterS)
-	}
-
-	query := baseFeedQuery(userID)
-
-	if after > 0 {
-		query.Where("entry_id = ?", entryID).
-			Where("comments.id > ?", after).
-			OrderBy("comments.id ASC").
-			Limit(limit)
-	} else if before > 0 {
-		query.Where("entry_id = ?", entryID).
-			Where("comments.id < ?", after).
-			OrderBy("comments.id DESC").
-			Limit(limit)
-	} else {
-		query.Where("entry_id = ?", entryID).
-			OrderBy("comments.id DESC").
-			Limit(limit)
-	}
-
-	tx.QueryStmt(query)
-	cmts := loadFeed(srv, tx, userID, after <= 0)
-
-	if len(cmts.Data) > 0 {
-		nextBefore := cmts.Data[0].ID
-		var hasBefore bool
-		tx.Query("SELECT EXISTS(SELECT 1 FROM comments WHERE entry_id = $1 AND comments.id < $2)", entryID, nextBefore)
-		tx.Scan(&hasBefore)
-		if hasBefore {
-			cmts.NextBefore = strconv.FormatInt(nextBefore, 10)
-			cmts.HasBefore = hasBefore
-		}
-
-		nextAfter := cmts.Data[len(cmts.Data)-1].ID
-		cmts.NextAfter = strconv.FormatInt(nextAfter, 10)
-		tx.Query("SELECT EXISTS(SELECT 1 FROM comments WHERE entry_id = $1 AND comments.id > $2)", entryID, nextAfter)
-		tx.Scan(&cmts.HasAfter)
-	}
-
-	return cmts
 }
 
 func newEntryCommentsLoader(srv *utils.MindwellServer) func(comments.GetEntriesIDCommentsParams, *models.UserID) middleware.Responder {
