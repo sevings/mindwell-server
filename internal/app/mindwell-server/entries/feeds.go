@@ -109,26 +109,6 @@ func feedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 		Join("user_privacy", "authors.privacy = user_privacy.id")
 }
 
-func addRelationsToMeQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
-	return q.
-		With("relations_to_me",
-			sqlf.Select("relation.type, relations.from_id").
-				From("relations").
-				Join("relation", "relations.type = relation.id").
-				Where("relations.to_id = ?", userID.ID)).
-		LeftJoin("relations_to_me", "relations_to_me.from_id = entries.author_id")
-}
-
-func addRelationsFromMeQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
-	return q.
-		With("relations_from_me",
-			sqlf.Select("relation.type, relations.to_id").
-				From("relations").
-				Join("relation", "relations.type = relation.id").
-				Where("relations.from_id = ?", userID.ID)).
-		LeftJoin("relations_from_me", "relations_from_me.to_id = entries.author_id")
-}
-
 func addSourceQuery(q *sqlf.Stmt, source string) *sqlf.Stmt {
 	switch source {
 	case "all":
@@ -143,8 +123,8 @@ func addSourceQuery(q *sqlf.Stmt, source string) *sqlf.Stmt {
 }
 
 func addLiveQuery(q *sqlf.Stmt, userID *models.UserID, tag, source string) *sqlf.Stmt {
-	addRelationsToMeQuery(q, userID)
-	addRelationsFromMeQuery(q, userID)
+	utils.AddAuthorRelationsToMeQuery(q, userID)
+	utils.AddAuthorRelationsFromMeQuery(q, userID)
 	addTagQuery(q, tag)
 	addSourceQuery(q, source)
 
@@ -198,21 +178,6 @@ func liveCommentsQuery(userID *models.UserID, limit int64, tag, source string) *
 	return addLiveCommentsQuery(q, userID, tag, source)
 }
 
-func AddEntryOpenQuery(q *sqlf.Stmt, userID *models.UserID, showMe bool) *sqlf.Stmt {
-	return q.Where(`
-CASE entry_privacy.type
-WHEN 'all' THEN TRUE
-WHEN 'registered' THEN ?
-WHEN 'invited' THEN ?
-WHEN 'followers' THEN authors.id = ? OR authors.creator_id = ? OR relations_from_me.type = 'followed'
-WHEN 'some' THEN authors.id = ? OR authors.creator_id = ?
-	OR EXISTS(SELECT 1 from entries_privacy WHERE user_id = ? AND entry_id = entries.id)
-WHEN 'me' THEN ? AND entries.author_id = ?
-ELSE FALSE
-END
-`, userID.ID > 0, userID.IsInvited, userID.ID, userID.ID, userID.ID, userID.ID, userID.ID, showMe, userID.ID)
-}
-
 func AddRelationToTlogQuery(q *sqlf.Stmt, userID *models.UserID, tlog string) *sqlf.Stmt {
 	return q.With("relations_from_me",
 		sqlf.Select("relation.type").
@@ -224,7 +189,7 @@ func AddRelationToTlogQuery(q *sqlf.Stmt, userID *models.UserID, tlog string) *s
 		LeftJoin("relations_from_me", "TRUE")
 }
 
-func AddRelationToQuery(q *sqlf.Stmt, userID *models.UserID, tlogID int64) *sqlf.Stmt {
+func addRelationToQuery(q *sqlf.Stmt, userID *models.UserID, tlogID int64) *sqlf.Stmt {
 	return q.With("relations_from_me",
 		sqlf.Select("relation.type").
 			From("relations").
@@ -238,7 +203,7 @@ func addTlogQuery(q *sqlf.Stmt, userID *models.UserID, tlog, tag string) *sqlf.S
 	q.Where("lower(authors.name) = lower(?)", tlog)
 	addTagQuery(q, tag)
 	AddRelationToTlogQuery(q, userID, tlog)
-	return AddEntryOpenQuery(q, userID, false)
+	return utils.AddEntryOpenQuery(q, userID, false)
 }
 
 func tlogQuery(userID *models.UserID, limit int64, tlog, tag string) *sqlf.Stmt {
@@ -247,8 +212,8 @@ func tlogQuery(userID *models.UserID, limit int64, tlog, tag string) *sqlf.Stmt 
 }
 
 func addFriendsQuery(q *sqlf.Stmt, userID *models.UserID, tag string) *sqlf.Stmt {
-	addRelationsFromMeQuery(q, userID)
-	AddEntryOpenQuery(q, userID, false)
+	utils.AddAuthorRelationsFromMeQuery(q, userID)
+	utils.AddEntryOpenQuery(q, userID, false)
 	addTagQuery(q, tag)
 	return q.
 		Where("(authors.id = ? OR relations_from_me.type = 'followed')", userID.ID).
@@ -260,27 +225,9 @@ func friendsQuery(userID *models.UserID, limit int64, tag string) *sqlf.Stmt {
 	return addFriendsQuery(q, userID, tag)
 }
 
-func addCanViewEntryQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
-	addRelationsFromMeQuery(q, userID)
-	addRelationsToMeQuery(q, userID)
-	AddEntryOpenQuery(q, userID, true)
-
-	return q.
-		Where("(relations_to_me.type IS NULL OR relations_to_me.type <> 'ignored')").
-		Where("(relations_from_me.type IS NULL OR relations_from_me.type <> 'ignored')").
-		Where(`
-CASE user_privacy.type
-WHEN 'all' THEN TRUE
-WHEN 'registered' THEN ?
-WHEN 'invited' THEN ?
-WHEN 'followers' THEN entries.author_id = ? OR relations_from_me.type = 'followed'
-ELSE FALSE
-END`, userID.ID > 0, userID.IsInvited, userID.ID)
-}
-
 func watchingQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 	q := feedQuery(userID, limit)
-	addCanViewEntryQuery(q, userID)
+	utils.AddCanViewEntryQuery(q, userID)
 	return q.Where("my_watching.entry_id IS NOT NULL").
 		Where("(authors.invited_by IS NOT NULL OR authors.creator_id IS NOT NULL)").
 		Where("entries.comments_count > 0").
@@ -288,7 +235,7 @@ func watchingQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 }
 
 func addFavoritesQuery(q *sqlf.Stmt, userID *models.UserID, tlog string) *sqlf.Stmt {
-	addCanViewEntryQuery(q, userID)
+	utils.AddCanViewEntryQuery(q, userID)
 	return q.Join("favorites", "entries.id = favorites.entry_id").
 		Where("favorites.user_id = (SELECT id FROM users WHERE lower(name) = lower(?))", tlog)
 }

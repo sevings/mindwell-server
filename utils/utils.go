@@ -3,7 +3,6 @@ package utils
 import (
 	"bytes"
 	crypto "crypto/rand"
-	"database/sql"
 	"encoding/base64"
 	"github.com/leporo/sqlf"
 	"log"
@@ -44,6 +43,63 @@ func LoadConfig(fileName string) *goconf.Config {
 	return config
 }
 
+func AddAuthorRelationsToMeQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
+	return q.
+		With("relations_to_me",
+			sqlf.Select("relation.type, relations.from_id").
+				From("relations").
+				Join("relation", "relations.type = relation.id").
+				Where("relations.to_id = ?", userID.ID)).
+		LeftJoin("relations_to_me", "relations_to_me.from_id = authors.id")
+}
+
+func AddAuthorRelationsFromMeQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
+	return q.
+		With("relations_from_me",
+			sqlf.Select("relation.type, relations.to_id").
+				From("relations").
+				Join("relation", "relations.type = relation.id").
+				Where("relations.from_id = ?", userID.ID)).
+		LeftJoin("relations_from_me", "relations_from_me.to_id = authors.id")
+}
+
+func AddEntryOpenQuery(q *sqlf.Stmt, userID *models.UserID, showMe bool) *sqlf.Stmt {
+	return q.Where(`
+CASE entry_privacy.type
+WHEN 'all' THEN TRUE
+WHEN 'registered' THEN ?
+WHEN 'invited' THEN ?
+WHEN 'followers' THEN authors.id = ? OR authors.creator_id = ? OR relations_from_me.type = 'followed'
+WHEN 'some' THEN authors.id = ? OR authors.creator_id = ?
+	OR EXISTS(SELECT 1 from entries_privacy WHERE user_id = ? AND entry_id = entries.id)
+WHEN 'me' THEN ? AND entries.author_id = ?
+ELSE FALSE
+END
+`, userID.ID > 0, userID.IsInvited, userID.ID, userID.ID, userID.ID, userID.ID, userID.ID, showMe, userID.ID)
+}
+
+func AddCanViewAuthorQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
+	AddAuthorRelationsFromMeQuery(q, userID)
+	AddAuthorRelationsToMeQuery(q, userID)
+
+	return q.
+		Where("(relations_to_me.type IS NULL OR relations_to_me.type <> 'ignored')").
+		Where("(relations_from_me.type IS NULL OR relations_from_me.type <> 'ignored')").
+		Where(`
+CASE user_privacy.type
+WHEN 'all' THEN TRUE
+WHEN 'registered' THEN ?
+WHEN 'invited' THEN ?
+WHEN 'followers' THEN authors.id = ? OR relations_from_me.type = 'followed'
+ELSE FALSE
+END`, userID.ID > 0, userID.IsInvited, userID.ID)
+}
+
+func AddCanViewEntryQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
+	AddEntryOpenQuery(q, userID, true)
+	return AddCanViewAuthorQuery(q, userID)
+}
+
 func LoadRelation(tx *AutoTx, from, to int64) string {
 	if from == 0 || to == 0 {
 		return models.RelationshipRelationNone
@@ -70,67 +126,13 @@ func CanViewTlogName(tx *AutoTx, userID *models.UserID, tlog string) bool {
 		return false
 	}
 
-	tlogQuery := sqlf.Select("users.id, COALESCE(creator_id, 0)").Select("user_privacy.type").
-		From("users").
-		LeftJoin("user_privacy", "users.privacy = user_privacy.id").
+	q := sqlf.Select("TRUE").
+		From("users AS authors").
+		LeftJoin("user_privacy", "authors.privacy = user_privacy.id").
 		Where("lower(name) = lower(?)", tlog)
 
-	var tlogID, creatorID int64
-	var privacy string
-	tx.QueryStmt(tlogQuery).Scan(&tlogID, &creatorID, &privacy)
-
-	return CanViewTlog(tx, userID, tlogID, creatorID, privacy)
-}
-
-func CanViewTlogID(tx *AutoTx, userID *models.UserID, tlogID int64) bool {
-	if tlogID == 0 {
-		return false
-	}
-
-	tlogQuery := sqlf.Select("COALESCE(creator_id, 0), user_privacy.type").
-		From("users").
-		LeftJoin("user_privacy", "users.privacy = user_privacy.id").
-		Where("users.id = ?", tlogID)
-
-	var creatorID int64
-	var privacy string
-	tx.QueryStmt(tlogQuery).Scan(&creatorID, &privacy)
-
-	return CanViewTlog(tx, userID, tlogID, creatorID, privacy)
-}
-
-// CanViewTlog returns true if the user is allowed to read the tlog.
-func CanViewTlog(tx *AutoTx, userID *models.UserID, tlogID, creatorID int64, privacy string) bool {
-	if tlogID == 0 {
-		return false
-	}
-
-	if userID.ID == 0 {
-		return privacy == models.EntryPrivacyAll
-	}
-
-	if userID.ID == tlogID || userID.ID == creatorID {
-		return true
-	}
-
-	relationFrom := LoadRelation(tx, tlogID, userID.ID)
-	if relationFrom == models.RelationshipRelationIgnored {
-		return false
-	}
-
-	switch privacy {
-	case models.EntryPrivacyAll:
-		return true
-	case models.EntryPrivacyRegistered:
-		return true
-	case models.EntryPrivacyInvited:
-		return userID.IsInvited
-	case models.EntryPrivacyFollowers:
-		relationTo := LoadRelation(tx, userID.ID, tlogID)
-		return relationTo == models.RelationshipRelationFollowed
-	}
-
-	return false
+	AddCanViewAuthorQuery(q, userID)
+	return tx.QueryStmt(q).ScanBool()
 }
 
 // CanViewEntry returns true if the user is allowed to read the entry.
@@ -139,53 +141,16 @@ func CanViewEntry(tx *AutoTx, userID *models.UserID, entryID int64) bool {
 		return false
 	}
 
-	entryQuery := sqlf.Select("author_id, user_id, creator_id").Select("entry_privacy.type").
+	q := sqlf.Select("TRUE").
 		From("entries").
-		Join("entry_privacy", "visible_for = entry_privacy.id").
-		Join("users", "author_id = users.id").
+		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
+		Join("users AS authors", "entries.author_id = authors.id").
+		Join("user_privacy", "authors.privacy = user_privacy.id").
 		Where("entries.id = ?", entryID)
 
-	var tlogID, entryUserID int64
-	var creatorID sql.NullInt64
-	var privacy string
-	tx.QueryStmt(entryQuery).Scan(&tlogID, &entryUserID, &creatorID, &privacy)
+	AddCanViewEntryQuery(q, userID)
 
-	if entryUserID == userID.ID || (creatorID.Valid && creatorID.Int64 == userID.ID) {
-		return true
-	}
-
-	if !CanViewTlogID(tx, userID, tlogID) {
-		return false
-	}
-
-	switch privacy {
-	case models.EntryPrivacyAll:
-		return true
-	case models.EntryPrivacyRegistered:
-		return userID.ID > 0
-	case models.EntryPrivacyInvited:
-		return userID.IsInvited
-	case models.EntryPrivacyFollowers:
-		relationTo := LoadRelation(tx, userID.ID, tlogID)
-		return relationTo == models.RelationshipRelationFollowed
-	case models.EntryPrivacySome:
-		if userID.ID == 0 {
-			return false
-		}
-
-		privacyQuery := sqlf.Select("TRUE").
-			From("entries_privacy").
-			Where("user_id = ?", userID.ID).
-			Where("entry_id = ?", entryID)
-
-		var canView bool
-		tx.QueryStmt(privacyQuery).Scan(&canView)
-		return canView
-	case models.EntryPrivacyMe:
-		return false
-	}
-
-	return false
+	return tx.QueryStmt(q).ScanBool()
 }
 
 func queryUser(tx *AutoTx, query string, arg any) *models.User {
