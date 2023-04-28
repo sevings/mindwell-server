@@ -495,12 +495,12 @@ func loadTlogFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 	defer scrollQ.Close()
 
 	if len(feed.Entries) == 0 {
-		scrollQ.Select("extract(epoch from entries.created_at)").
-			OrderBy("entries.created_at DESC")
+		scrollQ.Select("extract(epoch from entries.created_at)")
 
 		if before > 0 {
 			query := scrollQ.Clone().
-				Where("entries.created_at >= to_timestamp(?)", before)
+				Where("entries.created_at >= to_timestamp(?)", before).
+				OrderBy("entries.created_at ASC")
 			tx.QueryStmt(query)
 
 			var nextAfter float64
@@ -510,7 +510,8 @@ func loadTlogFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 
 		if after > 0 {
 			query := scrollQ.Clone().
-				Where("entries.created_at <= to_timestamp(?)", before)
+				Where("entries.created_at <= to_timestamp(?)", after).
+				OrderBy("entries.created_at DESC")
 			tx.QueryStmt(query)
 
 			var nextBefore float64
@@ -618,11 +619,11 @@ func loadMyTlogFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.
 	defer scrollQ.Close()
 
 	if len(feed.Entries) == 0 {
-		scrollQ.Select("extract(epoch from entries.created_at)").
-			OrderBy("entries.created_at")
+		scrollQ.Select("extract(epoch from entries.created_at)")
 
 		if before > 0 {
-			afterQuery := scrollQ.Clone().Where("created_at >= to_timestamp(?)", before)
+			afterQuery := scrollQ.Clone().Where("created_at >= to_timestamp(?)", before).
+				OrderBy("entries.created_at ASC")
 
 			tx.QueryStmt(afterQuery)
 			var nextAfter float64
@@ -631,7 +632,8 @@ func loadMyTlogFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.
 		}
 
 		if after > 0 {
-			beforeQuery := scrollQ.Clone().Where("created_at <= to_timestamp(?)", after)
+			beforeQuery := scrollQ.Clone().Where("created_at <= to_timestamp(?)", after).
+				OrderBy("entries.created_at DESC")
 
 			tx.QueryStmt(beforeQuery)
 			var nextBefore float64
@@ -708,12 +710,12 @@ func loadFriendsFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models
 	defer scrollQ.Close()
 
 	if len(feed.Entries) == 0 {
-		scrollQ.Select("extract(epoch from entries.created_at)").
-			OrderBy("entries.created_at DESC")
+		scrollQ.Select("extract(epoch from entries.created_at)")
 
 		if before > 0 {
 			afterQuery := scrollQ.Clone().
-				Where("entries.created_at >= to_timestamp(?)", before)
+				Where("entries.created_at >= to_timestamp(?)", before).
+				OrderBy("entries.created_at ASC")
 			tx.QueryStmt(afterQuery)
 
 			var nextAfter float64
@@ -723,7 +725,8 @@ func loadFriendsFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models
 
 		if after > 0 {
 			beforeQuery := scrollQ.Clone().
-				Where("entries.created_at <= to_timestamp(?)", before)
+				Where("entries.created_at <= to_timestamp(?)", before).
+				OrderBy("entries.created_at DESC")
 			tx.QueryStmt(beforeQuery)
 
 			var nextBefore float64
@@ -793,12 +796,12 @@ func loadTlogFavorites(srv *utils.MindwellServer, tx *utils.AutoTx, userID *mode
 	defer scrollQ.Close()
 
 	if len(feed.Entries) == 0 {
-		scrollQ.Select("extract(epoch from favorites.date)").
-			OrderBy("favorites.date DESC")
+		scrollQ.Select("extract(epoch from favorites.date)")
 
 		if before > 0 {
 			afterQuery := scrollQ.Clone().
-				Where("favorites.date >= to_timestamp(?)", before)
+				Where("favorites.date >= to_timestamp(?)", before).
+				OrderBy("favorites.date ASC")
 			tx.QueryStmt(afterQuery)
 
 			var nextAfter float64
@@ -808,7 +811,8 @@ func loadTlogFavorites(srv *utils.MindwellServer, tx *utils.AutoTx, userID *mode
 
 		if after > 0 {
 			beforeQuery := scrollQ.Clone().
-				Where("favorites.date <= to_timestamp(?)", after)
+				Where("favorites.date <= to_timestamp(?)", after).
+				OrderBy("favorites.date DESC")
 			tx.QueryStmt(beforeQuery)
 
 			var nextBefore float64
