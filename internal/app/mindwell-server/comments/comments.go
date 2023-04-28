@@ -3,13 +3,16 @@ package comments
 import (
 	"database/sql"
 	"fmt"
+	"github.com/sevings/mindwell-server/restapi/operations/me"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
+	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"net/url"
 	"regexp"
 	"strings"
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"github.com/sevings/mindwell-server/internal/app/mindwell-server/users"
+	usersIml "github.com/sevings/mindwell-server/internal/app/mindwell-server/users"
 	"github.com/sevings/mindwell-server/restapi/operations/comments"
 
 	"github.com/sevings/mindwell-server/models"
@@ -24,6 +27,11 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 
 	srv.API.CommentsGetEntriesIDCommentsHandler = comments.GetEntriesIDCommentsHandlerFunc(newEntryCommentsLoader(srv))
 	srv.API.CommentsPostEntriesIDCommentsHandler = comments.PostEntriesIDCommentsHandlerFunc(newCommentPoster(srv))
+
+	srv.API.MeGetMeCommentsHandler = me.GetMeCommentsHandlerFunc(newMyCommentsLoader(srv))
+	srv.API.UsersGetUsersNameCommentsHandler = users.GetUsersNameCommentsHandlerFunc(newUserCommentsLoader(srv))
+	srv.API.ThemesGetThemesNameCommentsHandler = themes.GetThemesNameCommentsHandlerFunc(newThemeCommentsLoader(srv))
+	srv.API.CommentsGetCommentsHandler = comments.GetCommentsHandlerFunc(newLiveCommentsLoader(srv))
 
 	srv.API.CommentsGetEntriesIDCommentatorHandler = comments.GetEntriesIDCommentatorHandlerFunc(newCommentatorLoader(srv))
 }
@@ -246,6 +254,64 @@ func newEntryCommentsLoader(srv *utils.MindwellServer) func(comments.GetEntriesI
 	}
 }
 
+func newMyCommentsLoader(srv *utils.MindwellServer) func(me.GetMeCommentsParams, *models.UserID) middleware.Responder {
+	return func(params me.GetMeCommentsParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			data := loadAuthorComments(srv, tx, userID, *params.Limit, userID.Name, *params.After, *params.Before)
+			return me.NewGetMeCommentsOK().WithPayload(data)
+		})
+	}
+}
+
+func newUserCommentsLoader(srv *utils.MindwellServer) func(users.GetUsersNameCommentsParams, *models.UserID) middleware.Responder {
+	return func(params users.GetUsersNameCommentsParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			canView := utils.CanViewTlogName(tx, userID, params.Name)
+			if !canView {
+				err := srv.StandardError("no_tlog")
+				return users.NewGetUsersNameCommentsNotFound().WithPayload(err)
+			}
+
+			data := loadAuthorComments(srv, tx, userID, *params.Limit, params.Name, *params.After, *params.Before)
+			if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
+				err := srv.NewError(nil)
+				return users.NewGetUsersNameCommentsNotFound().WithPayload(err)
+			}
+
+			return users.NewGetUsersNameCommentsOK().WithPayload(data)
+		})
+	}
+}
+
+func newThemeCommentsLoader(srv *utils.MindwellServer) func(themes.GetThemesNameCommentsParams, *models.UserID) middleware.Responder {
+	return func(params themes.GetThemesNameCommentsParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			canView := utils.CanViewTlogName(tx, userID, params.Name)
+			if !canView {
+				err := srv.StandardError("no_theme")
+				return themes.NewGetThemesNameCommentsNotFound().WithPayload(err)
+			}
+
+			data := loadAuthorComments(srv, tx, userID, *params.Limit, params.Name, *params.After, *params.Before)
+			if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
+				err := srv.NewError(nil)
+				return themes.NewGetThemesNameCommentsNotFound().WithPayload(err)
+			}
+
+			return themes.NewGetThemesNameCommentsOK().WithPayload(data)
+		})
+	}
+}
+
+func newLiveCommentsLoader(srv *utils.MindwellServer) func(comments.GetCommentsParams, *models.UserID) middleware.Responder {
+	return func(params comments.GetCommentsParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			data := loadLiveComments(srv, tx, userID, *params.Limit, *params.After, *params.Before)
+			return comments.NewGetCommentsOK().WithPayload(data)
+		})
+	}
+}
+
 func commentatorID(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entryID int64) (int64, *models.Error) {
 	const q = `
 		SELECT author_id, user_id, is_commentable, is_anonymous
@@ -308,7 +374,7 @@ func newCommentPoster(srv *utils.MindwellServer) func(comments.PostEntriesIDComm
 			}
 
 			comment := &models.Comment{
-				Author:      users.LoadUserByID(srv, tx, authorID),
+				Author:      usersIml.LoadUserByID(srv, tx, authorID),
 				EditContent: params.Content,
 				EntryID:     params.ID,
 			}
@@ -336,7 +402,7 @@ func newCommentatorLoader(srv *utils.MindwellServer) func(comments.GetEntriesIDC
 				return comments.NewGetEntriesIDCommentatorNotFound().WithPayload(err)
 			}
 
-			author := users.LoadUserByID(srv, tx, authorID)
+			author := usersIml.LoadUserByID(srv, tx, authorID)
 			return comments.NewGetEntriesIDCommentatorOK().WithPayload(author)
 		})
 	}

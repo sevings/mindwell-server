@@ -1690,6 +1690,28 @@ paths:
           description: User not found
           schema:
             $ref: '#/definitions/Error'
+  /users/{name}/comments:
+    parameters:
+      - $ref: '#/parameters/pathName'
+    get:
+      parameters:
+        - $ref: '#/parameters/limit'
+        - $ref: '#/parameters/after'
+        - $ref: '#/parameters/before'
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "comments:read" ]
+      tags:
+        - users
+      responses:
+        200:
+          description: Comment list
+          schema:
+            $ref: '#/definitions/CommentList'
+        404:
+          description: User not found
+          schema:
+            $ref: '#/definitions/Error'
   /users/{name}/images:
     parameters:
       - $ref: '#/parameters/pathName'
@@ -2059,6 +2081,28 @@ paths:
           description: Entry list
           schema:
             $ref: '#/definitions/Calendar'
+        404:
+          description: Theme not found
+          schema:
+            $ref: '#/definitions/Error'
+  /themes/{name}/comments:
+    parameters:
+      - $ref: '#/parameters/pathName'
+    get:
+      parameters:
+        - $ref: '#/parameters/limit'
+        - $ref: '#/parameters/after'
+        - $ref: '#/parameters/before'
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "comments:read" ]
+      tags:
+        - themes
+      responses:
+        200:
+          description: Comment list
+          schema:
+            $ref: '#/definitions/CommentList'
         404:
           description: Theme not found
           schema:
@@ -2457,6 +2501,22 @@ paths:
           description: Entry list
           schema:
             $ref: '#/definitions/Feed'
+  /me/comments:
+    get:
+      parameters:
+        - $ref: '#/parameters/limit'
+        - $ref: '#/parameters/after'
+        - $ref: '#/parameters/before'
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "comments:read" ]
+      tags:
+        - me
+      responses:
+        200:
+          description: Comment list
+          schema:
+            $ref: '#/definitions/CommentList'
   /me/images:
     get:
       parameters:
@@ -3220,6 +3280,22 @@ paths:
           description: Entry not found
           schema:
             $ref: '#/definitions/Error'
+  /comments:
+    get:
+      parameters:
+        - $ref: '#/parameters/limit'
+        - $ref: '#/parameters/after'
+        - $ref: '#/parameters/before'
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "comments:read" ]
+      tags:
+        - comments
+      responses:
+        200:
+          description: Comment list
+          schema:
+            $ref: '#/definitions/CommentList'
   /comments/{id}:
     parameters:
       - $ref: '#/parameters/pathId'
