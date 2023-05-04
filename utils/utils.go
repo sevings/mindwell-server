@@ -72,7 +72,7 @@ WHEN 'invited' THEN ?
 WHEN 'followers' THEN authors.id = ? OR authors.creator_id = ? OR relations_from_me.type = 'followed'
 WHEN 'some' THEN authors.id = ? OR authors.creator_id = ?
 	OR EXISTS(SELECT 1 from entries_privacy WHERE user_id = ? AND entry_id = entries.id)
-WHEN 'me' THEN ? AND entries.author_id = ?
+WHEN 'me' THEN ? AND authors.id = ?
 ELSE FALSE
 END
 `, userID.ID > 0, userID.IsInvited, userID.ID, userID.ID, userID.ID, userID.ID, userID.ID, showMe, userID.ID)

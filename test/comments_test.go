@@ -15,7 +15,12 @@ func checkComment(t *testing.T, cmt *models.Comment, entry *models.Entry, userID
 
 	req.Equal(entry.ID, cmt.EntryID)
 	req.Equal("<p>"+content+"</p>", cmt.Content)
-	req.Equal(content, cmt.EditContent)
+
+	if cmt.Rights.Edit {
+		req.Equal(content, cmt.EditContent)
+	} else {
+		req.Empty(cmt.EditContent)
+	}
 
 	req.Equal(author.ID, cmt.Author.ID)
 	req.Equal(author.Name, cmt.Author.Name)
@@ -30,9 +35,15 @@ func checkComment(t *testing.T, cmt *models.Comment, entry *models.Entry, userID
 	req.Zero(cmt.Rating.DownCount)
 	req.Zero(cmt.Rating.Vote)
 
+	if entry.Author.IsTheme {
+		if (author.IsTheme && userID.ID == author.CreatedBy.ID) || userID.ID == cmt.Author.ID {
+			req.True(cmt.Rights.Delete)
+		}
+	} else {
+		req.Equal(userID.ID == cmt.Author.ID || userID.ID == entry.Author.ID, cmt.Rights.Delete)
+	}
+
 	req.Equal(userID.ID == cmtUserID, cmt.Rights.Edit)
-	req.Equal(userID.ID == cmtUserID || userID.ID == entry.Author.ID ||
-		(author.IsTheme && userID.ID == author.CreatedBy.ID), cmt.Rights.Delete)
 	req.Equal(userID.ID != cmtUserID && !userID.Ban.Vote, cmt.Rights.Vote)
 	req.Equal(userID.ID != cmtUserID, cmt.Rights.Complain)
 }
@@ -176,7 +187,7 @@ func TestAnonymousComments(t *testing.T) {
 	theme := createTestTheme(t, userIDs[0])
 	toTheme := &models.AuthProfile{Profile: *theme}
 	checkFollow(t, userIDs[1], nil, toTheme, models.RelationshipRelationFollowed, true)
-	entry := postThemeEntry(userIDs[1], theme.Name, true)
+	entry := postThemeEntry(userIDs[1], theme.Name, models.EntryPrivacyAll, true)
 
 	var id int64
 

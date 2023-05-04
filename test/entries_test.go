@@ -126,6 +126,17 @@ func checkLoadEntry(t *testing.T, entryID int64, userID *models.UserID, success 
 	checkEntry(t, entry, user, author, canEdit, vote, watching, wc, privacy, commentable, votable, live, title, content, tags)
 }
 
+func loadEntry(userID *models.UserID, entryID int64) *models.Entry {
+	load := api.EntriesGetEntriesIDHandler.Handle
+	resp := load(entries.GetEntriesIDParams{ID: entryID}, userID)
+	body, ok := resp.(*entries.GetEntriesIDOK)
+	if !ok {
+		return nil
+	}
+
+	return body.Payload
+}
+
 func checkPostEntry(t *testing.T,
 	params me.PostMeTlogParams,
 	user, author *models.Profile, id *models.UserID, success bool, wc int64) int64 {
@@ -524,12 +535,11 @@ func postEntry(id *models.UserID, privacy string, live bool) *models.Entry {
 	return entry
 }
 
-func postThemeEntry(id *models.UserID, themeName string, isAnonymous bool) *models.Entry {
+func postThemeEntry(id *models.UserID, themeName, privacy string, isAnonymous bool) *models.Entry {
 	commentable := true
 	votable := true
 	live := true
 	title := ""
-	privacy := models.EntryPrivacyAll
 	params := themes.PostThemesNameTlogParams{
 		Name:          themeName,
 		Content:       "test test test" + utils.GenerateString(6),
@@ -545,7 +555,7 @@ func postThemeEntry(id *models.UserID, themeName string, isAnonymous bool) *mode
 	body := resp.(*themes.PostThemesNameTlogCreated)
 	entry := body.Payload
 
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(1 * time.Millisecond)
 
 	return entry
 }

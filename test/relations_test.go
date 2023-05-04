@@ -72,6 +72,15 @@ func checkFollow(t *testing.T, user *models.UserID, toID *models.UserID, to *mod
 	}
 }
 
+func follow(user *models.UserID, toName, relation string) {
+	put := api.RelationsPutRelationsToNameHandler.Handle
+	params := relations.PutRelationsToNameParams{
+		Name: toName,
+		R:    relation,
+	}
+	put(params, user)
+}
+
 func checkPermitFollow(t *testing.T, user, from *models.UserID, success bool) {
 	put := api.RelationsPutRelationsFromNameHandler.Handle
 	params := relations.PutRelationsFromNameParams{
@@ -105,6 +114,14 @@ func checkUnfollow(t *testing.T, user, to *models.UserID) {
 	req.Equal(params.Name, status.To)
 	req.Equal(user.Name, status.From)
 	req.Equal(models.RelationshipRelationNone, status.Relation)
+}
+
+func unfollow(user *models.UserID, name string) {
+	del := api.RelationsDeleteRelationsToNameHandler.Handle
+	params := relations.DeleteRelationsToNameParams{
+		Name: name,
+	}
+	del(params, user)
 }
 
 func checkCancelFollow(t *testing.T, user, from *models.UserID, success bool) {

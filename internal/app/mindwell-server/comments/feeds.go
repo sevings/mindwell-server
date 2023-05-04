@@ -9,16 +9,16 @@ import (
 
 func baseFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 	return sqlf.Select("comments.id, entry_id").
-		Select("extract(epoch from comments.created_at), edit_content, rating").
-		Select("up_votes, down_votes, votes.vote").
-		Select("author_id, name, show_name").
-		Select("is_online(last_seen_at), users.creator_id IS NOT NULL").
-		Select("avatar, user_id").
+		Select("extract(epoch from comments.created_at), comments.edit_content, comments.rating").
+		Select("comments.up_votes, comments.down_votes, votes.vote").
+		Select("comments.author_id, users.name, users.show_name").
+		Select("is_online(users.last_seen_at), users.creator_id IS NOT NULL").
+		Select("users.avatar, comments.user_id").
 		From("comments").
 		Join("users", "comments.author_id = users.id").
 		With("votes",
-			sqlf.Select("comment_id, vote").From("comment_votes").Where("user_id = ?", userID.ID)).
-		LeftJoin("votes", "comments.id = votes.comment_id ").
+			sqlf.Select("comment_id, vote").From("comment_votes").Where("comment_votes.user_id = ?", userID.ID)).
+		LeftJoin("votes", "comments.id = votes.comment_id").
 		Limit(limit)
 }
 
@@ -39,19 +39,29 @@ func addCanViewEntryQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
 	return utils.AddCanViewEntryQuery(q, userID)
 }
 
-func liveFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
+func allFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 	q := baseFeedQuery(userID, limit)
 	return addCanViewEntryQuery(q, userID)
 }
 
-func addAuthorQuery(q *sqlf.Stmt, userID *models.UserID, name string) *sqlf.Stmt {
+func addUserQuery(q *sqlf.Stmt, userID *models.UserID, name string) *sqlf.Stmt {
+	q.Where("lower(users.name) = lower(?)", name)
+	return addCanViewEntryQuery(q, userID)
+}
+
+func userFeedQuery(userID *models.UserID, name string, limit int64) *sqlf.Stmt {
+	q := baseFeedQuery(userID, limit)
+	return addUserQuery(q, userID, name)
+}
+
+func addThemeQuery(q *sqlf.Stmt, userID *models.UserID, name string) *sqlf.Stmt {
 	q.Where("lower(authors.name) = lower(?)", name)
 	return addCanViewEntryQuery(q, userID)
 }
 
-func authorFeedQuery(userID *models.UserID, name string, limit int64) *sqlf.Stmt {
+func themeFeedQuery(userID *models.UserID, name string, limit int64) *sqlf.Stmt {
 	q := baseFeedQuery(userID, limit)
-	return addAuthorQuery(q, userID, name)
+	return addThemeQuery(q, userID, name)
 }
 
 func scrollQuery() *sqlf.Stmt {
@@ -169,6 +179,10 @@ func loadNext(tx *utils.AutoTx, cmts *models.CommentList, scrollQ *sqlf.Stmt, be
 		oldest := cmts.Data[0].ID
 		newest := cmts.Data[len(cmts.Data)-1].ID
 
+		if oldest > newest {
+			newest, oldest = oldest, newest
+		}
+
 		beforeQ := scrollQ.Clone().Where("comments.id < ?", oldest)
 		cmts.HasBefore = tx.QueryStmt(beforeQ).ScanBool()
 		cmts.NextBefore = utils.FormatInt64(oldest)
@@ -199,18 +213,20 @@ func LoadEntryComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *mode
 	return cmts
 }
 
-func loadAuthorComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, limit int64, author, afterS, beforeS string) *models.CommentList {
+func loadUserComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, limit int64, author, afterS, beforeS string) *models.CommentList {
 	before := utils.ParseInt64(beforeS)
 	after := utils.ParseInt64(afterS)
 
-	query := authorFeedQuery(userID, author, limit)
+	query := userFeedQuery(userID, author, limit)
 	addBordersQuery(query, before, after)
 
 	tx.QueryStmt(query)
-	cmts := loadFeed(srv, tx, userID, after <= 0)
+	cmts := loadFeed(srv, tx, userID, after > 0)
 
-	scrollQ := scrollQuery()
-	addAuthorQuery(scrollQ, userID, author)
+	scrollQ := scrollQuery().
+		Join("users", "comments.author_id = users.id")
+
+	addUserQuery(scrollQ, userID, author)
 	defer scrollQ.Close()
 
 	loadNext(tx, cmts, scrollQ, before, after)
@@ -218,15 +234,34 @@ func loadAuthorComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *mod
 	return cmts
 }
 
-func loadLiveComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, limit int64, afterS, beforeS string) *models.CommentList {
+func loadThemeComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, limit int64, author, afterS, beforeS string) *models.CommentList {
 	before := utils.ParseInt64(beforeS)
 	after := utils.ParseInt64(afterS)
 
-	query := liveFeedQuery(userID, limit)
+	query := themeFeedQuery(userID, author, limit)
 	addBordersQuery(query, before, after)
 
 	tx.QueryStmt(query)
-	cmts := loadFeed(srv, tx, userID, after <= 0)
+	cmts := loadFeed(srv, tx, userID, after > 0)
+
+	scrollQ := scrollQuery()
+	addThemeQuery(scrollQ, userID, author)
+	defer scrollQ.Close()
+
+	loadNext(tx, cmts, scrollQ, before, after)
+
+	return cmts
+}
+
+func loadAllComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, limit int64, afterS, beforeS string) *models.CommentList {
+	before := utils.ParseInt64(beforeS)
+	after := utils.ParseInt64(afterS)
+
+	query := allFeedQuery(userID, limit)
+	addBordersQuery(query, before, after)
+
+	tx.QueryStmt(query)
+	cmts := loadFeed(srv, tx, userID, after > 0)
 
 	scrollQ := scrollQuery()
 	addCanViewEntryQuery(scrollQ, userID)

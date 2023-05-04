@@ -31,7 +31,7 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.MeGetMeCommentsHandler = me.GetMeCommentsHandlerFunc(newMyCommentsLoader(srv))
 	srv.API.UsersGetUsersNameCommentsHandler = users.GetUsersNameCommentsHandlerFunc(newUserCommentsLoader(srv))
 	srv.API.ThemesGetThemesNameCommentsHandler = themes.GetThemesNameCommentsHandlerFunc(newThemeCommentsLoader(srv))
-	srv.API.CommentsGetCommentsHandler = comments.GetCommentsHandlerFunc(newLiveCommentsLoader(srv))
+	srv.API.CommentsGetCommentsHandler = comments.GetCommentsHandlerFunc(newAllCommentsLoader(srv))
 
 	srv.API.CommentsGetEntriesIDCommentatorHandler = comments.GetEntriesIDCommentatorHandlerFunc(newCommentatorLoader(srv))
 }
@@ -257,7 +257,7 @@ func newEntryCommentsLoader(srv *utils.MindwellServer) func(comments.GetEntriesI
 func newMyCommentsLoader(srv *utils.MindwellServer) func(me.GetMeCommentsParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeCommentsParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			data := loadAuthorComments(srv, tx, userID, *params.Limit, userID.Name, *params.After, *params.Before)
+			data := loadUserComments(srv, tx, userID, *params.Limit, userID.Name, *params.After, *params.Before)
 			return me.NewGetMeCommentsOK().WithPayload(data)
 		})
 	}
@@ -272,7 +272,7 @@ func newUserCommentsLoader(srv *utils.MindwellServer) func(users.GetUsersNameCom
 				return users.NewGetUsersNameCommentsNotFound().WithPayload(err)
 			}
 
-			data := loadAuthorComments(srv, tx, userID, *params.Limit, params.Name, *params.After, *params.Before)
+			data := loadUserComments(srv, tx, userID, *params.Limit, params.Name, *params.After, *params.Before)
 			if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
 				err := srv.NewError(nil)
 				return users.NewGetUsersNameCommentsNotFound().WithPayload(err)
@@ -292,7 +292,7 @@ func newThemeCommentsLoader(srv *utils.MindwellServer) func(themes.GetThemesName
 				return themes.NewGetThemesNameCommentsNotFound().WithPayload(err)
 			}
 
-			data := loadAuthorComments(srv, tx, userID, *params.Limit, params.Name, *params.After, *params.Before)
+			data := loadThemeComments(srv, tx, userID, *params.Limit, params.Name, *params.After, *params.Before)
 			if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
 				err := srv.NewError(nil)
 				return themes.NewGetThemesNameCommentsNotFound().WithPayload(err)
@@ -303,10 +303,10 @@ func newThemeCommentsLoader(srv *utils.MindwellServer) func(themes.GetThemesName
 	}
 }
 
-func newLiveCommentsLoader(srv *utils.MindwellServer) func(comments.GetCommentsParams, *models.UserID) middleware.Responder {
+func newAllCommentsLoader(srv *utils.MindwellServer) func(comments.GetCommentsParams, *models.UserID) middleware.Responder {
 	return func(params comments.GetCommentsParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			data := loadLiveComments(srv, tx, userID, *params.Limit, *params.After, *params.Before)
+			data := loadAllComments(srv, tx, userID, *params.Limit, *params.After, *params.Before)
 			return comments.NewGetCommentsOK().WithPayload(data)
 		})
 	}
