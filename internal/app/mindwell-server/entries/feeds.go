@@ -227,7 +227,7 @@ func friendsQuery(userID *models.UserID, limit int64, tag string) *sqlf.Stmt {
 
 func watchingQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 	q := feedQuery(userID, limit)
-	utils.AddCanViewEntryQuery(q, userID)
+	utils.AddViewEntryQuery(q, userID)
 	return q.Where("my_watching.entry_id IS NOT NULL").
 		Where("(authors.invited_by IS NOT NULL OR authors.creator_id IS NOT NULL)").
 		Where("entries.comments_count > 0").
@@ -235,7 +235,7 @@ func watchingQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 }
 
 func addFavoritesQuery(q *sqlf.Stmt, userID *models.UserID, tlog string) *sqlf.Stmt {
-	utils.AddCanViewEntryQuery(q, userID)
+	utils.AddViewEntryQuery(q, userID)
 	return q.Join("favorites", "entries.id = favorites.entry_id").
 		Where("favorites.user_id = (SELECT id FROM users WHERE lower(name) = lower(?))", tlog)
 }
