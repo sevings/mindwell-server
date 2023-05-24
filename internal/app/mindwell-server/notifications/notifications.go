@@ -106,6 +106,10 @@ func loadNotification(srv *utils.MindwellServer, tx *utils.AutoTx, userID *model
 	switch not.tpe {
 	case models.NotificationTypeComment:
 		notif.Comment = comments.LoadComment(srv, tx, userID, not.subj)
+		if notif.Comment == nil {
+			return nil
+		}
+
 		notif.Entry = entries.LoadEntry(srv, tx, notif.Comment.EntryID, userID)
 		break
 	case models.NotificationTypeInvite:
@@ -152,7 +156,9 @@ func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID
 
 	for _, not := range notices {
 		notif := loadNotification(srv, tx, userID, &not)
-		feed.Notifications = append(feed.Notifications, notif)
+		if notif != nil {
+			feed.Notifications = append(feed.Notifications, notif)
+		}
 	}
 
 	if reverse {
@@ -240,6 +246,11 @@ func newSingleNotificationLoader(srv *utils.MindwellServer) func(notifications.G
 			}
 
 			ntf := loadNotification(srv, tx, userID, &not)
+			if ntf == nil {
+				err := srv.NewError(&i18n.Message{ID: "no_notification", Other: "Notification not found or it's not yours."})
+				return notifications.NewGetNotificationsIDNotFound().WithPayload(err)
+			}
+
 			return notifications.NewGetNotificationsIDOK().WithPayload(ntf)
 		})
 	}
