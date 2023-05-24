@@ -2,6 +2,7 @@ package utils
 
 import (
 	"database/sql"
+	"github.com/leporo/sqlf"
 	"github.com/sevings/mindwell-server/models"
 	"gitlab.com/golang-commonmark/markdown"
 )
@@ -143,23 +144,24 @@ func (ntf *CompositeNotifier) entryTitle(tx *AutoTx, entryID int64) string {
 func (ntf *CompositeNotifier) SendNewComment(tx *AutoTx, cmt *models.Comment) {
 	title := ntf.entryTitle(tx, cmt.EntryID)
 
-	const fromQ = `
-		SELECT gender.type 
-		FROM users, gender 
-		WHERE users.id = $1 AND users.gender = gender.id
-	`
+	fromQ := sqlf.Select("gender.type").
+		From("users").
+		Join("gender", "users.gender = gender.id").
+		Where("users.id = ?", cmt.Author.ID)
 
-	fromGender := tx.QueryString(fromQ, cmt.Author.ID)
+	fromGender := tx.QueryStmt(fromQ).ScanString()
 
-	cmtUserID := tx.QueryInt64("SELECT user_id FROM comments WHERE id = $1", cmt.ID)
+	cmtIDQ := sqlf.Select("user_id").From("comments").Where("id = ?", cmt.ID)
+	cmtUserID := tx.QueryStmt(cmtIDQ).ScanInt64()
 
-	const toQ = `
-		SELECT users.id, users.name, show_name, email, verified AND email_comments, telegram, telegram_comments
-		FROM users 
-		INNER JOIN watching ON watching.user_id = users.id 
-		WHERE watching.entry_id = $1 AND users.id <> $2`
+	toQ := sqlf.Select("users.id, users.name, show_name").
+		Select("email, verified AND email_comments, telegram, telegram_comments").
+		From("users").
+		Join("watching", "watching.user_id = users.id").
+		Where("watching.entry_id = ?", cmt.EntryID).
+		Where("users.id <> ?", cmtUserID)
 
-	tx.Query(toQ, cmt.EntryID, cmtUserID)
+	tx.QueryStmt(toQ)
 
 	type userData struct {
 		id        int64
@@ -186,6 +188,13 @@ func (ntf *CompositeNotifier) SendNewComment(tx *AutoTx, cmt *models.Comment) {
 	for _, user := range toUsers {
 		userID, _ := LoadUserIDByID(tx, user.id)
 		user.canView = CanViewEntry(tx, userID, cmt.EntryID)
+		if !user.canView {
+			continue
+		}
+
+		viewQ := sqlf.Select("TRUE").From("comments").Where("comments.id = ?", cmt.ID)
+		AddViewCommentQuery(viewQ, userID)
+		user.canView = tx.QueryStmt(viewQ).ScanBool()
 	}
 
 	for _, user := range toUsers {

@@ -238,7 +238,7 @@ func postComment(id *models.UserID, entryID int64) int64 {
 	body := resp.(*comments.PostEntriesIDCommentsCreated)
 	cmt := body.Payload
 
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(1 * time.Millisecond)
 
 	return cmt.ID
 }

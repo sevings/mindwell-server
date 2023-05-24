@@ -330,3 +330,124 @@ func TestAllComments(t *testing.T) {
 
 	deleteTheme(t, theme)
 }
+
+func checkLoadEntryComments(t *testing.T, user *models.UserID, entryID, limit int64, before, after string, size int) *models.CommentList {
+	req := require.New(t)
+	params := comments.GetEntriesIDCommentsParams{
+		After:  &after,
+		Before: &before,
+		Limit:  &limit,
+		ID:     entryID,
+	}
+	load := api.CommentsGetEntriesIDCommentsHandler.Handle
+	resp := load(params, user)
+	body, ok := resp.(*comments.GetEntriesIDCommentsOK)
+	if !ok {
+		req.Zero(size)
+		return nil
+	}
+
+	list := body.Payload
+	req.Equal(size, len(list.Data))
+
+	for _, cmt := range list.Data {
+		req.Equal(entryID, cmt.EntryID)
+
+		checkCanLoadComment(t, cmt.ID, user)
+	}
+
+	return list
+}
+
+func TestEntryComments(t *testing.T) {
+	theme := createTestTheme(t, userIDs[0])
+	e1 := postThemeEntry(userIDs[0], theme.Name, models.EntryPrivacyAll, true).ID
+	id1 := postComment(userIDs[0], e1)
+	id2 := postComment(userIDs[1], e1)
+
+	follow(userIDs[1], userIDs[0].Name, models.RelationshipRelationFollowed)
+	follow(userIDs[0], userIDs[2].Name, models.RelationshipRelationIgnored)
+
+	req := require.New(t)
+	list := checkLoadEntryComments(t, userIDs[0], e1, 10, "", "", 2)
+	req.Equal(id1, list.Data[0].ID)
+	req.Equal(id2, list.Data[1].ID)
+	req.False(list.HasAfter)
+	req.False(list.HasBefore)
+
+	checkLoadEntryComments(t, userIDs[1], e1, 10, "", "", 2)
+	checkLoadEntryComments(t, userIDs[2], e1, 10, "", "", 2)
+
+	e2 := postEntry(userIDs[0], models.EntryPrivacyAll, true).ID
+	id3 := postComment(userIDs[0], e2)
+	id4 := postComment(userIDs[0], e2)
+	id5 := postComment(userIDs[1], e2)
+
+	list = checkLoadEntryComments(t, userIDs[1], e2, 10, "", "", 3)
+	req.Equal(id3, list.Data[0].ID)
+	req.Equal(id4, list.Data[1].ID)
+	req.Equal(id5, list.Data[2].ID)
+	req.False(list.HasAfter)
+	req.False(list.HasBefore)
+
+	checkLoadEntryComments(t, userIDs[2], e2, 10, "", "", 0)
+	checkLoadEntryComments(t, userIDs[3], e2, 10, "", "", 3)
+
+	e3 := postEntry(userIDs[0], models.EntryPrivacyFollowers, true).ID
+	id6 := postComment(userIDs[0], e3)
+
+	list = checkLoadEntryComments(t, userIDs[1], e3, 10, "", "", 1)
+	req.Equal(id6, list.Data[0].ID)
+	req.False(list.HasAfter)
+	req.False(list.HasBefore)
+
+	checkLoadEntryComments(t, userIDs[2], e3, 10, "", "", 0)
+	checkLoadEntryComments(t, userIDs[3], e3, 10, "", "", 0)
+
+	e4 := postEntry(userIDs[1], models.EntryPrivacyAll, true).ID
+	id7 := postComment(userIDs[0], e4)
+	id8 := postComment(userIDs[2], e4)
+
+	list = checkLoadEntryComments(t, userIDs[1], e4, 10, "", "", 2)
+	req.Equal(id7, list.Data[0].ID)
+	req.Equal(id8, list.Data[1].ID)
+	req.False(list.HasAfter)
+	req.False(list.HasBefore)
+
+	list = checkLoadEntryComments(t, userIDs[0], e4, 10, "", "", 1)
+	req.Equal(id7, list.Data[0].ID)
+	req.False(list.HasAfter)
+	req.False(list.HasBefore)
+
+	list = checkLoadEntryComments(t, userIDs[2], e4, 10, "", "", 1)
+	req.Equal(id8, list.Data[0].ID)
+	req.False(list.HasAfter)
+	req.False(list.HasBefore)
+
+	e5 := postEntry(userIDs[2], models.EntryPrivacyAll, true).ID
+	id9 := postComment(userIDs[0], e5)
+	idA := postComment(userIDs[2], e5)
+
+	list = checkLoadEntryComments(t, userIDs[0], e5, 10, "", "", 2)
+	req.Equal(id9, list.Data[0].ID)
+	req.Equal(idA, list.Data[1].ID)
+	req.False(list.HasAfter)
+	req.False(list.HasBefore)
+
+	list = checkLoadEntryComments(t, userIDs[2], e5, 10, "", "", 2)
+	req.Equal(id9, list.Data[0].ID)
+	req.Equal(idA, list.Data[1].ID)
+	req.False(list.HasAfter)
+	req.False(list.HasBefore)
+
+	checkUnfollow(t, userIDs[1], userIDs[0])
+	checkUnfollow(t, userIDs[0], userIDs[2])
+
+	checkDeleteEntry(t, e1, userIDs[0], true)
+	checkDeleteEntry(t, e2, userIDs[0], true)
+	checkDeleteEntry(t, e3, userIDs[0], true)
+	checkDeleteEntry(t, e4, userIDs[1], true)
+	checkDeleteEntry(t, e5, userIDs[2], true)
+
+	deleteTheme(t, theme)
+}

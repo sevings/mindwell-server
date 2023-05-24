@@ -22,13 +22,15 @@ func baseFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 		Limit(limit)
 }
 
-func addEntryQuery(q *sqlf.Stmt, entryID int64) *sqlf.Stmt {
+func addEntryQuery(q *sqlf.Stmt, userID *models.UserID, entryID int64) *sqlf.Stmt {
+	utils.AddViewCommentQuery(q, userID)
+
 	return q.Where("entry_id = ?", entryID)
 }
 
 func entryFeedQuery(userID *models.UserID, entryID, limit int64) *sqlf.Stmt {
 	q := baseFeedQuery(userID, limit)
-	return addEntryQuery(q, entryID)
+	return addEntryQuery(q, userID, entryID)
 }
 
 func addCanViewEntryQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
@@ -205,7 +207,7 @@ func LoadEntryComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *mode
 	cmts := loadFeed(srv, tx, userID, after <= 0)
 
 	scrollQ := scrollQuery()
-	addEntryQuery(scrollQ, entryID)
+	addEntryQuery(scrollQ, userID, entryID)
 	defer scrollQ.Close()
 
 	loadNext(tx, cmts, scrollQ, before, after)
