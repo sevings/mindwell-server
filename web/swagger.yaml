@@ -2837,6 +2837,7 @@ paths:
           enum: [month, week]
           default: month
       security:
+        - OAuth2App: [ ]
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
       tags:
