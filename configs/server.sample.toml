@@ -1,0 +1,55 @@
+[database]
+driver      = "postgres"
+user        = "binque"
+password    = "password"
+name        = "mindwell"
+schema      = "mindwell"
+host        = "127.0.0.1"
+port        = 5432
+
+[images]
+base_url    = "http://img.mindwell.local/"
+#where are images stored
+folder      = "/home/binque/go/images/"
+#count of default covers
+covers      = 16
+
+[web]
+ip          = "127.0.0.1"
+
+[server]
+app_salt    = "app_salt_dev"
+at_salt     = "at_salt_dev"
+rt_salt     = "rt_salt_dev"
+mail_salt   = "mail_salt_dev"
+pass_salt   = "pass_salt_dev"
+tr_file     = "/home/binque/go/src/mindwell-server/i18n/active.ru.toml"
+base_url    = "http://mindwell.local/"
+api_secret  = "api_secret_dev"
+support     = "support@mindwell.local"
+moderator   = "mindwell@mindwell.local"
+trust_email = "gmail.com;yandex.ru;ya.ru;mail.ru;bk.ru;list.ru;inbox.com;yahoo.com;icloud.com;rambler.ru;ukr.net;protonmail.com;live.ru;live.com;liveinternet.ru"
+ban_email   = "chordmi.com;etoymail.com;aprimail.com;gilfun.com;enayu.com;pidox.org;gvnuclear.com;tempmailus.com;anomail.club;markmail.site;onlinemaster.xyz;hubbu.online;sociallifes.club;tech-guru.site;omailer.xyz;zadder.xyz;wootap.me;gurumail.xyz;senduvu.com;memsg.site;matra.top;matra.site;memsg.top;wemel.top;mybx.site;andyes.net"
+
+[centrifugo]
+api_url     = "http://127.0.0.1:9000"
+api_key     = "(copy from /etc/centrifugo/config.json)"
+secret      = "(copy from /etc/centrifugo/config.json)"
+
+[email]
+#host        = "127.0.0.1"
+#port        = 25
+
+[telegram]
+#token       = "telegram_token"
+#secret      = "telegram bot secret"
+#ids of telegram users with bot admin rights
+admins      = ""
+moderators  = ""
+admin_group = ""
+
+
+[adm]
+reg_finished = true
+adm_finished = true
+

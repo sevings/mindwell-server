@@ -1,0 +1,18 @@
+[database]
+driver      = "postgres"
+user        = "binque"
+password    = "password"
+name        = "mindwell"
+schema      = "mindwell"
+host        = "127.0.0.1"
+port        = 5432
+
+[images]
+#where are images stored
+folder      = "/home/binque/go/images/"
+base_url    = "http://img.mindwell.local/"
+
+[server]
+api_secret  = "api_secret_dev"
+app_salt    = "app_salt_dev"
+at_salt     = "at_salt_dev"
