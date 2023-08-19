@@ -15,6 +15,7 @@ const helpArg = "help"
 const mailArg = "mail"
 const logArg = "log"
 const surveyArg = "survey"
+const webappArg = "webapp"
 
 func printHelp() {
 	log.Printf(
@@ -26,8 +27,9 @@ Options are:
 %s		- send email reminders.
 %s		- send email survey.
 %s		- import user request log.
+%s		- create the official Mindwell web app.
 %s		- print this help message.
-`, admArg, mailArg, surveyArg, logArg, helpArg)
+`, admArg, mailArg, surveyArg, logArg, webappArg, helpArg)
 }
 
 func main() {
@@ -84,6 +86,8 @@ func main() {
 			helper.SendSurvey(tx, mail, surveyUrl)
 		case logArg:
 			helper.ImportUserLog(tx)
+		case webappArg:
+			helper.CreateWebApp(tx, cfg)
 		case helpArg:
 			printHelp()
 		default:

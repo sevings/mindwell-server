@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/leporo/sqlf"
 	"go.uber.org/zap"
-	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
@@ -537,82 +536,35 @@ func (bot *TelegramBot) createApp(args []string) string {
 		return "Укажи необходимые аргументы."
 	}
 
-	devName := strings.TrimSpace(args[0])
-	appType := strings.TrimSpace(args[1])
-	appFlow := strings.TrimSpace(args[2])
-	redirectUri := strings.TrimSpace(args[3])
-	appName := strings.TrimSpace(args[4])
-	showName := strings.TrimSpace(args[5])
-	platform := strings.TrimSpace(args[6])
-	info := strings.TrimSpace(args[7])
-
-	var secretHash []byte
-	var secret string
-
-	switch appType {
-	case "private":
-		secret = GenerateString(64)
-		secretHash = bot.srv.TokenHash().AppSecretHash(secret)
-	case "public":
-		secret = "(не сгенерирован)"
-	default:
-		return "Тип приложения может быть только public или private."
-	}
-
-	flow := 1
-	switch appFlow {
-	case "code":
-		flow += 2
-	case "password":
-		flow += 4
-	default:
-		return "Тип авторизации может быть только code или password."
-	}
-
-	uriRe := regexp.MustCompile(`^\w+://[^#]+$`)
-	if !uriRe.MatchString(redirectUri) {
-		return "Redirect uri должен содержать схему и не содержать якорь."
-	}
-
-	appName = strings.TrimSpace(appName)
-	nameRe := regexp.MustCompile(`^\w+$`)
-	if !nameRe.MatchString(appName) {
-		return "Название приложения может содержать только латинские буквы, цифры и знак подчеркивания."
+	app := CreateAppParameters{
+		DevName:     strings.TrimSpace(args[0]),
+		Type:        strings.TrimSpace(args[1]),
+		Flow:        strings.TrimSpace(args[2]),
+		RedirectUri: strings.TrimSpace(args[3]),
+		Name:        strings.TrimSpace(args[4]),
+		ShowName:    strings.TrimSpace(args[5]),
+		Platform:    strings.TrimSpace(args[6]),
+		Info:        strings.TrimSpace(args[7]),
 	}
 
 	tx := NewAutoTx(bot.srv.DB)
 	defer tx.Finish()
 
-	devName = strings.TrimSpace(devName)
-	dev, err := LoadUserIDByName(tx, devName)
+	appID, secret, err := CreateApp(tx, bot.srv.TokenHash(), app)
 	if err != nil {
-		return "Пользователь " + devName + " не найден."
-	}
-
-	appID := int64(rand.Int31())
-
-	const query = `
-INSERT INTO apps(id, secret_hash, redirect_uri, developer_id, flow, name, show_name, platform, info)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
-`
-
-	tx.Exec(query, appID, secretHash, redirectUri, dev.ID, flow,
-		appName, showName, platform, info)
-	if tx.Error() != nil {
-		bot.log.Error(tx.Error().Error())
-		return "Не удалось создать приложение."
+		return "Не удалось создать приложение: " + err.Error()
 	}
 
 	text := "Приложение создано."
 	text += "\n<b>client id</b>: " + strconv.FormatInt(appID, 10)
 	text += "\n<b>client secret</b>: " + secret
-	text += "\n<b>app name</b>: " + appName
-	text += "\n<b>app show name</b>: " + showName
-	text += "\n<b>developer name</b>: " + dev.Name
-	text += "\n<b>redirect uri</b>: " + redirectUri
-	text += "\n<b>flow</b>: " + appFlow
-	text += "\n<b>platform</b>: " + platform
-	text += "\n<b>info</b>: " + info
+	text += "\n<b>app name</b>: " + app.Name
+	text += "\n<b>app show name</b>: " + app.ShowName
+	text += "\n<b>developer name</b>: " + app.DevName
+	text += "\n<b>redirect uri</b>: " + app.RedirectUri
+	text += "\n<b>flow</b>: " + app.Flow
+	text += "\n<b>platform</b>: " + app.Platform
+	text += "\n<b>info</b>: " + app.Info
 
 	return text
 }
