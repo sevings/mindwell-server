@@ -32,9 +32,9 @@ trust_email = "gmail.com;yandex.ru;ya.ru;mail.ru;bk.ru;list.ru;inbox.com;yahoo.c
 ban_email   = "chordmi.com;etoymail.com;aprimail.com;gilfun.com;enayu.com;pidox.org;gvnuclear.com;tempmailus.com;anomail.club;markmail.site;onlinemaster.xyz;hubbu.online;sociallifes.club;tech-guru.site;omailer.xyz;zadder.xyz;wootap.me;gurumail.xyz;senduvu.com;memsg.site;matra.top;matra.site;memsg.top;wemel.top;mybx.site;andyes.net"
 
 [centrifugo]
-api_url     = "http://127.0.0.1:9000"
-api_key     = "(copy from /etc/centrifugo/config.json)"
-secret      = "(copy from /etc/centrifugo/config.json)"
+#api_url     = "http://127.0.0.1:9000"
+#api_key     = "(copy from /etc/centrifugo/config.json)"
+#secret      = "(copy from /etc/centrifugo/config.json)"
 
 [email]
 #host        = "127.0.0.1"

@@ -78,6 +78,10 @@ func NewNotifier(apiURL, apiKey string) *Notifier {
 }
 
 func (ntf *Notifier) Stop() {
+	if ntf.ch == nil {
+		return
+	}
+
 	close(ntf.ch)
 	<-ntf.stop
 }
