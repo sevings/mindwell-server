@@ -22,6 +22,7 @@ import (
 	designImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/design"
 	entriesImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/entries"
 	favoritesImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/favorites"
+	imagesImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/images"
 	notificationsImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/notifications"
 	oauth2Impl "github.com/sevings/mindwell-server/internal/app/mindwell-server/oauth2"
 	relationsImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/relations"
@@ -91,6 +92,7 @@ func configureAPI(api *operations.MindwellAPI) http.Handler {
 	chatsImpl.ConfigureAPI(srv)
 	tagsImpl.ConfigureAPI(srv)
 	oauth2Impl.ConfigureAPI(srv)
+	imagesImpl.ConfigureAPI(srv)
 
 	// configure the api here
 	api.ServeError = errors.ServeError
