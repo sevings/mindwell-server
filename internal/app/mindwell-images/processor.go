@@ -136,7 +136,7 @@ func (ip *ImageProcessor) saveAlbumPhoto() {
 	large := ip.is.Fit(1440, "albums/large")
 	medium := ip.is.Fit(960, "albums/medium")
 	small := ip.is.Fit(480, "albums/small")
-	thumbnail := ip.is.Fill(100, "albums/thumbnails")
+	thumbnail := ip.is.Fill(320, "albums/thumbnails")
 
 	if ip.is.Error() != nil {
 		ip.logError()
