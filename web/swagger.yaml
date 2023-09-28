@@ -1721,6 +1721,7 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
+        - OAuth2App: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "images:read" ]
       tags:
@@ -2116,6 +2117,7 @@ paths:
         - $ref: '#/parameters/after'
         - $ref: '#/parameters/before'
       security:
+        - OAuth2App: []
         - OAuth2Password: [ ]
         - OAuth2Code: [ "images:read" ]
       tags:
