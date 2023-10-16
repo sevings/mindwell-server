@@ -1,10 +1,12 @@
 module github.com/sevings/mindwell-server
 
-go 1.19
+go 1.21
+
+toolchain go1.21.3
 
 require (
 	github.com/BurntSushi/toml v1.3.2
-	github.com/Workiva/go-datastructures v1.1.0
+	github.com/Workiva/go-datastructures v1.1.1
 	github.com/aofei/cameron v1.2.1
 	github.com/carlescere/scheduler v0.0.0-20170109141437-ee74d2f83d82
 	github.com/centrifugal/gocent v2.2.0+incompatible
@@ -24,7 +26,7 @@ require (
 	github.com/leporo/sqlf v1.4.0
 	github.com/lib/pq v1.10.9
 	github.com/matcornic/hermes/v2 v2.1.0
-	github.com/microcosm-cc/bluemonday v1.0.25
+	github.com/microcosm-cc/bluemonday v1.0.26
 	github.com/nicksnyder/go-i18n/v2 v2.2.1
 	github.com/o1egl/govatar v0.4.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
@@ -32,8 +34,8 @@ require (
 	github.com/xhit/go-simple-mail/v2 v2.16.0
 	github.com/zpatrick/go-config v0.0.0-20221109193159-0ab1ea9ffd6e
 	gitlab.com/golang-commonmark/markdown v0.0.0-20211110145824-bf3e522c626a
-	go.uber.org/zap v1.25.0
-	golang.org/x/net v0.15.0
+	go.uber.org/zap v1.26.0
+	golang.org/x/net v0.17.0
 	golang.org/x/text v0.13.0
 )
 
@@ -85,9 +87,9 @@ require (
 	gitlab.com/golang-commonmark/puny v0.0.0-20191124015043-9f83538fa04f // indirect
 	go.mongodb.org/mongo-driver v1.12.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.13.0 // indirect
+	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/image v0.12.0 // indirect
-	golang.org/x/sys v0.12.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
