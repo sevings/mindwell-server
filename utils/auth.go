@@ -18,6 +18,7 @@ const userIDQuery = `
 				invited_by is not null, karma < -1, verified,
 				invite_ban > CURRENT_DATE, vote_ban > CURRENT_DATE, 
 				comment_ban > CURRENT_DATE, live_ban > CURRENT_DATE,
+				user_ban > CURRENT_DATE,
 				authority.type
 			FROM users
 			JOIN authority ON users.authority = authority.id `
@@ -37,11 +38,14 @@ func LoadUserIDByName(tx *AutoTx, name string) (*models.UserID, error) {
 func scanUserID(tx *AutoTx) (*models.UserID, error) {
 	var user models.UserID
 	user.Ban = &models.UserIDBan{}
+	var userBan bool
 	tx.Scan(&user.ID, &user.Name, &user.FollowersCount,
 		&user.IsInvited, &user.NegKarma, &user.Verified,
-		&user.Ban.Invite, &user.Ban.Vote, &user.Ban.Comment, &user.Ban.Live,
+		&user.Ban.Invite, &user.Ban.Vote,
+		&user.Ban.Comment, &user.Ban.Live,
+		&userBan,
 		&user.Authority)
-	if tx.Error() != nil {
+	if tx.Error() != nil || userBan {
 		return nil, errUnauthorized
 	}
 
