@@ -613,7 +613,7 @@ func (bot *TelegramBot) info(upd *tgbotapi.Update) string {
 
 	const q = `
 SELECT users.id, users.name, users.show_name, created_at, 
-	email, verified, rank, karma,
+	email, verified, telegram, rank, karma,
 	invited.name, invited.show_name,
 	entries_count, followers_count, followings_count, comments_count, invited_count,
 	invite_ban, vote_ban, comment_ban, live_ban, adm_ban
@@ -625,6 +625,7 @@ WHERE lower(users.email) = lower($1) OR lower(users.name) = lower($1)`
 
 	var id int64
 	var name, showName, email string
+	var telegram sql.NullInt64
 	var invitedByName, invitedByShowName sql.NullString
 	var verified bool
 	var createdAt time.Time
@@ -634,7 +635,7 @@ WHERE lower(users.email) = lower($1) OR lower(users.name) = lower($1)`
 	var inviteBan, voteBan, commentBan, liveBan time.Time
 	var admBan bool
 	atx.Scan(&id, &name, &showName, &createdAt,
-		&email, &verified, &rank, &karma,
+		&email, &verified, &telegram, &rank, &karma,
 		&invitedByName, &invitedByShowName,
 		&entries, &followers, &followings, &comments, &invited,
 		&inviteBan, &voteBan, &commentBan, &liveBan, &admBan)
@@ -651,12 +652,19 @@ WHERE lower(users.email) = lower($1) OR lower(users.name) = lower($1)`
 	} else {
 		invitedByLink = "(not invited)"
 	}
+	var tgID string
+	if telegram.Valid {
+		tgID = strconv.FormatInt(telegram.Int64, 10)
+	} else {
+		tgID = "(not linked)"
+	}
 
 	var text string
 	text += "\n<b>id</b>: " + strconv.FormatInt(id, 10)
 	text += "\n<b>url</b>: " + bot.userNameLink(name, showName)
 	text += "\n<b>email</b>: " + email
 	text += "\n<b>verified</b>: " + strconv.FormatBool(verified)
+	text += "\n<b>telegram</b>: " + tgID
 	text += "\n<b>created at</b>: " + createdAt.Format("15:04:05 02 Jan 2006 MST")
 	text += "\n<b>rank</b>: " + strconv.FormatInt(rank, 10)
 	text += "\n<b>karma</b>: " + strconv.FormatFloat(karma, 'f', 2, 64)
