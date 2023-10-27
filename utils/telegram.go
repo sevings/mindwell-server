@@ -973,6 +973,12 @@ func (bot *TelegramBot) crossVotes(upd *tgbotapi.Update) string {
 	arg := upd.Message.CommandArguments()
 	args := strings.Split(arg, " ")
 
+	limit := 10
+	if l, err := strconv.ParseInt(args[len(args)-1], 10, 8); err == nil {
+		limit = int(l)
+		args = args[:len(args)-1]
+	}
+
 	var logins []string
 	for _, login := range args {
 		login = extractLogin(login)
@@ -1015,19 +1021,29 @@ func (bot *TelegramBot) crossVotes(upd *tgbotapi.Update) string {
 		return fmt.Sprintf(`<a href="%sentries/%d">%d</a>`, bot.url, id, id)
 	}
 
-	text += "<b>Repeat voting for entries</b>:\n"
+	addTitle := func(title string, queryFunc func() *sqlf.Stmt) {
+		q := queryFunc().Select("COUNT(*)")
+		cnt := atx.QueryStmt(q).ScanInt64()
+		text += fmt.Sprintf("<b>%s</b>: %d\n", title, cnt)
+	}
 
-	const repeatEntryQuery = `
-SELECT entries.id, authors.name, authors.show_name, v1.vote > 0, v2.vote > 0
-FROM entry_votes v1
-JOIN entry_votes v2 ON v1.entry_id = v2.entry_id
-JOIN entries ON v1.entry_id = entries.id
-JOIN users authors ON entries.author_id = authors.id
-WHERE v1.user_id = $1 AND v2.user_id = $2
-ORDER BY entries.id
-`
+	repeatEntryQuery := func() *sqlf.Stmt {
+		return sqlf.
+			From("entry_votes v1").
+			Join("entry_votes v2", "v1.entry_id = v2.entry_id").
+			Join("entries", "v1.entry_id = entries.id").
+			Join("users authors", "entries.author_id = authors.id").
+			Where("v1.user_id = ?", users[0].ID).
+			Where("v2.user_id = ?", users[1].ID)
+	}
 
-	atx.Query(repeatEntryQuery, users[0].ID, users[1].ID)
+	addTitle("Repeat voting for entries", repeatEntryQuery)
+	repeatEntryQ := repeatEntryQuery().
+		Select("entries.id, authors.name, authors.show_name, v1.vote > 0, v2.vote > 0").
+		OrderBy("entries.id").
+		Limit(limit)
+	atx.QueryStmt(repeatEntryQ)
+
 	for {
 		var entryID int64
 		var authorName, authorShowName string
@@ -1044,20 +1060,22 @@ ORDER BY entries.id
 			entryLink(entryID))
 	}
 
-	text += "<b>Cross voting for entries</b>:\n"
+	crossEntryQuery := func() *sqlf.Stmt {
+		return sqlf.From("entry_votes v").
+			Join("users u", "v.user_id = u.id").
+			Join("entries", "v.entry_id = entries.id").
+			Join("users authors", "entries.author_id = authors.id").
+			Where("u.id IN (?, ?)", users[0].ID, users[1].ID).
+			Where("authors.id IN (?, ?)", users[0].ID, users[1].ID).Limit(limit)
+	}
 
-	const crossEntryQuery = `
-SELECT entries.id, authors.show_name, u.show_name, v.vote > 0
-FROM entry_votes v
-JOIN users u ON v.user_id = u.id
-JOIN entries ON v.entry_id = entries.id
-JOIN users authors ON entries.author_id = authors.id
-WHERE u.id IN ($1, $2)
-  AND authors.id IN ($1, $2)
-ORDER BY u.name, entries.id
-`
+	addTitle("Cross voting for entries", crossEntryQuery)
+	crossEntryQ := crossEntryQuery().
+		Select("entries.id, authors.show_name, u.show_name, v.vote > 0").
+		OrderBy("u.name, entries.id").
+		Limit(limit)
+	atx.QueryStmt(crossEntryQ)
 
-	atx.Query(crossEntryQuery, users[0].ID, users[1].ID)
 	for {
 		var entryID int64
 		var author, user string
@@ -1072,19 +1090,23 @@ ORDER BY u.name, entries.id
 			author, entryLink(entryID))
 	}
 
-	text += "<b>Repeat voting for comments</b>:\n"
+	repeatCommentQuery := func() *sqlf.Stmt {
+		return sqlf.From("comment_votes v1").
+			Join("comment_votes v2", "v1.comment_id = v2.comment_id").
+			Join("comments", "v1.comment_id = comments.id").
+			Join("users authors", "comments.author_id = authors.id").
+			Where("v1.user_id = ?", users[0].ID).
+			Where("v2.user_id = ?", users[1].ID)
+	}
 
-	const repeatCommentQuery = `
-SELECT comments.id, comments.entry_id, authors.name, authors.show_name, v1.vote > 0, v2.vote > 0
-FROM comment_votes v1
-JOIN comment_votes v2 ON v1.comment_id = v2.comment_id
-JOIN comments ON v1.comment_id = comments.id
-JOIN users authors ON comments.author_id = authors.id
-WHERE v1.user_id = $1 AND v2.user_id = $2
-ORDER BY comments.id
-`
+	addTitle("Repeat voting for comments", repeatCommentQuery)
+	repeatCommentQ := repeatCommentQuery().
+		Select("comments.id, comments.entry_id").
+		Select("authors.name, authors.show_name, v1.vote > 0, v2.vote > 0").
+		OrderBy("comments.id").
+		Limit(limit)
+	atx.QueryStmt(repeatCommentQ)
 
-	atx.Query(repeatCommentQuery, users[0].ID, users[1].ID)
 	for {
 		var commentID, entryID int64
 		var authorName, authorShowName string
@@ -1101,20 +1123,23 @@ ORDER BY comments.id
 			commentID, entryLink(entryID))
 	}
 
-	text += "<b>Cross voting for comments</b>:\n"
+	crossCommentQuery := func() *sqlf.Stmt {
+		return sqlf.From("comment_votes v").
+			Join("users u", "v.user_id = u.id").
+			Join("comments", "v.comment_id = comments.id").
+			Join("users authors", "comments.author_id = authors.id").
+			Where("u.id IN (?, ?)", users[0].ID, users[1].ID).
+			Where("authors.id IN (?, ?)", users[0].ID, users[1].ID)
+	}
 
-	const crossCommentQuery = `
-SELECT comments.id, comments.entry_id, authors.show_name, u.show_name, v.vote > 0
-FROM comment_votes v
-JOIN users u ON v.user_id = u.id
-JOIN comments ON v.comment_id = comments.id
-JOIN users authors ON comments.author_id = authors.id
-WHERE u.id IN ($1, $2)
-  AND authors.id IN ($1, $2)
-ORDER BY u.name, comments.id
-`
+	addTitle("Cross voting for comments", crossCommentQuery)
+	crossCommentQ := crossCommentQuery().
+		Select("comments.id, comments.entry_id").
+		Select("authors.show_name, u.show_name, v.vote > 0").
+		OrderBy("u.name, comments.id").
+		Limit(limit)
+	atx.QueryStmt(crossCommentQ)
 
-	atx.Query(crossCommentQuery, users[0].ID, users[1].ID)
 	for {
 		var commentID, entryID int64
 		var author, user string
