@@ -88,14 +88,14 @@ func AddEntryOpenQuery(q *sqlf.Stmt, userID *models.UserID, showMe bool) *sqlf.S
 CASE entry_privacy.type
 WHEN 'all' THEN TRUE
 WHEN 'registered' THEN ?
-WHEN 'invited' THEN ?
+WHEN 'invited' THEN ? OR authors.id = ?
 WHEN 'followers' THEN authors.id = ? OR authors.creator_id = ? OR relations_from_me.type = 'followed'
 WHEN 'some' THEN authors.id = ? OR authors.creator_id = ?
 	OR EXISTS(SELECT 1 from entries_privacy WHERE user_id = ? AND entry_id = entries.id)
 WHEN 'me' THEN ? AND authors.id = ?
 ELSE FALSE
 END
-`, userID.ID > 0, userID.IsInvited, userID.ID, userID.ID, userID.ID, userID.ID, userID.ID, showMe, userID.ID)
+`, userID.ID > 0, userID.IsInvited, userID.ID, userID.ID, userID.ID, userID.ID, userID.ID, userID.ID, showMe, userID.ID)
 }
 
 func AddCanViewAuthorQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {

@@ -259,7 +259,7 @@ func TestPostMyTlog(t *testing.T) {
 		true, false, false, "", "", []string{})
 
 	editParams.ID = id2
-	editParams.Privacy = models.EntryPrivacyAll
+	editParams.Privacy = models.EntryPrivacyInvited
 	checkEditEntry(t, editParams, nil, &profiles[3].Profile, userIDs[3], false, 2)
 	votable = true
 	checkEditEntry(t, editParams, nil, &profiles[3].Profile, userIDs[3], true, 2)
