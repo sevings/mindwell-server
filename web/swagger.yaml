@@ -3667,6 +3667,8 @@ paths:
                 type: string
               address:
                 type: string
+              phone:
+                type: string
               name:
                 type: string
               comment:
@@ -3706,6 +3708,12 @@ paths:
           type: string
           maxLength: 500
           required: true
+        - in: formData
+          name: phone
+          type: string
+          maxLength: 50
+          default: ''
+          required: false
         - in: formData
           name: name
           type: string
@@ -3796,6 +3804,8 @@ paths:
               country:
                 type: string
               address:
+                type: string
+              phone:
                 type: string
               fullname:
                 type: string

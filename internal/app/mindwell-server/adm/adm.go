@@ -54,14 +54,14 @@ func newGrandsonLoader(srv *utils.MindwellServer) func(adm.GetAdmGrandsonParams,
 			address := adm.GetAdmGrandsonOKBody{}
 
 			const q = `
-				SELECT anonymous, fullname, postcode, country, address, comment
+				SELECT anonymous, fullname, postcode, country, address, phone, comment
 				FROM adm
 				WHERE lower(name) = lower($1)
 			`
 
 			tx.Query(q, userID.Name).
 				Scan(&address.Anonymous, &address.Name, &address.Postcode,
-					&address.Country, &address.Address, &address.Comment)
+					&address.Country, &address.Address, &address.Phone, &address.Comment)
 
 			if len(address.Country) == 0 {
 				const usersQ = `
@@ -91,16 +91,17 @@ func newGrandsonUpdater(srv *utils.MindwellServer) func(adm.PostAdmGrandsonParam
 			}
 
 			const q = `
-				INSERT INTO adm(name, anonymous, fullname, postcode, country, address, comment)
-				VALUES($1, $2, $3, $4, $5, $6, $7)
+				INSERT INTO adm(name, anonymous, fullname, postcode, country, address, phone, comment)
+				VALUES($1, $2, $3, $4, $5, $6, $7, $8)
 				ON CONFLICT (lower(name)) DO UPDATE 
 				SET anonymous = EXCLUDED.anonymous, fullname = EXCLUDED.fullname,
 					postcode = EXCLUDED.postcode, country = EXCLUDED.country,
-					address = EXCLUDED.address, comment = EXCLUDED.comment
+					address = EXCLUDED.address, phone = EXCLUDED.phone,
+					comment = EXCLUDED.comment
 			`
 
 			tx.Exec(q, userID.Name, params.Anonymous, params.Name, params.Postcode,
-				params.Country, params.Address, params.Comment)
+				params.Country, params.Address, *params.Phone, params.Comment)
 
 			return adm.NewPostAdmGrandsonOK()
 		})
@@ -167,7 +168,7 @@ func newGrandfatherLoader(srv *utils.MindwellServer) func(adm.GetAdmGrandfatherP
 			address := adm.GetAdmGrandfatherOKBody{}
 
 			const q = `
-				SELECT anonymous, fullname, postcode, country, address, comment, name
+				SELECT anonymous, fullname, postcode, country, address, phone, comment, name
 				FROM adm
 				WHERE lower(grandfather) = lower($1)
 			`
@@ -175,7 +176,8 @@ func newGrandfatherLoader(srv *utils.MindwellServer) func(adm.GetAdmGrandfatherP
 			var anon bool
 			tx.Query(q, userID.Name).
 				Scan(&anon, &address.Fullname, &address.Postcode,
-					&address.Country, &address.Address, &address.Comment, &address.Name)
+					&address.Country, &address.Address, &address.Phone,
+					&address.Comment, &address.Name)
 
 			if tx.Error() == sql.ErrNoRows {
 				return adm.NewGetAdmGrandfatherForbidden().WithPayload(notRegErr)

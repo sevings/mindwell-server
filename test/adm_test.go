@@ -11,7 +11,7 @@ import (
 
 const admRegFinished = true
 
-func checkGrandsonAddress(t *testing.T, userID *models.UserID, name, postcode, country, address, comment string, anonymous bool) {
+func checkGrandsonAddress(t *testing.T, userID *models.UserID, name, postcode, country, address, phone, comment string, anonymous bool) {
 	if admRegFinished {
 		return
 	}
@@ -28,11 +28,12 @@ func checkGrandsonAddress(t *testing.T, userID *models.UserID, name, postcode, c
 	req.Equal(postcode, addr.Postcode)
 	req.Equal(country, addr.Country)
 	req.Equal(address, addr.Address)
+	req.Equal(phone, addr.Phone)
 	req.Equal(comment, addr.Comment)
 	req.Equal(anonymous, addr.Anonymous)
 }
 
-func updateGrandsonAddress(t *testing.T, userID *models.UserID, name, postcode, country, address, comment string, anonymous bool) {
+func updateGrandsonAddress(t *testing.T, userID *models.UserID, name, postcode, country, address, phone, comment string, anonymous bool) {
 	if admRegFinished {
 		return
 	}
@@ -42,6 +43,7 @@ func updateGrandsonAddress(t *testing.T, userID *models.UserID, name, postcode, 
 		Postcode:  postcode,
 		Country:   country,
 		Address:   address,
+		Phone:     &phone,
 		Comment:   &comment,
 		Anonymous: &anonymous,
 	}
@@ -51,7 +53,7 @@ func updateGrandsonAddress(t *testing.T, userID *models.UserID, name, postcode, 
 	_, ok := resp.(*adm.PostAdmGrandsonOK)
 	require.True(t, ok)
 
-	checkGrandsonAddress(t, userID, name, postcode, country, address, comment, anonymous)
+	checkGrandsonAddress(t, userID, name, postcode, country, address, phone, comment, anonymous)
 }
 
 func checkAdmStat(t *testing.T, grandsons int64) {
@@ -73,15 +75,15 @@ func checkAdmStat(t *testing.T, grandsons int64) {
 func TestAdm(t *testing.T) {
 	checkAdmStat(t, 0)
 
-	checkGrandsonAddress(t, userIDs[0], "", "", "", "", "", false)
+	checkGrandsonAddress(t, userIDs[0], "", "", "", "", "", "", false)
 	checkAdmStat(t, 0)
 
-	updateGrandsonAddress(t, userIDs[0], "aaa", "213", "Aaa", "aaaa", "aaaaa", false)
+	updateGrandsonAddress(t, userIDs[0], "aaa", "213", "Aaa", "aaaa", "aaaaa", "aaaaaa", false)
 	checkAdmStat(t, 1)
 
-	updateGrandsonAddress(t, userIDs[0], "bbb", "5654", "Bbb", "bbbb", "bbbbb", true)
+	updateGrandsonAddress(t, userIDs[0], "bbb", "5654", "Bbb", "bbbb", "bbbbb", "bbbbbb", true)
 	checkAdmStat(t, 1)
 
-	updateGrandsonAddress(t, userIDs[1], "vvv", "5654", "Bbb", "bbbb", "ccccc", true)
+	updateGrandsonAddress(t, userIDs[1], "vvv", "5654", "Bbb", "bbbb", "ccccc", "cccccc", true)
 	checkAdmStat(t, 2)
 }
