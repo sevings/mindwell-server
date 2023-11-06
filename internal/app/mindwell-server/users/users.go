@@ -49,7 +49,7 @@ const profileQuery = `
 SELECT users.id, users.name, users.show_name,
 users.avatar,
 gender.type, users.is_daylog, users.creator_id IS NOT NULL,
-user_privacy.type,
+user_privacy.type, user_chat_privacy.type, chats.last_message IS NOT NULL,
 users.title, users.rank, 
 extract(epoch from users.created_at), extract(epoch from users.last_seen_at), is_online(users.last_seen_at),
 user_age(users.birthday),
@@ -71,10 +71,14 @@ created_by.avatar
 FROM users 
 INNER JOIN gender ON gender.id = users.gender
 INNER JOIN user_privacy ON users.privacy = user_privacy.id
+INNER JOIN user_chat_privacy ON users.chat_privacy = user_chat_privacy.id
 INNER JOIN font_family ON users.font_family = font_family.id
 INNER JOIN alignment ON users.text_alignment = alignment.id
 LEFT JOIN users AS invited_by ON users.invited_by = invited_by.id
-LEFT JOIN users AS created_by ON users.creator_id = created_by.id  `
+LEFT JOIN users AS created_by ON users.creator_id = created_by.id  
+LEFT JOIN chats ON (chats.creator_id = users.id AND chats.partner_id = $2) 
+                       OR (chats.creator_id = $2 AND chats.partner_id = users.id)
+`
 
 func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, userID *models.UserID, arg interface{}) *models.Profile {
 	var profile models.Profile
@@ -95,12 +99,13 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 	var createdByName, createdByShowName sql.NullString
 	var createdByIsOnline sql.NullBool
 	var createdByAvatar sql.NullString
+	var chatExists bool
 
-	tx.Query(query, arg)
+	tx.Query(query, arg, userID.ID)
 	tx.Scan(&profile.ID, &profile.Name, &profile.ShowName,
 		&avatar,
 		&profile.Gender, &profile.IsDaylog, &profile.IsTheme,
-		&profile.Privacy,
+		&profile.Privacy, &profile.ChatPrivacy, &chatExists,
 		&profile.Title, &profile.Rank,
 		&profile.CreatedAt, &profile.LastSeenAt, &profile.IsOnline,
 		&age,
@@ -164,6 +169,7 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 
 	if profile.ID == userID.ID {
 		profile.Relations.IsOpenForMe = true
+		profile.Relations.IsChatAllowed = true
 		return &profile
 	}
 
@@ -183,6 +189,7 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 	profile.Relations.FromMe = relationship(tx, relationQuery, userID.ID, profile.ID)
 	profile.Relations.ToMe = relationship(tx, relationQuery, profile.ID, userID.ID)
 	profile.Relations.IsOpenForMe = isOpenForMe(&profile, userID)
+	profile.Relations.IsChatAllowed = isChatAllowed(chatExists, &profile, userID)
 
 	return &profile
 }
@@ -214,6 +221,34 @@ func isOpenForMe(profile *models.Profile, me *models.UserID) bool {
 	return false
 }
 
+func isChatAllowed(chatExists bool, profile *models.Profile, me *models.UserID) bool {
+	if profile.ID == me.ID {
+		return true
+	}
+
+	if profile.Relations.ToMe == models.RelationshipRelationIgnored {
+		return false
+	}
+
+	if chatExists {
+		return true
+	}
+
+	switch profile.ChatPrivacy {
+	case "invited":
+		return me.IsInvited
+	case "followers":
+		return me.IsInvited && profile.Relations.FromMe == models.RelationshipRelationFollowed
+	case "friends":
+		return profile.Relations.FromMe == models.RelationshipRelationFollowed &&
+			profile.Relations.ToMe == models.RelationshipRelationFollowed
+	case "me":
+		return false
+	}
+
+	return false
+}
+
 func relationship(tx *utils.AutoTx, query string, from, to int64) string {
 	if from == 0 || to == 0 {
 		return models.RelationshipRelationNone
@@ -231,17 +266,19 @@ func relationship(tx *utils.AutoTx, query string, from, to int64) string {
 const usersQuerySelect = `
 SELECT users.id, users.name, users.show_name, gender.type, users.creator_id IS NOT NULL,
 is_online(users.last_seen_at), extract(epoch from users.last_seen_at), users.title, users.rank,
-user_privacy.type, users.avatar, users.cover,
+user_privacy.type, user_chat_privacy.type, users.avatar, users.cover,
 users.entries_count, users.followings_count, users.followers_count, 
 users.ignored_count, users.invited_count, users.comments_count, 
 users.favorites_count, users.tags_count, CURRENT_DATE - users.created_at::date
 `
 
 const usersQueryStart = usersQuerySelect + `, extract(epoch from relations.changed_at)
-FROM users, relation, relations, gender, user_privacy
+FROM users, relation, relations, gender, user_privacy, user_chat_privacy
 WHERE `
 
-const usersQueryJoins = ` AND users.gender = gender.id AND users.privacy = user_privacy.id `
+const usersQueryJoins = ` AND users.gender = gender.id
+AND users.privacy = user_privacy.id
+AND users.chat_privacy = user_chat_privacy.id `
 
 const usersQueryEnd = `
  AND relations.type = relation.id AND relation.type = $2` + usersQueryJoins
@@ -258,7 +295,7 @@ func loadUserList(srv *utils.MindwellServer, tx *utils.AutoTx, reverse bool) ([]
 
 		ok := tx.Scan(&user.ID, &user.Name, &user.ShowName, &user.Gender, &user.IsTheme,
 			&user.IsOnline, &user.LastSeenAt, &user.Title, &user.Rank,
-			&user.Privacy, &avatar, &cover,
+			&user.Privacy, &user.ChatPrivacy, &avatar, &cover,
 			&user.Counts.Entries, &user.Counts.Followings, &user.Counts.Followers,
 			&user.Counts.Ignored, &user.Counts.Invited, &user.Counts.Comments,
 			&user.Counts.Favorites, &user.Counts.Tags, &user.Counts.Days,
@@ -332,7 +369,7 @@ func loadRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 
 	beforeQuery := `SELECT EXISTS(
 		SELECT 1 
-		FROM users, relation, relations, gender, user_privacy
+		FROM users, relation, relations, gender, user_privacy, user_chat_privacy
 		WHERE ` + queryWhere + " AND relations.changed_at < to_timestamp($3))"
 
 	list.NextBefore = utils.FormatFloat(nextBefore)
@@ -340,7 +377,7 @@ func loadRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 
 	afterQuery := `SELECT EXISTS(
 		SELECT 1 
-		FROM users, relation, relations, gender, user_privacy
+		FROM users, relation, relations, gender, user_privacy, user_chat_privacy
 		WHERE ` + queryWhere + " AND relations.changed_at > to_timestamp($3))"
 
 	list.NextAfter = utils.FormatFloat(nextAfter)
@@ -408,7 +445,7 @@ func loadInvitedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 
 		beforeQuery := `SELECT EXISTS(
 		SELECT 1 
-		FROM users, gender, user_privacy
+		FROM users, gender, user_privacy, user_chat_privacy
 		WHERE ` + queryWhere + " AND users.id < $2)"
 
 		list.NextBefore = strconv.FormatInt(int64(math.Round(nextBefore)), 10)
@@ -416,7 +453,7 @@ func loadInvitedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 
 		afterQuery := `SELECT EXISTS(
 		SELECT 1 
-		FROM users, gender, user_privacy
+		FROM users, gender, user_privacy, user_chat_privacy
 		WHERE ` + queryWhere + " AND users.id > $2)"
 
 		list.NextAfter = strconv.FormatInt(int64(math.Round(nextAfter)), 10)

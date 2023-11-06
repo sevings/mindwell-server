@@ -79,6 +79,7 @@ func compareUsers(t *testing.T, user *models.AuthProfile, profile *models.Profil
 	req.Equal(user.Gender, profile.Gender)
 	req.Equal(user.IsDaylog, profile.IsDaylog)
 	req.Equal(user.Privacy, profile.Privacy)
+	req.Equal(user.ChatPrivacy, profile.ChatPrivacy)
 	req.Equal(user.Title, profile.Title)
 	req.Equal(user.Rank, profile.Rank)
 	req.Equal(user.CreatedAt, profile.CreatedAt)
@@ -148,8 +149,21 @@ func checkEditProfile(t *testing.T, user *models.AuthProfile, params me.PutMePar
 
 func setUserPrivacy(t *testing.T, userID *models.UserID, privacy string) {
 	params := me.PutMeParams{
-		Privacy:  privacy,
-		ShowName: userID.Name,
+		Privacy:     privacy,
+		ChatPrivacy: "invited",
+		ShowName:    userID.Name,
+	}
+	edit := api.MePutMeHandler.Handle
+	resp := edit(params, userID)
+	_, ok := resp.(*me.PutMeOK)
+	require.True(t, ok)
+}
+
+func setUserChatPrivacy(t *testing.T, userID *models.UserID, chatPrivacy, privacy string) {
+	params := me.PutMeParams{
+		ChatPrivacy: chatPrivacy,
+		Privacy:     privacy,
+		ShowName:    userID.Name,
 	}
 	edit := api.MePutMeHandler.Handle
 	resp := edit(params, userID)
@@ -167,26 +181,30 @@ func TestEditProfile(t *testing.T) {
 	user.Gender = "female"
 	user.IsDaylog = true
 	user.Privacy = "followers"
+	user.ChatPrivacy = "me"
 	user.Title = "title edit"
 	user.ShowInTops = false
 	user.ShowName = "showname edit"
 
 	params := me.PutMeParams{
-		Birthday:   &user.Birthday,
-		City:       &user.City,
-		Country:    &user.Country,
-		Gender:     &user.Gender,
-		IsDaylog:   &user.IsDaylog,
-		Privacy:    user.Privacy,
-		Title:      &user.Title,
-		ShowInTops: &user.ShowInTops,
-		ShowName:   user.ShowName,
+		Birthday:    &user.Birthday,
+		City:        &user.City,
+		Country:     &user.Country,
+		Gender:      &user.Gender,
+		IsDaylog:    &user.IsDaylog,
+		Privacy:     user.Privacy,
+		ChatPrivacy: user.ChatPrivacy,
+		Title:       &user.Title,
+		ShowInTops:  &user.ShowInTops,
+		ShowName:    user.ShowName,
 	}
 
 	checkEditProfile(t, &user, params)
 
 	user.Privacy = "all"
 	params.Privacy = user.Privacy
+	user.ChatPrivacy = "invited"
+	params.ChatPrivacy = user.ChatPrivacy
 	checkEditProfile(t, &user, params)
 }
 
@@ -252,4 +270,80 @@ func TestIsOpenForMe(t *testing.T) {
 	checkUnfollow(t, userIDs[0], userIDs[1])
 	checkUnfollow(t, userIDs[1], userIDs[0])
 	checkUnfollow(t, userIDs[2], userIDs[0])
+}
+
+func TestIsChatAllowed(t *testing.T) {
+	req := require.New(t)
+
+	check := func(userID, to *models.UserID, res bool) {
+		load := api.UsersGetUsersNameHandler.Handle
+		resp := load(users.GetUsersNameParams{Name: to.Name}, userID)
+		body, ok := resp.(*users.GetUsersNameOK)
+		if !ok {
+			req.False(res)
+			return
+		}
+
+		req.Equal(res, body.Payload.Relations.IsChatAllowed)
+	}
+
+	noAuthUser := utils.NoAuthUser()
+
+	check(userIDs[0], userIDs[0], true)
+	check(userIDs[1], userIDs[0], true)
+	check(userIDs[2], userIDs[0], true)
+	check(userIDs[3], userIDs[0], false)
+	check(noAuthUser, userIDs[0], false)
+
+	checkFollow(t, userIDs[1], userIDs[0], profiles[0], models.RelationshipRelationFollowed, true)
+	setUserChatPrivacy(t, userIDs[0], "followers", "followers")
+	checkFollow(t, userIDs[2], userIDs[0], profiles[0], models.RelationshipRelationRequested, true)
+
+	check(userIDs[0], userIDs[0], true)
+	check(userIDs[1], userIDs[0], true)
+	check(userIDs[2], userIDs[0], false)
+	check(userIDs[3], userIDs[0], false)
+	check(noAuthUser, userIDs[0], false)
+
+	setUserChatPrivacy(t, userIDs[0], "friends", "all")
+	checkFollow(t, userIDs[0], userIDs[2], profiles[2], models.RelationshipRelationFollowed, true)
+	checkFollow(t, userIDs[2], userIDs[0], profiles[0], models.RelationshipRelationFollowed, true)
+	checkFollow(t, userIDs[0], userIDs[3], profiles[3], models.RelationshipRelationFollowed, true)
+	checkFollow(t, userIDs[3], userIDs[0], profiles[0], models.RelationshipRelationFollowed, true)
+
+	check(userIDs[0], userIDs[0], true)
+	check(userIDs[1], userIDs[0], false)
+	check(userIDs[2], userIDs[0], true)
+	check(userIDs[3], userIDs[0], true)
+	check(noAuthUser, userIDs[0], false)
+
+	checkFollow(t, userIDs[0], userIDs[2], profiles[2], models.RelationshipRelationIgnored, true)
+
+	check(userIDs[0], userIDs[0], true)
+	check(userIDs[1], userIDs[0], false)
+	check(userIDs[2], userIDs[0], false)
+	check(userIDs[3], userIDs[0], true)
+	check(noAuthUser, userIDs[0], false)
+
+	setUserChatPrivacy(t, userIDs[0], "me", "all")
+
+	check(userIDs[0], userIDs[0], true)
+	check(userIDs[1], userIDs[0], false)
+	check(userIDs[2], userIDs[0], false)
+	check(userIDs[3], userIDs[0], false)
+	check(noAuthUser, userIDs[0], false)
+
+	setUserChatPrivacy(t, userIDs[0], "invited", "all")
+
+	check(userIDs[0], userIDs[0], true)
+	check(userIDs[1], userIDs[0], true)
+	check(userIDs[2], userIDs[0], false)
+	check(userIDs[3], userIDs[0], false)
+	check(noAuthUser, userIDs[0], false)
+
+	checkUnfollow(t, userIDs[1], userIDs[0])
+	checkUnfollow(t, userIDs[2], userIDs[0])
+	checkUnfollow(t, userIDs[3], userIDs[0])
+	checkUnfollow(t, userIDs[0], userIDs[2])
+	checkUnfollow(t, userIDs[0], userIDs[3])
 }

@@ -18,11 +18,11 @@ func loadTopThemes(srv *utils.MindwellServer, tx *utils.AutoTx, top string) []*m
 	query := usersQuerySelect + ", 0 "
 
 	if top == "rank" {
-		query += "FROM users, gender, user_privacy WHERE creator_id IS NOT NULL" + usersQueryJoins + "ORDER BY rank ASC"
+		query += "FROM users, gender, user_privacy, user_chat_privacy WHERE creator_id IS NOT NULL" + usersQueryJoins + "ORDER BY rank ASC"
 		query += " LIMIT 50"
 		tx.Query(query)
 	} else if top == "new" {
-		query += "FROM users, gender, user_privacy WHERE creator_id IS NOT NULL" + usersQueryJoins + " ORDER BY created_at DESC"
+		query += "FROM users, gender, user_privacy, user_chat_privacy WHERE creator_id IS NOT NULL" + usersQueryJoins + " ORDER BY created_at DESC"
 		query += " LIMIT 50"
 		tx.Query(query)
 	} else {

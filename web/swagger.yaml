@@ -196,6 +196,9 @@ definitions:
           privacy:
             type: string
             enum: [all, followers, invited, registered]
+          chatPrivacy:
+            type: string
+            enum: [invited, followers, friends, me]
           title:
             type: string
             maxLength: 260
@@ -278,6 +281,8 @@ definitions:
             type: object
             properties:
               isOpenForMe:
+                type: boolean
+              isChatAllowed:
                 type: boolean
               toMe:
                 type: string
@@ -2193,6 +2198,11 @@ paths:
           name: privacy
           type: string
           enum: [all, invited, followers, registered]
+          required: true
+        - in: formData
+          name: chatPrivacy
+          type: string
+          enum: [invited, followers, friends, me]
           required: true
         - in: formData
           name: title

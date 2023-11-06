@@ -23,7 +23,7 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 }
 
 const loadChatsQuery = `
-    SELECT chats.id, talkers.unread_count, talkers.can_send,
+    SELECT chats.id, talkers.unread_count,
         chats.creator_id, chats.partner_id,
         messages.id, extract(epoch from messages.created_at), messages.author_id,
         messages.content, messages.edit_content
@@ -51,7 +51,7 @@ func loadChatList(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 			Rights: &models.ChatRights{},
 		}
 		var creatorID, partnerID int64
-		ok := tx.Scan(&chat.ID, &chat.UnreadCount, &chat.Rights.Send,
+		ok := tx.Scan(&chat.ID, &chat.UnreadCount,
 			&creatorID, &partnerID,
 			&chat.LastMessage.ID, &chat.LastMessage.CreatedAt, &chat.LastMessage.Author.ID,
 			&chat.LastMessage.Content, &chat.LastMessage.EditContent)
@@ -83,6 +83,7 @@ func loadChatList(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 	var me *models.User
 
 	for _, chat := range result.Data {
+		chat.Rights.Send = canSendMessage(tx, userID, chat.Partner.ID, chat.ID)
 		chat.Partner = users.LoadUserByID(srv, tx, chat.Partner.ID)
 
 		if chat.LastMessage.Author.ID == userID.ID {
@@ -163,7 +164,7 @@ func newChatsListLoader(srv *utils.MindwellServer) func(chats.GetChatsParams, *m
 }
 
 const loadChatQuery = `
-    SELECT chats.id, talkers.unread_count, talkers.can_send,
+    SELECT chats.id, talkers.unread_count,
         messages.id, extract(epoch from messages.created_at), messages.author_id,
         messages.content, messages.edit_content
     FROM chats
@@ -172,8 +173,8 @@ const loadChatQuery = `
     WHERE chats.id = $2
 `
 
-func loadChat(srv *utils.MindwellServer, tx *utils.AutoTx, userID, partnerID, chatID int64) *models.Chat {
-	tx.Query(loadChatQuery, userID, chatID)
+func loadChat(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, partnerID, chatID int64) *models.Chat {
+	tx.Query(loadChatQuery, userID.ID, chatID)
 
 	chat := models.Chat{
 		Rights: &models.ChatRights{},
@@ -183,7 +184,7 @@ func loadChat(srv *utils.MindwellServer, tx *utils.AutoTx, userID, partnerID, ch
 	var msgCreatedAt sql.NullFloat64
 	var msgContent, msgEditContent sql.NullString
 
-	ok := tx.Scan(&chat.ID, &chat.UnreadCount, &chat.Rights.Send,
+	ok := tx.Scan(&chat.ID, &chat.UnreadCount,
 		&msgID, &msgCreatedAt, &authorID,
 		&msgContent, &msgEditContent)
 
@@ -191,6 +192,7 @@ func loadChat(srv *utils.MindwellServer, tx *utils.AutoTx, userID, partnerID, ch
 		return nil
 	}
 
+	chat.Rights.Send = canSendMessage(tx, userID, partnerID, chatID)
 	chat.Partner = users.LoadUserByID(srv, tx, partnerID)
 
 	if msgID.Valid {
@@ -201,7 +203,7 @@ func loadChat(srv *utils.MindwellServer, tx *utils.AutoTx, userID, partnerID, ch
 			ID:        msgID.Int64,
 		}
 
-		if authorID.Int64 == userID {
+		if authorID.Int64 == userID.ID {
 			chat.LastMessage.EditContent = msgEditContent.String
 			chat.LastMessage.Rights = &models.MessageRights{
 				Delete: true,
@@ -215,7 +217,7 @@ func loadChat(srv *utils.MindwellServer, tx *utils.AutoTx, userID, partnerID, ch
 			chat.LastMessage.Author = users.LoadUserByID(srv, tx, authorID.Int64)
 		}
 
-		setMessageRead(tx, chat.LastMessage, userID)
+		setMessageRead(tx, chat.LastMessage, userID.ID)
 	}
 
 	return &chat
@@ -240,7 +242,7 @@ func createChat(srv *utils.MindwellServer, tx *utils.AutoTx, userID, otherID int
 		Partner: users.LoadUserByID(srv, tx, otherID),
 	}
 	if chat.Partner.ID == 0 {
-		return nil
+		return &chat
 	}
 
 	var creatorID, partnerID int64
@@ -253,7 +255,7 @@ func createChat(srv *utils.MindwellServer, tx *utils.AutoTx, userID, otherID int
 	}
 	chat.ID = tx.QueryInt64(createChatQuery, creatorID, partnerID)
 	if chat.ID == 0 {
-		return nil
+		return &chat
 	}
 
 	tx.Exec(createTalkerQuery, chat.ID, creatorID)
@@ -279,7 +281,7 @@ func newChatLoader(srv *utils.MindwellServer) func(chats.GetChatsNameParams, *mo
 			if chatID == 0 {
 				chat = createChat(srv, tx, userID.ID, partnerID)
 			} else {
-				chat = loadChat(srv, tx, userID.ID, partnerID, chatID)
+				chat = loadChat(srv, tx, userID, partnerID, chatID)
 			}
 
 			if chat == nil {

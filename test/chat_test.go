@@ -383,24 +383,87 @@ func TestReadMessages(t *testing.T) {
 }
 
 func TestCanSendMessage(t *testing.T) {
-	checkFollow(t, userIDs[1], userIDs[0], profiles[0], models.RelationshipRelationIgnored, true)
-	checkSendMessage(t, userIDs[0], userIDs[1].Name, rand.Int63(), false)
-	checkSendMessage(t, userIDs[1], userIDs[0].Name, rand.Int63(), true)
-	checkSendMessage(t, userIDs[0], userIDs[1].Name, rand.Int63(), false)
+	check := func(from, to *models.UserID, success bool) {
+		msg := checkSendMessage(t, from, to.Name, rand.Int63(), success)
+		if success {
+			checkDeleteMessage(t, from, msg, true)
+		}
+	}
+
+	noAuthUser := utils.NoAuthUser()
+
+	check(userIDs[0], userIDs[0], true)
+	check(userIDs[1], userIDs[0], true)
+	check(userIDs[2], userIDs[0], true)
+	check(userIDs[3], userIDs[0], false)
+	check(noAuthUser, userIDs[0], false)
+
+	checkFollow(t, userIDs[1], userIDs[0], profiles[0], models.RelationshipRelationFollowed, true)
+	setUserChatPrivacy(t, userIDs[0], "followers", "followers")
+	checkFollow(t, userIDs[2], userIDs[0], profiles[0], models.RelationshipRelationRequested, true)
+
+	check(userIDs[0], userIDs[0], true)
+	check(userIDs[1], userIDs[0], true)
+	check(userIDs[2], userIDs[0], false)
+	check(userIDs[3], userIDs[0], false)
+	check(noAuthUser, userIDs[0], false)
+
+	setUserChatPrivacy(t, userIDs[0], "friends", "all")
+	checkFollow(t, userIDs[0], userIDs[2], profiles[2], models.RelationshipRelationFollowed, true)
+	checkFollow(t, userIDs[2], userIDs[0], profiles[0], models.RelationshipRelationFollowed, true)
+	checkFollow(t, userIDs[0], userIDs[3], profiles[3], models.RelationshipRelationFollowed, true)
+	checkFollow(t, userIDs[3], userIDs[0], profiles[0], models.RelationshipRelationFollowed, true)
+
+	check(userIDs[0], userIDs[0], true)
+	check(userIDs[1], userIDs[0], false)
+	check(userIDs[2], userIDs[0], true)
+	check(userIDs[3], userIDs[0], true)
+	check(noAuthUser, userIDs[0], false)
+
+	checkFollow(t, userIDs[0], userIDs[2], profiles[2], models.RelationshipRelationIgnored, true)
+
+	check(userIDs[0], userIDs[0], true)
+	check(userIDs[1], userIDs[0], false)
+	check(userIDs[2], userIDs[0], false)
+	check(userIDs[3], userIDs[0], true)
+	check(noAuthUser, userIDs[0], false)
+
+	setUserChatPrivacy(t, userIDs[0], "me", "all")
+
+	check(userIDs[0], userIDs[0], true)
+	check(userIDs[1], userIDs[0], false)
+	check(userIDs[2], userIDs[0], false)
+	check(userIDs[3], userIDs[0], false)
+	check(noAuthUser, userIDs[0], false)
+
+	setUserChatPrivacy(t, userIDs[0], "invited", "all")
+
+	check(userIDs[0], userIDs[0], true)
+	check(userIDs[1], userIDs[0], true)
+	check(userIDs[2], userIDs[0], false)
+	check(userIDs[3], userIDs[0], false)
+	check(noAuthUser, userIDs[0], false)
+
 	checkUnfollow(t, userIDs[1], userIDs[0])
-	checkSendMessage(t, userIDs[0], userIDs[1].Name, rand.Int63(), true)
+	checkUnfollow(t, userIDs[2], userIDs[0])
+	checkUnfollow(t, userIDs[3], userIDs[0])
+	checkUnfollow(t, userIDs[0], userIDs[2])
+	checkUnfollow(t, userIDs[0], userIDs[3])
 
-	checkSendMessage(t, userIDs[3], userIDs[0].Name, rand.Int63(), false)
-	_, err := db.Exec("UPDATE users SET invited_by = 1 WHERE id = $1", userIDs[3].ID)
-	require.Nil(t, err)
-	checkSendMessage(t, userIDs[3], userIDs[0].Name, rand.Int63(), true)
+	checkAndKeep := func(from, to *models.UserID, success bool) {
+		checkSendMessage(t, from, to.Name, rand.Int63(), success)
+	}
 
-	user, _ := register("test_msg")
-	checkSendMessage(t, userIDs[0], user.Name, rand.Int63(), true)
-	checkSendMessage(t, user, userIDs[0].Name, rand.Int63(), true)
-	checkSendMessage(t, user, userIDs[1].Name, rand.Int63(), false)
-	checkSendMessage(t, userIDs[1], user.Name, rand.Int63(), true)
-	checkSendMessage(t, user, userIDs[1].Name, rand.Int63(), true)
+	checkFollow(t, userIDs[1], userIDs[0], profiles[0], models.RelationshipRelationIgnored, true)
+	checkAndKeep(userIDs[0], userIDs[1], false)
+	checkAndKeep(userIDs[1], userIDs[0], true)
+	checkAndKeep(userIDs[0], userIDs[1], false)
+	checkUnfollow(t, userIDs[1], userIDs[0])
+	checkAndKeep(userIDs[0], userIDs[1], true)
+
+	checkAndKeep(userIDs[3], userIDs[0], false)
+	checkAndKeep(userIDs[0], userIDs[3], true)
+	checkAndKeep(userIDs[3], userIDs[0], true)
 
 	utils.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)

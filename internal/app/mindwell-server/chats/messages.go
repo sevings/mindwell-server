@@ -150,9 +150,43 @@ func newMessageListLoader(srv *utils.MindwellServer) func(chats.GetChatsNameMess
 	}
 }
 
-func canSendMessage(tx *utils.AutoTx, userID, chatID int64) bool {
-	const q = "SELECT can_send FROM talkers WHERE user_id = $1 AND chat_id = $2"
-	return tx.QueryBool(q, userID, chatID)
+func canSendMessage(tx *utils.AutoTx, userID *models.UserID, partnerID, chatID int64) bool {
+	if userID.ID == partnerID {
+		return true
+	}
+
+	toMe := utils.LoadRelation(tx, partnerID, userID.ID)
+	if toMe == models.RelationshipRelationIgnored {
+		return false
+	}
+
+	const lastMessageQuery = `SELECT last_message FROM chats WHERE id = $1`
+	lastMessage := tx.QueryInt64(lastMessageQuery, chatID)
+	if lastMessage != 0 {
+		return true
+	}
+
+	const chatPrivacyQuery = `
+SELECT type
+FROM users
+JOIN user_chat_privacy ON users.chat_privacy = user_chat_privacy.id
+WHERE users.id = $1`
+	chatPrivacy := tx.QueryString(chatPrivacyQuery, partnerID)
+
+	switch chatPrivacy {
+	case "invited":
+		return userID.IsInvited
+	case "followers":
+		return userID.IsInvited &&
+			utils.LoadRelation(tx, userID.ID, partnerID) == models.RelationshipRelationFollowed
+	case "friends":
+		return toMe == models.RelationshipRelationFollowed &&
+			utils.LoadRelation(tx, userID.ID, partnerID) == models.RelationshipRelationFollowed
+	case "me":
+		return false
+	}
+
+	return false
 }
 
 const createMessageQuery = `
@@ -182,7 +216,12 @@ func createMessage(srv *utils.MindwellServer, tx *utils.AutoTx, userID, chatID i
 }
 
 func newMessageCreator(srv *utils.MindwellServer) func(chats.PostChatsNameMessagesParams, *models.UserID) middleware.Responder {
+	cantChatErr := srv.NewError(&i18n.Message{ID: "cant_chat", Other: "You are not allowed to send messages to this chat."})
 	return func(params chats.PostChatsNameMessagesParams, userID *models.UserID) middleware.Responder {
+		if userID.ID == 0 {
+			return chats.NewPostChatsNameMessagesForbidden().WithPayload(cantChatErr)
+		}
+
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			msg := getCachedMessage(userID.ID, params.UID, params.Name)
 			if msg != nil {
@@ -199,9 +238,8 @@ func newMessageCreator(srv *utils.MindwellServer) func(chats.PostChatsNameMessag
 				chatID = createChat(srv, tx, userID.ID, partnerID).ID
 			}
 
-			if !canSendMessage(tx, userID.ID, chatID) {
-				err := srv.NewError(&i18n.Message{ID: "cant_chat", Other: "You are not allowed to send messages to this chat."})
-				return chats.NewPostChatsNameMessagesForbidden().WithPayload(err)
+			if !canSendMessage(tx, userID, partnerID, chatID) {
+				return chats.NewPostChatsNameMessagesForbidden().WithPayload(cantChatErr)
 			}
 
 			msg = createMessage(srv, tx, userID.ID, chatID, params.Content)

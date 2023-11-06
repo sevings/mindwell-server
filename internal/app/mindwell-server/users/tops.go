@@ -17,7 +17,7 @@ func searchUsers(srv *utils.MindwellServer, tx *utils.AutoTx, queryWhere, search
 						WHERE ` + queryWhere + `
 						ORDER BY trgm_dist
 						LIMIT 50
-					) AS users, gender, user_privacy
+					) AS users, gender, user_privacy, user_chat_privacy
 					WHERE trgm_dist < 0.6` + usersQueryJoins
 	tx.Query(query, searchQuery)
 	list, _, _ := loadUserList(srv, tx, false)
@@ -28,11 +28,11 @@ func loadTopUsers(srv *utils.MindwellServer, tx *utils.AutoTx, top string, userI
 	query := usersQuerySelect + ", 0 "
 
 	if top == "rank" {
-		query += "FROM users, gender, user_privacy WHERE invited_by IS NOT NULL" + usersQueryJoins + "ORDER BY rank ASC"
+		query += "FROM users, gender, user_privacy, user_chat_privacy WHERE invited_by IS NOT NULL" + usersQueryJoins + "ORDER BY rank ASC"
 		query += " LIMIT 50"
 		tx.Query(query)
 	} else if top == "new" {
-		query += "FROM users, gender, user_privacy WHERE invited_by IS NOT NULL" + usersQueryJoins + " ORDER BY created_at DESC"
+		query += "FROM users, gender, user_privacy, user_chat_privacy WHERE invited_by IS NOT NULL" + usersQueryJoins + " ORDER BY created_at DESC"
 		query += " LIMIT 50"
 		tx.Query(query)
 	} else if top == "waiting" {
@@ -67,6 +67,7 @@ func loadTopUsers(srv *utils.MindwellServer, tx *utils.AutoTx, top string, userI
 			) as users
 			INNER JOIN gender ON gender.id = users.gender
 			INNER JOIN user_privacy ON users.privacy = user_privacy.id
+			INNER JOIN user_chat_privacy ON users.privacy = user_chat_privacy.id
 		`
 		query += " LIMIT 50"
 		tx.Query(query, userID.IsInvited)

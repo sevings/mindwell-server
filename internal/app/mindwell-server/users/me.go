@@ -15,7 +15,7 @@ func loadMyProfile(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 	SELECT users.id, users.name, users.show_name,
 	users.avatar,
 	gender.type, users.is_daylog,
-	user_privacy.type,
+	user_privacy.type, user_chat_privacy.type,
 	users.title, users.rank, 
 	extract(epoch from users.created_at), extract(epoch from users.last_seen_at), is_online(users.last_seen_at),
 	user_age(users.birthday),
@@ -36,6 +36,7 @@ func loadMyProfile(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 	FROM users 
 	INNER JOIN gender ON gender.id = users.gender
 	INNER JOIN user_privacy ON users.privacy = user_privacy.id
+	INNER JOIN user_chat_privacy ON users.chat_privacy = user_chat_privacy.id
 	INNER JOIN font_family ON users.font_family = font_family.id
 	INNER JOIN alignment ON users.text_alignment = alignment.id
 	LEFT JOIN users AS invited_by ON users.invited_by = invited_by.id
@@ -63,7 +64,7 @@ func loadMyProfile(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 	tx.Scan(&profile.ID, &profile.Name, &profile.ShowName,
 		&avatar,
 		&profile.Gender, &profile.IsDaylog,
-		&profile.Privacy,
+		&profile.Privacy, &profile.ChatPrivacy,
 		&profile.Title, &profile.Rank,
 		&profile.CreatedAt, &profile.LastSeenAt, &profile.IsOnline,
 		&age,
@@ -132,7 +133,8 @@ func loadMyProfile(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 	profile.Cover = srv.NewCover(profile.ID, cover)
 
 	profile.Relations = &models.ProfileAO1Relations{
-		IsOpenForMe: true,
+		IsOpenForMe:   true,
+		IsChatAllowed: true,
 	}
 
 	return &profile
@@ -183,9 +185,13 @@ func editMyProfile(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 		tx.Exec(q, id, *params.IsDaylog)
 	}
 
-	const q = "update users set privacy = (select id from user_privacy where type = $2), show_name = $3 where id = $1"
+	const q = `
+update users set
+privacy = (select id from user_privacy where type = $2), 
+chat_privacy = (select id from user_chat_privacy where type = $3), 
+show_name = $4 where id = $1`
 	showName := strings.TrimSpace(params.ShowName)
-	tx.Exec(q, id, params.Privacy, showName)
+	tx.Exec(q, id, params.Privacy, params.ChatPrivacy, showName)
 
 	if params.ShowInTops != nil {
 		const q = "update users set show_in_tops = $2 where id = $1"

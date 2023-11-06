@@ -34,6 +34,19 @@ INSERT INTO "mindwell"."user_privacy" VALUES(3, 'registered');
 
 
 
+-- CREATE TABLE "user_chat_privacy" ---------------------------------
+CREATE TABLE "mindwell"."user_chat_privacy" (
+                                           "id" Integer UNIQUE NOT NULL,
+                                           "type" Text NOT NULL );
+
+INSERT INTO "mindwell"."user_chat_privacy" VALUES(0, 'invited');
+INSERT INTO "mindwell"."user_chat_privacy" VALUES(1, 'followers');
+INSERT INTO "mindwell"."user_chat_privacy" VALUES(2, 'friends');
+INSERT INTO "mindwell"."user_chat_privacy" VALUES(3, 'me');
+-- -------------------------------------------------------------
+
+
+
 -- CREATE TABLE "authority" ------------------------------------
 CREATE TABLE "mindwell"."authority" (
     "id" Integer UNIQUE NOT NULL,
@@ -90,7 +103,8 @@ CREATE TABLE "mindwell"."users" (
 	"gender" Integer DEFAULT 0 NOT NULL,
 	"is_daylog" Boolean DEFAULT false NOT NULL,
     "show_in_tops" Boolean DEFAULT true NOT NULL,
-	"privacy" Integer DEFAULT 0 NOT NULL,
+    "privacy" Integer DEFAULT 0 NOT NULL,
+    "chat_privacy" Integer DEFAULT 0 NOT NULL,
 	"title" Text DEFAULT '' NOT NULL,
 	"last_seen_at" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "rank" Integer NOT NULL,
@@ -138,6 +152,7 @@ CREATE TABLE "mindwell"."users" (
 	CONSTRAINT "unique_user_id" PRIMARY KEY( "id" ),
     CONSTRAINT "enum_user_gender" FOREIGN KEY("gender") REFERENCES "mindwell"."gender"("id"),
     CONSTRAINT "enum_user_privacy" FOREIGN KEY("privacy") REFERENCES "mindwell"."user_privacy"("id"),
+    CONSTRAINT "enum_user_chat_privacy" FOREIGN KEY("chat_privacy") REFERENCES "mindwell"."user_chat_privacy"("id"),
     CONSTRAINT "enum_user_alignment" FOREIGN KEY("text_alignment") REFERENCES "mindwell"."alignment"("id"),
     CONSTRAINT "enum_user_font_family" FOREIGN KEY("font_family") REFERENCES "mindwell"."font_family"("id"),
     CONSTRAINT "enum_user_authority" FOREIGN KEY("authority") REFERENCES "mindwell"."authority"("id"),
@@ -2202,7 +2217,6 @@ CREATE TABLE "mindwell"."talkers" (
 	"user_id" Integer NOT NULL,
 	"last_read" Integer DEFAULT 0 NOT NULL,
 	"unread_count" Integer DEFAULT 0 NOT NULL,
-	"can_send" Boolean DEFAULT TRUE NOT NULL,
 	CONSTRAINT "unique_talker_chat" PRIMARY KEY( "chat_id", "user_id" ),
     CONSTRAINT "talkers_user_id" FOREIGN KEY("user_id") REFERENCES "mindwell"."users"("id") ON DELETE CASCADE,
     CONSTRAINT "talkers_chat_id" FOREIGN KEY("chat_id") REFERENCES "mindwell"."chats"("id") ON DELETE CASCADE);
@@ -2245,111 +2259,6 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER cnt_unread_del
     AFTER DELETE ON mindwell.messages
     FOR EACH ROW EXECUTE PROCEDURE mindwell.count_unread_del();
-
-
-
-CREATE OR REPLACE FUNCTION mindwell.is_partner_ignoring(user_id INTEGER, chat_id INTEGER) RETURNS BOOLEAN AS $$
-    BEGIN
-        RETURN COALESCE((
-                SELECT relations.type = (SELECT id FROM relation WHERE type = 'ignored')
-                FROM relations
-                WHERE to_id = user_id AND from_id = (
-                        SELECT (CASE creator_id WHEN user_id THEN partner_id ELSE creator_id END)
-                        FROM chats
-                        WHERE id = chat_id
-                    )
-            ), FALSE);
-    END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION mindwell.is_invited(user_id INTEGER) RETURNS BOOLEAN AS $$
-    BEGIN
-        RETURN (SELECT invited_by IS NOT NULL FROM users WHERE id = user_id);
-    END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION mindwell.set_can_send_ins() RETURNS TRIGGER AS $$
-    BEGIN
-        NEW.can_send = (
-            SELECT is_invited(NEW.user_id) AND NOT is_partner_ignoring(NEW.user_id, NEW.chat_id)
-        );
-
-        RETURN NEW;
-    END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER can_send_ins
-    BEFORE INSERT ON mindwell.talkers
-    FOR EACH ROW EXECUTE PROCEDURE mindwell.set_can_send_ins();
-
-CREATE OR REPLACE FUNCTION mindwell.set_can_send_invited() RETURNS TRIGGER AS $$
-    BEGIN
-        UPDATE mindwell.talkers
-        SET can_send = NOT is_partner_ignoring(user_id, chat_id)
-        WHERE user_id = NEW.id;
-
-        RETURN NULL;
-    END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER can_send_invited
-    AFTER UPDATE ON mindwell.users
-    FOR EACH ROW
-    WHEN (OLD.invited_by IS NULL AND NEW.invited_by IS NOT NULL)
-    EXECUTE PROCEDURE mindwell.set_can_send_invited();
-
-CREATE OR REPLACE FUNCTION mindwell.set_can_send_related() RETURNS TRIGGER AS $$
-    BEGIN
-        UPDATE mindwell.talkers
-        SET can_send = (NEW.type <> (SELECT id FROM relation WHERE type = 'ignored') AND is_invited(NEW.to_id))
-        WHERE user_id = NEW.to_id AND chat_id = (
-            SELECT id
-            FROM chats
-            WHERE (creator_id = NEW.to_id AND partner_id = NEW.from_id)
-                OR (creator_id = NEW.from_id AND partner_id = NEW.to_id)
-        );
-
-        RETURN NULL;
-    END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER can_send_related
-    AFTER INSERT OR UPDATE ON mindwell.relations
-    FOR EACH ROW EXECUTE PROCEDURE mindwell.set_can_send_related();
-
-CREATE OR REPLACE FUNCTION mindwell.set_can_send_not_related() RETURNS TRIGGER AS $$
-    BEGIN
-        IF OLD.type = (SELECT id FROM relation WHERE type = 'ignored') THEN
-            UPDATE mindwell.talkers
-            SET can_send = is_invited(OLD.to_id)
-            WHERE user_id = OLD.to_id AND chat_id = (
-                SELECT id
-                FROM chats
-                WHERE (creator_id = OLD.to_id AND partner_id = OLD.from_id)
-                    OR (creator_id = OLD.from_id AND partner_id = OLD.to_id)
-            );
-        END IF;
-
-        RETURN NULL;
-    END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER can_send_not_related
-    AFTER DELETE ON mindwell.relations
-    FOR EACH ROW EXECUTE PROCEDURE mindwell.set_can_send_not_related();
-
-CREATE OR REPLACE FUNCTION mindwell.set_can_send_new_msg() RETURNS TRIGGER AS $$
-    BEGIN
-        NEW.can_send = NOT is_partner_ignoring(NEW.user_id, NEW.chat_id);
-        RETURN NEW;
-    END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER can_send_new_msg
-    BEFORE UPDATE ON mindwell.talkers
-    FOR EACH ROW
-    WHEN (NOT NEW.can_send AND OLD.unread_count < NEW.unread_count)
-    EXECUTE PROCEDURE mindwell.set_can_send_new_msg();
 
 
 
