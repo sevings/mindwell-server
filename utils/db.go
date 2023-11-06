@@ -6,6 +6,7 @@ import (
 	"github.com/leporo/sqlf"
 	goconf "github.com/zpatrick/go-config"
 	"log"
+	"runtime/debug"
 )
 
 func init() {
@@ -267,6 +268,7 @@ func (tx *AutoTx) Exec(query string, args ...interface{}) {
 		tx.rows = nil
 	}
 
+	tx.query = query
 	tx.res, tx.err = tx.tx.Exec(query, args...)
 }
 
@@ -304,6 +306,7 @@ func (tx *AutoTx) Finish() {
 		err = tx.tx.Rollback()
 		log.Println(p, " (recovered by AutoTx)")
 		log.Println(tx.LastQuery())
+		debug.PrintStack()
 	} else if tx.Error() == nil || tx.Error() == sql.ErrNoRows {
 		err = tx.tx.Commit()
 	} else {
