@@ -36,3 +36,5 @@ DROP FUNCTION mindwell.is_partner_ignoring;
 
 ALTER TABLE "mindwell"."talkers"
 DROP COLUMN "can_send";
+
+INSERT INTO "mindwell"."complain_type" VALUES(2, 'message');

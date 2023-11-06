@@ -1627,3 +1627,15 @@ func (bot *TelegramBot) SendEntryComplain(from, against *models.User, content, e
 
 	bot.sendMessage(bot.group, text)
 }
+
+func (bot *TelegramBot) SendMessageComplain(from, against *models.User, content, message string, messageID int64) {
+	text := "Пользователь " + bot.userLink(from) + " пожаловался на сообщение " +
+		strconv.FormatInt(messageID, 10) + " от " + bot.userLink(against) + ". " +
+		"Текст сообщения:\n\n«" + message + "»\n\n"
+
+	if content != "" {
+		text += "Пояснение:\n«" + content + "»\n\n"
+	}
+
+	bot.sendMessage(bot.group, text)
+}

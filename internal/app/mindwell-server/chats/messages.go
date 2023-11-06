@@ -40,6 +40,9 @@ func loadMessageList(srv *utils.MindwellServer, tx *utils.AutoTx, userID, chatID
 			}
 		} else {
 			msg.EditContent = ""
+			msg.Rights = &models.MessageRights{
+				Complain: true,
+			}
 		}
 
 		result.Data = append(result.Data, &msg)
@@ -290,6 +293,9 @@ func loadMessage(srv *utils.MindwellServer, tx *utils.AutoTx, userID, msgID int6
 		}
 	} else {
 		msg.EditContent = ""
+		msg.Rights = &models.MessageRights{
+			Complain: true,
+		}
 	}
 
 	return msg

@@ -27,6 +27,7 @@ func compareMessages(t *testing.T, exp, act *models.Message, user *models.UserID
 	rights := act.Rights
 	req.Equal(act.Author.ID == user.ID, rights != nil && rights.Edit)
 	req.Equal(act.Author.ID == user.ID, rights != nil && rights.Delete)
+	req.Equal(act.Author.ID != user.ID, rights != nil && rights.Complain)
 }
 
 func checkLoadMessage(t *testing.T, userID *models.UserID, msg *models.Message, success bool) {
@@ -65,6 +66,7 @@ func checkSendMessage(t *testing.T, userID *models.UserID, otherName string, uid
 	require.Equal(t, userID.Name == otherName, msg.Read)
 	require.True(t, msg.Rights.Edit)
 	require.True(t, msg.Rights.Delete)
+	require.False(t, msg.Rights.Complain)
 
 	checkLoadMessage(t, userID, msg, true)
 

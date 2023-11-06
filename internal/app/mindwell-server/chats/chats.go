@@ -75,6 +75,9 @@ func loadChatList(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 			}
 		} else {
 			chat.LastMessage.EditContent = ""
+			chat.LastMessage.Rights = &models.MessageRights{
+				Complain: true,
+			}
 		}
 
 		result.Data = append(result.Data, &chat)
@@ -208,6 +211,11 @@ func loadChat(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID
 			chat.LastMessage.Rights = &models.MessageRights{
 				Delete: true,
 				Edit:   true,
+			}
+		} else {
+			chat.LastMessage.EditContent = ""
+			chat.LastMessage.Rights = &models.MessageRights{
+				Complain: true,
 			}
 		}
 

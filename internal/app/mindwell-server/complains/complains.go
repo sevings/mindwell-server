@@ -2,9 +2,12 @@ package complains
 
 import (
 	"database/sql"
+	"errors"
 	"github.com/go-openapi/runtime/middleware"
+	"github.com/leporo/sqlf"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/sevings/mindwell-server/models"
+	"github.com/sevings/mindwell-server/restapi/operations/chats"
 	"github.com/sevings/mindwell-server/restapi/operations/comments"
 	"github.com/sevings/mindwell-server/restapi/operations/entries"
 	"github.com/sevings/mindwell-server/utils"
@@ -18,6 +21,7 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 
 	srv.API.EntriesPostEntriesIDComplainHandler = entries.PostEntriesIDComplainHandlerFunc(newEntryComplainer(srv))
 	srv.API.CommentsPostCommentsIDComplainHandler = comments.PostCommentsIDComplainHandlerFunc(newCommentComplainer(srv))
+	srv.API.ChatsPostMessagesIDComplainHandler = chats.PostMessagesIDComplainHandlerFunc(newMessageComplainer(srv))
 }
 
 const selectPrevQuery = `
@@ -40,6 +44,10 @@ const createQuery = `
 
 func newEntryComplainer(srv *utils.MindwellServer) func(entries.PostEntriesIDComplainParams, *models.UserID) middleware.Responder {
 	return func(params entries.PostEntriesIDComplainParams, userID *models.UserID) middleware.Responder {
+		if userID.ID == 0 {
+			return entries.NewGetEntriesIDForbidden()
+		}
+
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			allowed := utils.CanViewEntry(tx, userID, params.ID)
 			if !allowed {
@@ -72,6 +80,10 @@ func newEntryComplainer(srv *utils.MindwellServer) func(entries.PostEntriesIDCom
 
 func newCommentComplainer(srv *utils.MindwellServer) func(comments.PostCommentsIDComplainParams, *models.UserID) middleware.Responder {
 	return func(params comments.PostCommentsIDComplainParams, userID *models.UserID) middleware.Responder {
+		if userID.ID == 0 {
+			comments.NewPostCommentsIDComplainForbidden()
+		}
+
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			var entryID, authorID int64
 			tx.Query("SELECT entry_id, author_id FROM comments WHERE id = $1", params.ID)
@@ -101,6 +113,47 @@ func newCommentComplainer(srv *utils.MindwellServer) func(comments.PostCommentsI
 			tx.Exec(createQuery, userID.ID, "comment", params.ID, *params.Content)
 			srv.Ntf.SendNewCommentComplain(tx, params.ID, userID.ID, *params.Content)
 			return comments.NewPostCommentsIDComplainNoContent()
+		})
+	}
+}
+
+func newMessageComplainer(srv *utils.MindwellServer) func(chats.PostMessagesIDComplainParams, *models.UserID) middleware.Responder {
+	return func(params chats.PostMessagesIDComplainParams, userID *models.UserID) middleware.Responder {
+		if userID.ID == 0 {
+			return chats.NewPostMessagesIDComplainForbidden()
+		}
+
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			chatQuery := sqlf.Select("creator_id, partner_id, author_id").
+				From("chats").
+				Join("messages", "chats.id = messages.chat_id").
+				Where("messages.id = ?", params.ID)
+
+			var creatorID, partnerID, authorID int64
+			tx.QueryStmt(chatQuery).Scan(&creatorID, &partnerID, &authorID)
+			if creatorID != userID.ID && partnerID != userID.ID {
+				err := srv.StandardError("no_message")
+				return chats.NewPostMessagesIDComplainNotFound().WithPayload(err)
+			}
+
+			if authorID == userID.ID {
+				return chats.NewPostMessagesIDComplainForbidden().WithPayload(errCAY)
+			}
+
+			id := tx.QueryInt64(selectPrevQuery, userID.ID, params.ID, "message")
+			if !errors.Is(tx.Error(), sql.ErrNoRows) {
+				if tx.Error() != nil {
+					err := srv.StandardError("no_message")
+					return chats.NewPostMessagesIDComplainNotFound().WithPayload(err)
+				}
+
+				tx.Exec(updateQuery, id, *params.Content)
+				return chats.NewPostMessagesIDComplainNoContent()
+			}
+
+			tx.Exec(createQuery, userID.ID, "message", params.ID, *params.Content)
+			srv.Ntf.SendNewMessageComplain(tx, params.ID, userID.ID, *params.Content)
+			return chats.NewPostMessagesIDComplainNoContent()
 		})
 	}
 }
