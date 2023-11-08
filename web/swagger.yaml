@@ -69,6 +69,8 @@ definitions:
       ban:
         type: object
         properties:
+          account:
+            type: boolean
           invite:
             type: boolean
           vote:

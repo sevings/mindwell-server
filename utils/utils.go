@@ -551,6 +551,9 @@ func CreateApp(tx *AutoTx, hash TokenHash, app CreateAppParameters) (int64, stri
 	if err != nil {
 		return 0, "", fmt.Errorf("пользователь %s не найден", app.DevName)
 	}
+	if dev.Ban.Account {
+		return 0, "", errUnauthorized
+	}
 
 	appID := int64(rand.Int31())
 

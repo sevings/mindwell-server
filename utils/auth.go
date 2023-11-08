@@ -38,14 +38,13 @@ func LoadUserIDByName(tx *AutoTx, name string) (*models.UserID, error) {
 func scanUserID(tx *AutoTx) (*models.UserID, error) {
 	var user models.UserID
 	user.Ban = &models.UserIDBan{}
-	var userBan bool
 	tx.Scan(&user.ID, &user.Name, &user.FollowersCount,
 		&user.IsInvited, &user.NegKarma, &user.Verified,
 		&user.Ban.Invite, &user.Ban.Vote,
 		&user.Ban.Comment, &user.Ban.Live,
-		&userBan,
+		&user.Ban.Account,
 		&user.Authority)
-	if tx.Error() != nil || userBan {
+	if tx.Error() != nil {
 		return nil, errUnauthorized
 	}
 
@@ -182,7 +181,12 @@ WHERE lower(users.name) = lower($1)
 			return nil, errAccessDenied
 		}
 
-		return LoadUserIDByName(tx, name)
+		userID, err := LoadUserIDByName(tx, name)
+		if userID != nil && userID.Ban.Account {
+			return nil, errUnauthorized
+		}
+
+		return userID, err
 	}
 }
 
