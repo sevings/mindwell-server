@@ -2098,6 +2098,8 @@ CREATE TABLE "mindwell"."complain_type" (
 INSERT INTO "mindwell"."complain_type" VALUES(0, 'comment');
 INSERT INTO "mindwell"."complain_type" VALUES(1, 'entry');
 INSERT INTO "mindwell"."complain_type" VALUES(2, 'message');
+INSERT INTO "mindwell"."complain_type" VALUES(3, 'user');
+INSERT INTO "mindwell"."complain_type" VALUES(4, 'theme');
 -- -------------------------------------------------------------
 
 -- CREATE TABLE "complains" ------------------------------------

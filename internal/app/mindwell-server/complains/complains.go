@@ -10,6 +10,8 @@ import (
 	"github.com/sevings/mindwell-server/restapi/operations/chats"
 	"github.com/sevings/mindwell-server/restapi/operations/comments"
 	"github.com/sevings/mindwell-server/restapi/operations/entries"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
+	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"github.com/sevings/mindwell-server/utils"
 )
 
@@ -22,6 +24,8 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.EntriesPostEntriesIDComplainHandler = entries.PostEntriesIDComplainHandlerFunc(newEntryComplainer(srv))
 	srv.API.CommentsPostCommentsIDComplainHandler = comments.PostCommentsIDComplainHandlerFunc(newCommentComplainer(srv))
 	srv.API.ChatsPostMessagesIDComplainHandler = chats.PostMessagesIDComplainHandlerFunc(newMessageComplainer(srv))
+	srv.API.UsersPostUsersNameComplainHandler = users.PostUsersNameComplainHandlerFunc(newUserComplainer(srv))
+	srv.API.ThemesPostThemesNameComplainHandler = themes.PostThemesNameComplainHandlerFunc(newThemeComplainer(srv))
 }
 
 const selectPrevQuery = `
@@ -154,6 +158,71 @@ func newMessageComplainer(srv *utils.MindwellServer) func(chats.PostMessagesIDCo
 			tx.Exec(createQuery, userID.ID, "message", params.ID, *params.Content)
 			srv.Ntf.SendNewMessageComplain(tx, params.ID, userID.ID, *params.Content)
 			return chats.NewPostMessagesIDComplainNoContent()
+		})
+	}
+}
+
+func newUserComplainer(srv *utils.MindwellServer) func(users.PostUsersNameComplainParams, *models.UserID) middleware.Responder {
+	return func(params users.PostUsersNameComplainParams, userID *models.UserID) middleware.Responder {
+		if userID.ID == 0 {
+			return users.NewPostUsersNameComplainForbidden()
+		}
+
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			against := utils.LoadUserByName(tx, params.Name)
+			if against.ID == 0 || against.IsTheme {
+				err := srv.StandardError("no_tlog")
+				return users.NewPostUsersNameComplainNotFound().WithPayload(err)
+			}
+			if against.ID == userID.ID {
+				return users.NewPostUsersNameComplainForbidden().WithPayload(errCAY)
+			}
+
+			id := tx.QueryInt64(selectPrevQuery, userID.ID, against.ID, "user")
+			if !errors.Is(tx.Error(), sql.ErrNoRows) {
+				if tx.Error() != nil {
+					err := srv.StandardError("no_tlog")
+					return users.NewPostUsersNameComplainNotFound().WithPayload(err)
+				}
+
+				tx.Exec(updateQuery, id, *params.Content)
+				return users.NewPostUsersNameComplainNoContent()
+			}
+
+			tx.Exec(createQuery, userID.ID, "user", against.ID, *params.Content)
+			srv.Ntf.SendNewUserComplain(tx, against, userID.ID, *params.Content)
+			return users.NewPostUsersNameComplainNoContent()
+		})
+	}
+}
+
+func newThemeComplainer(srv *utils.MindwellServer) func(themes.PostThemesNameComplainParams, *models.UserID) middleware.Responder {
+	return func(params themes.PostThemesNameComplainParams, userID *models.UserID) middleware.Responder {
+		if userID.ID == 0 {
+			return users.NewPostUsersNameComplainForbidden()
+		}
+
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			against := utils.LoadUserByName(tx, params.Name)
+			if against.ID == 0 || !against.IsTheme {
+				err := srv.StandardError("no_theme")
+				return themes.NewPostThemesNameComplainNotFound().WithPayload(err)
+			}
+
+			id := tx.QueryInt64(selectPrevQuery, userID.ID, against.ID, "theme")
+			if !errors.Is(tx.Error(), sql.ErrNoRows) {
+				if tx.Error() != nil {
+					err := srv.StandardError("no_theme")
+					return themes.NewPostThemesNameComplainNotFound().WithPayload(err)
+				}
+
+				tx.Exec(updateQuery, id, *params.Content)
+				return themes.NewPostThemesNameComplainNoContent()
+			}
+
+			tx.Exec(createQuery, userID.ID, "user", against.ID, *params.Content)
+			srv.Ntf.SendNewThemeComplain(tx, against, userID.ID, *params.Content)
+			return themes.NewPostThemesNameComplainNoContent()
 		})
 	}
 }

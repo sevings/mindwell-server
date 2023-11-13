@@ -121,7 +121,11 @@ func (bot *TelegramBot) sendMessageNow(chat int64, text string) tgbotapi.Message
 }
 
 func (bot *TelegramBot) sendMessage(chat int64, text string) {
-	bot.send <- func() { bot.sendMessageNow(chat, text) }
+	if chat == 0 {
+		bot.log.Error("zero chat")
+	} else {
+		bot.send <- func() { bot.sendMessageNow(chat, text) }
+	}
 }
 
 func inGroup(upd *tgbotapi.Update, ids []int64) bool {
@@ -1632,6 +1636,36 @@ func (bot *TelegramBot) SendMessageComplain(from, against *models.User, content,
 	text := "Пользователь " + bot.userLink(from) + " пожаловался на сообщение " +
 		strconv.FormatInt(messageID, 10) + " от " + bot.userLink(against) + ". " +
 		"Текст сообщения:\n\n«" + message + "»\n\n"
+
+	if content != "" {
+		text += "Пояснение:\n«" + content + "»\n\n"
+	}
+
+	bot.sendMessage(bot.group, text)
+}
+
+func (bot *TelegramBot) SendUserComplain(from, against *models.User, content, title string) {
+	text := "Пользователь " + bot.userLink(from) + " пожаловался на профиль " +
+		bot.userLink(against) + ". "
+
+	if title != "" {
+		text += "Информация профиля:\n\n«" + title + "»\n\n"
+	}
+
+	if content != "" {
+		text += "Пояснение:\n«" + content + "»\n\n"
+	}
+
+	bot.sendMessage(bot.group, text)
+}
+
+func (bot *TelegramBot) SendThemeComplain(from, against *models.User, content, title string) {
+	text := "Пользователь " + bot.userLink(from) + " пожаловался на тему " +
+		bot.userLink(against) + ". "
+
+	if title != "" {
+		text += "Информация темы:\n\n«" + title + "»\n\n"
+	}
 
 	if content != "" {
 		text += "Пояснение:\n«" + content + "»\n\n"

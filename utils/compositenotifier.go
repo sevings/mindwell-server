@@ -378,6 +378,30 @@ func (ntf *CompositeNotifier) SendNewMessageComplain(tx *AutoTx, msgID, fromID i
 	ntf.Tg.SendMessageComplain(from, against, content, msg, msgID)
 }
 
+func (ntf *CompositeNotifier) SendNewUserComplain(tx *AutoTx, against *models.User, fromID int64, content string) {
+	const q = `
+		SELECT title
+		FROM users 
+		WHERE users.id = $1`
+
+	title := tx.QueryString(q, against.ID)
+	from := LoadUser(tx, fromID)
+
+	ntf.Tg.SendUserComplain(from, against, content, title)
+}
+
+func (ntf *CompositeNotifier) SendNewThemeComplain(tx *AutoTx, against *models.User, fromID int64, content string) {
+	const q = `
+		SELECT title
+		FROM users 
+		WHERE users.id = $1`
+
+	title := tx.QueryString(q, against.ID)
+	from := LoadUser(tx, fromID)
+
+	ntf.Tg.SendThemeComplain(from, against, content, title)
+}
+
 const retryQuery = `
 SELECT EXISTS(SELECT 1 
 	FROM notifications 

@@ -1764,6 +1764,35 @@ paths:
           description: User not found
           schema:
             $ref: '#/definitions/Error'
+  /users/{name}/complain:
+    parameters:
+      - $ref: '#/parameters/pathName'
+    post:
+      consumes:
+        - multipart/form-data
+        - application/x-www-form-urlencoded
+      parameters:
+        - in: formData
+          name: content
+          type: string
+          maxLength: 1000
+          default: ""
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ ]
+      tags:
+        - users
+      responses:
+        204:
+          description: OK
+        403:
+          description: access denied
+          schema:
+            $ref: '#/definitions/Error'
+        404:
+          description: User not found
+          schema:
+            $ref: '#/definitions/Error'
   /themes:
     get:
       security:
@@ -2156,6 +2185,35 @@ paths:
           description: Theme tags
           schema:
             $ref: '#/definitions/TagList'
+        404:
+          description: Theme not found
+          schema:
+            $ref: '#/definitions/Error'
+  /themes/{name}/complain:
+    parameters:
+      - $ref: '#/parameters/pathName'
+    post:
+      consumes:
+        - multipart/form-data
+        - application/x-www-form-urlencoded
+      parameters:
+        - in: formData
+          name: content
+          type: string
+          maxLength: 1000
+          default: ""
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ ]
+      tags:
+        - themes
+      responses:
+        204:
+          description: OK
+        403:
+          description: access denied
+          schema:
+            $ref: '#/definitions/Error'
         404:
           description: Theme not found
           schema:
