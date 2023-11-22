@@ -109,6 +109,12 @@ func newGrandsonUpdater(srv *utils.MindwellServer) func(adm.PostAdmGrandsonParam
 }
 
 func newGrandsonStatusLoader(srv *utils.MindwellServer) func(adm.GetAdmGrandsonStatusParams, *models.UserID) middleware.Responder {
+	const query = `
+SELECT received, sent, tracking, grandfather_comment
+FROM adm
+WHERE lower(name) = lower($1)
+`
+
 	return func(params adm.GetAdmGrandsonStatusParams, userID *models.UserID) middleware.Responder {
 		if admFinished {
 			return adm.NewGetAdmGrandsonStatusGone().WithPayload(finishedErr)
@@ -117,8 +123,8 @@ func newGrandsonStatusLoader(srv *utils.MindwellServer) func(adm.GetAdmGrandsonS
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			status := adm.GetAdmGrandsonStatusOKBody{}
 
-			tx.Query("SELECT received, sent FROM adm WHERE lower(name) = lower($1)", userID.Name).
-				Scan(&status.Received, &status.Sent)
+			tx.Query(query, userID.Name).
+				Scan(&status.Received, &status.Sent, &status.Tracking, &status.Comment)
 
 			if tx.Error() == sql.ErrNoRows {
 				return adm.NewGetAdmGrandsonStatusForbidden().WithPayload(notRegErr)
@@ -193,6 +199,12 @@ func newGrandfatherLoader(srv *utils.MindwellServer) func(adm.GetAdmGrandfatherP
 }
 
 func newGrandfatherStatusLoader(srv *utils.MindwellServer) func(adm.GetAdmGrandfatherStatusParams, *models.UserID) middleware.Responder {
+	const query = `
+SELECT received, sent, tracking, grandfather_comment
+FROM adm
+WHERE lower(grandfather) = lower($1)
+`
+
 	return func(params adm.GetAdmGrandfatherStatusParams, userID *models.UserID) middleware.Responder {
 		if admFinished {
 			return adm.NewGetAdmGrandfatherStatusGone().WithPayload(finishedErr)
@@ -201,8 +213,8 @@ func newGrandfatherStatusLoader(srv *utils.MindwellServer) func(adm.GetAdmGrandf
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			status := adm.GetAdmGrandfatherStatusOKBody{}
 
-			tx.Query("SELECT received, sent FROM adm WHERE lower(grandfather) = lower($1)", userID.Name).
-				Scan(&status.Received, &status.Sent)
+			tx.Query(query, userID.Name).
+				Scan(&status.Received, &status.Sent, &status.Tracking, &status.Comment)
 
 			if tx.Error() == sql.ErrNoRows {
 				return adm.NewGetAdmGrandfatherStatusForbidden().WithPayload(notRegErr)
@@ -221,19 +233,20 @@ func newGrandfatherStatusUpdater(srv *utils.MindwellServer) func(adm.PostAdmGran
 
 		const q = `
 			UPDATE adm 
-			SET sent = $2 
+			SET sent = $2, tracking = $3, grandfather_comment = $4
 			WHERE lower(grandfather) = lower($1)
 			RETURNING name
 		`
 
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			grandson := tx.QueryString(q, userID.Name, params.Sent)
+			sent := *params.Sent || *params.Tracking != ""
+			grandson := tx.QueryString(q, userID.Name, sent, *params.Tracking, *params.Comment)
 
 			if tx.Error() == sql.ErrNoRows {
 				return adm.NewPostAdmGrandfatherStatusForbidden().WithPayload(notRegErr)
 			}
 
-			if params.Sent {
+			if sent {
 				srv.Ntf.SendAdmSent(tx, grandson)
 			}
 

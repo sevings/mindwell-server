@@ -3857,6 +3857,10 @@ paths:
                 type: boolean
               received:
                 type: boolean
+              tracking:
+                type: string
+              comment:
+                type: string
         403:
           description: you're not registered in adm
           schema:
@@ -3939,6 +3943,10 @@ paths:
                 type: boolean
               received:
                 type: boolean
+              tracking:
+                type: string
+              comment:
+                type: string
         403:
           description: you're not registered in adm
           schema:
@@ -3953,11 +3961,25 @@ paths:
         - OAuth2Code: [ "adm:write" ]
       tags:
         - adm
+      consumes:
+        - multipart/form-data
+        - application/x-www-form-urlencoded
       parameters:
-        - in: query
+        - in: formData
           name: sent
           type: boolean
-          required: true
+          required: false
+          default: false
+        - in: formData
+          name: tracking
+          type: string
+          maxLength: 50
+          default: ''
+        - in: formData
+          name: comment
+          type: string
+          maxLength: 1000
+          default: ''
       responses:
         200:
           description: OK

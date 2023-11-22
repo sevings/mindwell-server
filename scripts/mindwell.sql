@@ -265,7 +265,9 @@ CREATE TABLE "mindwell"."adm" (
     "anonymous" Boolean NOT NULL,
     "grandfather" Text NOT NULL DEFAULT '',
     "sent" Boolean NOT NULL DEFAULT false,
-    "received" Boolean NOT NULL DEFAULT false );
+    "received" Boolean NOT NULL DEFAULT false,
+    "tracking" Text NOT NULL DEFAULT '',
+    "grandfather_comment" Text NOT NULL DEFAULT '');
 ;
 -- -------------------------------------------------------------
 
