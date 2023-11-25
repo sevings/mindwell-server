@@ -15,6 +15,7 @@ func postTaggedEntry(t *testing.T, user *models.UserID, privacy string, tags []s
 	commentable := true
 	votable := true
 	live := true
+	shared := false
 	params := me.PostMeTlogParams{
 		Content:       "test tagged " + utils.GenerateString(8),
 		Title:         &title,
@@ -22,6 +23,7 @@ func postTaggedEntry(t *testing.T, user *models.UserID, privacy string, tags []s
 		IsCommentable: &commentable,
 		IsVotable:     &votable,
 		InLive:        &live,
+		IsShared:      &shared,
 		Tags:          tags,
 	}
 
@@ -38,6 +40,7 @@ func editTaggedEntry(t *testing.T, user *models.UserID, entry *models.Entry, pri
 		ID:            entry.ID,
 		IsCommentable: &entry.IsCommentable,
 		InLive:        &entry.InLive,
+		IsShared:      &entry.IsShared,
 		IsVotable:     &entry.Rating.IsVotable,
 		Privacy:       privacy,
 		Tags:          tags,

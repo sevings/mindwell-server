@@ -20,7 +20,7 @@ func baseFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 		Select("rating, entries.up_votes, entries.down_votes").
 		Select("entries.title, edit_content").
 		Select("word_count, entry_privacy.type as privacy").
-		Select("is_commentable, is_votable, in_live, is_anonymous").
+		Select("is_commentable, is_votable, in_live, is_anonymous, is_shared").
 		Select("entries.comments_count, entries.favorites_count").
 		Select("entries.author_id, authors.name as author_name, authors.show_name as author_show_name").
 		Select("is_online(authors.last_seen_at) AND authors.creator_id IS NULL as author_is_online").
@@ -60,7 +60,7 @@ func addSubQuery(q *sqlf.Stmt) *sqlf.Stmt {
 		Select("rating, up_votes, down_votes").
 		Select("title, edit_content").
 		Select("word_count, privacy").
-		Select("is_commentable, is_votable, in_live, is_anonymous").
+		Select("is_commentable, is_votable, in_live, is_anonymous, is_shared").
 		Select("comments_count, favorites_count").
 		Select("author_id, author_name, author_show_name").
 		Select("author_is_online").
@@ -270,7 +270,8 @@ func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID
 			&rating.Rating, &rating.UpCount, &rating.DownCount,
 			&entry.Title, &entry.EditContent,
 			&entry.WordCount, &entry.Privacy,
-			&entry.IsCommentable, &rating.IsVotable, &entry.InLive, &entry.IsAnonymous,
+			&entry.IsCommentable, &rating.IsVotable, &entry.InLive,
+			&entry.IsAnonymous, &entry.IsShared,
 			&entry.CommentCount, &entry.FavoriteCount,
 			&author.ID, &author.Name, &author.ShowName,
 			&author.IsOnline,

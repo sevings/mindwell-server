@@ -271,6 +271,7 @@ func banLive(db *sql.DB, userID *models.UserID) {
 
 func createTlogEntry(t *testing.T, id *models.UserID, privacy string, commentable, votable, live bool) *models.Entry {
 	title := ""
+	shared := false
 	params := me.PostMeTlogParams{
 		Content:       "test test test" + utils.GenerateString(5),
 		Title:         &title,
@@ -278,6 +279,7 @@ func createTlogEntry(t *testing.T, id *models.UserID, privacy string, commentabl
 		IsCommentable: &commentable,
 		IsVotable:     &votable,
 		InLive:        &live,
+		IsShared:      &shared,
 	}
 
 	resp := api.MePostMeTlogHandler.Handle(params, id)
@@ -289,6 +291,7 @@ func createTlogEntry(t *testing.T, id *models.UserID, privacy string, commentabl
 
 func createThemeEntry(t *testing.T, id *models.UserID, theme, privacy string, commentable, votable, live, anonymous bool) *models.Entry {
 	title := ""
+	shared := false
 	params := themes.PostThemesNameTlogParams{
 		Name:          theme,
 		Content:       "test test test" + utils.GenerateString(5),
@@ -297,6 +300,7 @@ func createThemeEntry(t *testing.T, id *models.UserID, theme, privacy string, co
 		IsCommentable: &commentable,
 		IsVotable:     &votable,
 		InLive:        &live,
+		IsShared:      &shared,
 		IsAnonymous:   &anonymous,
 	}
 

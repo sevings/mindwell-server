@@ -3,6 +3,7 @@ package entries
 import (
 	"database/sql"
 	"github.com/Workiva/go-datastructures/bitarray"
+	"github.com/leporo/sqlf"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/comments"
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"log"
@@ -202,17 +203,17 @@ func createEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 	const q = `
 	INSERT INTO entries (user_id, author_id, title, edit_content, word_count,
 		visible_for,
-		is_commentable, is_votable, is_anonymous, in_live,
+		is_commentable, is_votable, is_anonymous, in_live, is_shared,
 		category)
 	VALUES ($1, $2, $3, $4, $5,
 		(SELECT id FROM entry_privacy WHERE type = $6), 
-		$7, $8, $9, $10,
-		(SELECT id from categories WHERE type = $11))
+		$7, $8, $9, $10, $11,
+		(SELECT id from categories WHERE type = $12))
 	RETURNING id, extract(epoch from created_at)`
 
 	tx.Query(q, userID.ID, entry.Author.ID, entry.Title, entry.EditContent, entry.WordCount,
 		entry.Privacy,
-		entry.IsCommentable, entry.Rating.IsVotable, entry.IsAnonymous, entry.InLive,
+		entry.IsCommentable, entry.Rating.IsVotable, entry.IsAnonymous, entry.InLive, entry.IsShared,
 		category).
 		Scan(&entry.ID, &entry.CreatedAt)
 
@@ -447,6 +448,7 @@ func newMyTlogPoster(srv *utils.MindwellServer) func(me.PostMeTlogParams, *model
 				Privacy:       params.Privacy,
 				IsCommentable: *params.IsCommentable,
 				InLive:        *params.InLive,
+				IsShared:      *params.IsShared,
 				IsAnonymous:   false,
 				Rating: &models.Rating{
 					IsVotable: *params.IsVotable,
@@ -477,6 +479,7 @@ func newThemePoster(srv *utils.MindwellServer) func(themes.PostThemesNameTlogPar
 				Privacy:       params.Privacy,
 				IsCommentable: *params.IsCommentable,
 				InLive:        *params.InLive,
+				IsShared:      *params.IsShared,
 				IsAnonymous:   *params.IsAnonymous,
 				Rating: &models.Rating{
 					IsVotable: *params.IsVotable,
@@ -510,14 +513,15 @@ func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserI
 	SET title = $1, edit_content = $2,
 	word_count = $3, 
 	visible_for = (SELECT id FROM entry_privacy WHERE type = $4), 
-	is_commentable = $5, is_votable = $6, in_live = $7,
-	category = (SELECT id from categories WHERE type = $8)
-	WHERE id = $9 AND user_id = $10
+	is_commentable = $5, is_votable = $6, in_live = $7, is_shared = $8,
+	category = (SELECT id from categories WHERE type = $9)
+	WHERE id = $10 AND user_id = $11
 	RETURNING extract(epoch from created_at)`
 
 	tx.Query(q, entry.Title, entry.EditContent,
 		entry.WordCount, entry.Privacy,
-		entry.IsCommentable, entry.Rating.IsVotable, entry.InLive, category, entry.ID, userID.ID).
+		entry.IsCommentable, entry.Rating.IsVotable, entry.InLive, entry.IsShared,
+		category, entry.ID, userID.ID).
 		Scan(&entry.CreatedAt)
 
 	if tx.Error() == sql.ErrNoRows {
@@ -625,6 +629,7 @@ func newEntryEditor(srv *utils.MindwellServer) func(entries.PutEntriesIDParams, 
 				Privacy:       params.Privacy,
 				IsCommentable: *params.IsCommentable,
 				InLive:        *params.InLive,
+				IsShared:      *params.IsShared,
 				IsAnonymous:   false,
 				Rating: &models.Rating{
 					IsVotable: *params.IsVotable,
@@ -680,8 +685,16 @@ func setEntryRights(entry *models.Entry, userID *models.UserID, themeCreatorID i
 }
 
 func LoadEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID int64, userID *models.UserID) *models.Entry {
+	var shared bool
 	if !utils.CanViewEntry(tx, userID, entryID) {
-		return &models.Entry{}
+		q := sqlf.Select("is_shared").
+			From("entries").
+			Where("id = ?", entryID)
+		if !tx.QueryStmt(q).ScanBool() {
+			return &models.Entry{}
+		}
+
+		shared = true
 	}
 
 	query := feedQuery(userID, 1).
@@ -694,12 +707,19 @@ func LoadEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID int64, userI
 		return &models.Entry{}
 	}
 
-	if userID.ID > 0 {
+	entry := feed.Entries[0]
+
+	if shared {
+		entry.Rights.Comment = false
+		entry.Rights.Delete = false
+		entry.Rights.Edit = false
+		entry.Rights.Vote = false
+	} else if userID.ID > 0 {
 		cmt := comments.LoadEntryComments(srv, tx, userID, entryID, 5, "", "")
-		feed.Entries[0].Comments = cmt
+		entry.Comments = cmt
 	}
 
-	return feed.Entries[0]
+	return entry
 }
 
 func newEntryLoader(srv *utils.MindwellServer) func(entries.GetEntriesIDParams, *models.UserID) middleware.Responder {

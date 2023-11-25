@@ -422,6 +422,8 @@ definitions:
         type: boolean
       isAnonymous:
         type: boolean
+      isShared:
+        type: boolean
       commentCount:
         type: integer
       favoriteCount:
@@ -2089,6 +2091,10 @@ paths:
           type: boolean
           default: false
         - in: formData
+          name: isShared
+          type: boolean
+          default: false
+        - in: formData
           name: isAnonymous
           type: boolean
           default: false
@@ -2531,6 +2537,10 @@ paths:
           default: false
         - in: formData
           name: inLive
+          type: boolean
+          default: false
+        - in: formData
+          name: isShared
           type: boolean
           default: false
       responses:
@@ -3036,6 +3046,10 @@ paths:
           default: false
         - in: formData
           name: inLive
+          type: boolean
+          default: false
+        - in: formData
+          name: isShared
           type: boolean
           default: false
         - in: formData
