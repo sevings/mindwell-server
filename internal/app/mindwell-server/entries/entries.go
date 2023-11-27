@@ -417,6 +417,12 @@ func postNewEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 		}
 	}
 
+	if entry.IsShared {
+		if !userID.Verified {
+			return srv.NewError(&i18n.Message{ID: "post_shared", Other: "You are now allowed to create shared posts."})
+		}
+	}
+
 	imageErr := checkImagesOwner(srv, tx, userID.ID, images)
 	if imageErr != nil {
 		return imageErr
