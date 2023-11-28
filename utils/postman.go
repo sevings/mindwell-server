@@ -21,7 +21,7 @@ type Postman struct {
 	stop      chan interface{}
 }
 
-func (pm *Postman) Start(smtpHost string, smtpPort int) error {
+func (pm *Postman) Start(smtpHost string, smtpPort int, username, password, helo string) error {
 	if pm.BaseUrl == "" || pm.Support == "" || pm.Moderator == "" || pm.Logger == nil {
 		return fmt.Errorf("invalid email settings")
 	}
@@ -43,7 +43,15 @@ func (pm *Postman) Start(smtpHost string, smtpPort int) error {
 	smtp := mail.NewSMTPClient()
 	smtp.Host = smtpHost
 	smtp.Port = smtpPort
-	smtp.Authentication = mail.AuthNone
+	smtp.Username = username
+	smtp.Password = password
+	smtp.Helo = helo
+
+	if username == "" || password == "" {
+		smtp.Authentication = mail.AuthNone
+	} else {
+		smtp.Authentication = mail.AuthAuto
+	}
 
 	smtpClient, err := smtp.Connect()
 	if err == nil {

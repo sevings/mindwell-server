@@ -39,6 +39,9 @@ ban_email   = "chordmi.com;etoymail.com;aprimail.com;gilfun.com;enayu.com;pidox.
 [email]
 #host        = "127.0.0.1"
 #port        = 25
+#username    = "smtp_username"
+#password    = "smtp_password"
+#helo        = "localhost"
 
 [telegram]
 #token       = "telegram_token"

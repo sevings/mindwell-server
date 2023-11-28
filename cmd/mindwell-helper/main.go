@@ -64,7 +64,10 @@ func main() {
 
 	smtpHost, _ := cfg.String("email.host")
 	smtpPort, _ := cfg.Int("email.port")
-	err = mail.Start(smtpHost, smtpPort)
+	smtpUsername, _ := cfg.String("email.username")
+	smtpPassword, _ := cfg.String("email.password")
+	smtpHelo, _ := cfg.String("email.helo")
+	err = mail.Start(smtpHost, smtpPort, smtpUsername, smtpPassword, smtpHelo)
 	if err != nil {
 		log.Println(err.Error())
 	}
