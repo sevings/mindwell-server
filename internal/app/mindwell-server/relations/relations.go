@@ -61,18 +61,22 @@ func newToRelationSetter(srv *utils.MindwellServer) func(relations.PutRelationsT
 				}
 			}
 
-			isPrivate := isPrivateTlog(tx, params.Name)
-			var relation *models.Relationship
-			var ok bool
-			if !isPrivate || params.R == models.RelationshipRelationIgnored || params.R == models.RelationshipRelationHidden {
-				relation, ok = setRelationship(tx, uID.Name, params.Name, params.R)
-			} else {
-				relation, ok = setRelationship(tx, uID.Name, params.Name, models.RelationshipRelationRequested)
+			isAdmin, isPrivate := isAdminOrPrivate(tx, params.Name)
+			relation := &models.Relationship{
+				From:     uID.Name,
+				Relation: params.R,
+				To:       params.Name,
+			}
+			if isPrivate && params.R == models.RelationshipRelationFollowed {
+				relation.Relation = models.RelationshipRelationRequested
 			}
 
-			if !ok {
-				err := srv.StandardError("no_tlog")
-				return relations.NewPutRelationsToNameNotFound().WithPayload(err)
+			if !isAdmin || params.R != models.RelationshipRelationIgnored {
+				ok := setRelationship(tx, relation)
+				if !ok {
+					err := srv.StandardError("no_tlog")
+					return relations.NewPutRelationsToNameNotFound().WithPayload(err)
+				}
 			}
 
 			if params.R == models.RelationshipRelationFollowed {
@@ -93,7 +97,12 @@ func newFromRelationSetter(srv *utils.MindwellServer) func(relations.PutRelation
 				return relations.NewPutRelationsFromNameForbidden().WithPayload(err)
 			}
 
-			relation, _ = setRelationship(tx, params.Name, uID.Name, models.RelationshipRelationFollowed)
+			relation = &models.Relationship{
+				From:     params.Name,
+				Relation: models.RelationshipRelationFollowed,
+				To:       uID.Name,
+			}
+			setRelationship(tx, relation)
 			srv.Ntf.SendNewAccept(tx, uID.Name, params.Name)
 
 			return relations.NewPutRelationsFromNameOK().WithPayload(relation)

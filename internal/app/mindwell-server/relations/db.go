@@ -29,7 +29,7 @@ func relationship(tx *utils.AutoTx, from, to string) *models.Relationship {
 	return &relation
 }
 
-func setRelationship(tx *utils.AutoTx, from, to, relation string) (*models.Relationship, bool) {
+func setRelationship(tx *utils.AutoTx, relation *models.Relationship) bool {
 	const q = `
 		INSERT INTO relations (from_id, to_id, type)
 		VALUES ((SELECT id FROM users where lower(name) = lower($1)), 
@@ -38,13 +38,9 @@ func setRelationship(tx *utils.AutoTx, from, to, relation string) (*models.Relat
 		ON CONFLICT ON CONSTRAINT unique_relation
 		DO UPDATE SET type = EXCLUDED.type, changed_at = CURRENT_TIMESTAMP`
 
-	tx.Exec(q, from, to, relation)
+	tx.Exec(q, relation.From, relation.To, relation.Relation)
 
-	return &models.Relationship{
-		From:     from,
-		To:       to,
-		Relation: relation,
-	}, tx.RowsAffected() == 1
+	return tx.RowsAffected() == 1
 }
 
 func removeRelationship(tx *utils.AutoTx, from, to string) *models.Relationship {
@@ -62,16 +58,20 @@ func removeRelationship(tx *utils.AutoTx, from, to string) *models.Relationship 
 	}
 }
 
-func isPrivateTlog(tx *utils.AutoTx, name string) bool {
+func isAdminOrPrivate(tx *utils.AutoTx, name string) (bool, bool) {
 	const q = `
-		SELECT user_privacy.type = 'followers'
-		FROM users, user_privacy
-		WHERE lower(users.name) = lower($1) AND users.privacy = user_privacy.id`
+		SELECT user_privacy.type = 'followers',
+		       authority.type = 'admin' OR authority.type = 'moderator'
+		FROM users
+		JOIN user_privacy ON users.privacy = user_privacy.id
+		JOIN authority ON users.authority = authority.id
+		WHERE lower(users.name) = lower($1)
+		`
 
-	var private bool
-	tx.Query(q, name).Scan(&private)
+	var private, admin bool
+	tx.Query(q, name).Scan(&private, &admin)
 
-	return private
+	return admin, private
 }
 
 func removeInvite(tx *utils.AutoTx, invite string, userID int64) bool {

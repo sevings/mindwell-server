@@ -65,7 +65,7 @@ definitions:
         type: boolean
       authority:
         type: string
-        enum: [user, admin]
+        enum: [user, admin, moderator]
       ban:
         type: object
         properties:

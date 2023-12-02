@@ -54,6 +54,7 @@ CREATE TABLE "mindwell"."authority" (
 
 INSERT INTO "mindwell"."authority" VALUES(0, 'user');
 INSERT INTO "mindwell"."authority" VALUES(1, 'admin');
+INSERT INTO "mindwell"."authority" VALUES(2, 'moderator');
 -- -------------------------------------------------------------
 
 
