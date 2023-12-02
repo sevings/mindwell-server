@@ -88,7 +88,7 @@ func setCommentRights(comment *models.Comment, userID *models.UserID, cmtUserID,
 		Edit:     cmtUserID == userID.ID,
 		Delete:   cmtUserID == userID.ID || entryUserID == userID.ID || themeCreatorID == userID.ID,
 		Vote:     cmtUserID != userID.ID && !userID.Ban.Vote,
-		Complain: cmtUserID != userID.ID,
+		Complain: cmtUserID != userID.ID && !userID.Ban.Complain,
 	}
 }
 
@@ -349,9 +349,10 @@ func postComment(tx *utils.AutoTx, userID *models.UserID, comment *models.Commen
 		IsVotable: true,
 	}
 	comment.Rights = &models.CommentRights{
-		Edit:   true,
-		Delete: true,
-		Vote:   false,
+		Edit:     true,
+		Delete:   true,
+		Vote:     false,
+		Complain: false,
 	}
 
 	tx.Query(q, userID.ID, comment.Author.ID, comment.EntryID, comment.EditContent)

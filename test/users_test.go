@@ -138,6 +138,7 @@ func checkEditProfile(t *testing.T, user *models.AuthProfile, params me.PutMePar
 	id := models.UserID{
 		ID:   user.ID,
 		Name: user.Name,
+		Ban:  &models.UserIDBan{},
 	}
 	resp := edit(params, &id)
 	body, ok := resp.(*me.PutMeOK)
@@ -284,7 +285,7 @@ func TestIsChatAllowed(t *testing.T) {
 			return
 		}
 
-		req.Equal(res, body.Payload.Relations.IsChatAllowed)
+		req.Equal(res, body.Payload.Rights.Chat)
 	}
 
 	noAuthUser := utils.NoAuthUser()

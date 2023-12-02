@@ -16,10 +16,12 @@ import (
 )
 
 var errCAY *models.Error
+var errCC *models.Error
 
 // ConfigureAPI creates operations handlers
 func ConfigureAPI(srv *utils.MindwellServer) {
 	errCAY = srv.NewError(&i18n.Message{ID: "complain_against_yourself", Other: "You can't complain against yourself."})
+	errCC = srv.NewError(&i18n.Message{ID: "cant_complain", Other: "You are not allowed to complain."})
 
 	srv.API.EntriesPostEntriesIDComplainHandler = entries.PostEntriesIDComplainHandlerFunc(newEntryComplainer(srv))
 	srv.API.CommentsPostCommentsIDComplainHandler = comments.PostCommentsIDComplainHandlerFunc(newCommentComplainer(srv))
@@ -48,8 +50,8 @@ const createQuery = `
 
 func newEntryComplainer(srv *utils.MindwellServer) func(entries.PostEntriesIDComplainParams, *models.UserID) middleware.Responder {
 	return func(params entries.PostEntriesIDComplainParams, userID *models.UserID) middleware.Responder {
-		if userID.ID == 0 {
-			return entries.NewGetEntriesIDForbidden()
+		if userID.Ban.Complain {
+			return entries.NewGetEntriesIDForbidden().WithPayload(errCC)
 		}
 
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
@@ -84,8 +86,8 @@ func newEntryComplainer(srv *utils.MindwellServer) func(entries.PostEntriesIDCom
 
 func newCommentComplainer(srv *utils.MindwellServer) func(comments.PostCommentsIDComplainParams, *models.UserID) middleware.Responder {
 	return func(params comments.PostCommentsIDComplainParams, userID *models.UserID) middleware.Responder {
-		if userID.ID == 0 {
-			comments.NewPostCommentsIDComplainForbidden()
+		if userID.Ban.Complain {
+			comments.NewPostCommentsIDComplainForbidden().WithPayload(errCC)
 		}
 
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
@@ -123,8 +125,8 @@ func newCommentComplainer(srv *utils.MindwellServer) func(comments.PostCommentsI
 
 func newMessageComplainer(srv *utils.MindwellServer) func(chats.PostMessagesIDComplainParams, *models.UserID) middleware.Responder {
 	return func(params chats.PostMessagesIDComplainParams, userID *models.UserID) middleware.Responder {
-		if userID.ID == 0 {
-			return chats.NewPostMessagesIDComplainForbidden()
+		if userID.Ban.Complain {
+			return chats.NewPostMessagesIDComplainForbidden().WithPayload(errCC)
 		}
 
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
@@ -164,8 +166,8 @@ func newMessageComplainer(srv *utils.MindwellServer) func(chats.PostMessagesIDCo
 
 func newUserComplainer(srv *utils.MindwellServer) func(users.PostUsersNameComplainParams, *models.UserID) middleware.Responder {
 	return func(params users.PostUsersNameComplainParams, userID *models.UserID) middleware.Responder {
-		if userID.ID == 0 {
-			return users.NewPostUsersNameComplainForbidden()
+		if userID.Ban.Complain {
+			return users.NewPostUsersNameComplainForbidden().WithPayload(errCC)
 		}
 
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
@@ -198,8 +200,8 @@ func newUserComplainer(srv *utils.MindwellServer) func(users.PostUsersNameCompla
 
 func newThemeComplainer(srv *utils.MindwellServer) func(themes.PostThemesNameComplainParams, *models.UserID) middleware.Responder {
 	return func(params themes.PostThemesNameComplainParams, userID *models.UserID) middleware.Responder {
-		if userID.ID == 0 {
-			return users.NewPostUsersNameComplainForbidden()
+		if userID.Ban.Complain {
+			return users.NewPostUsersNameComplainForbidden().WithPayload(errCC)
 		}
 
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {

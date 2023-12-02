@@ -18,7 +18,7 @@ const loadMessagesQuery = `
     WHERE chat_id = $1
 `
 
-func loadMessageList(srv *utils.MindwellServer, tx *utils.AutoTx, userID, chatID int64, reverse bool) *models.MessageList {
+func loadMessageList(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, chatID int64, reverse bool) *models.MessageList {
 	var result models.MessageList
 
 	for {
@@ -33,7 +33,7 @@ func loadMessageList(srv *utils.MindwellServer, tx *utils.AutoTx, userID, chatID
 			break
 		}
 
-		if msg.Author.ID == userID {
+		if msg.Author.ID == userID.ID {
 			msg.Rights = &models.MessageRights{
 				Delete: true,
 				Edit:   true,
@@ -41,7 +41,7 @@ func loadMessageList(srv *utils.MindwellServer, tx *utils.AutoTx, userID, chatID
 		} else {
 			msg.EditContent = ""
 			msg.Rights = &models.MessageRights{
-				Complain: true,
+				Complain: !userID.Ban.Complain,
 			}
 		}
 
@@ -117,7 +117,7 @@ func newMessageListLoader(srv *utils.MindwellServer) func(chats.GetChatsNameMess
 				tx.Query(q, chatID, *params.Limit)
 			}
 
-			list := loadMessageList(srv, tx, userID.ID, chatID, after <= 0)
+			list := loadMessageList(srv, tx, userID, chatID, after <= 0)
 
 			if len(list.Data) == 0 {
 				return chats.NewGetChatsNameMessagesOK().WithPayload(list)
@@ -271,7 +271,7 @@ const loadMessageQuery = `
     WHERE messages.id = $1
 `
 
-func loadMessage(srv *utils.MindwellServer, tx *utils.AutoTx, userID, msgID int64) *models.Message {
+func loadMessage(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, msgID int64) *models.Message {
 	var avatar string
 	msg := &models.Message{
 		ID:     msgID,
@@ -286,7 +286,7 @@ func loadMessage(srv *utils.MindwellServer, tx *utils.AutoTx, userID, msgID int6
 
 	msg.Author.Avatar = srv.NewAvatar(avatar)
 
-	if msg.Author.ID == userID {
+	if msg.Author.ID == userID.ID {
 		msg.Rights = &models.MessageRights{
 			Delete: true,
 			Edit:   true,
@@ -294,7 +294,7 @@ func loadMessage(srv *utils.MindwellServer, tx *utils.AutoTx, userID, msgID int6
 	} else {
 		msg.EditContent = ""
 		msg.Rights = &models.MessageRights{
-			Complain: true,
+			Complain: !userID.Ban.Complain,
 		}
 	}
 
@@ -320,7 +320,7 @@ func setMessageRead(tx *utils.AutoTx, msg *models.Message, userID int64) {
 func newMessageLoader(srv *utils.MindwellServer) func(chats.GetMessagesIDParams, *models.UserID) middleware.Responder {
 	return func(params chats.GetMessagesIDParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			msg := loadMessage(srv, tx, userID.ID, params.ID)
+			msg := loadMessage(srv, tx, userID, params.ID)
 			if msg.CreatedAt == 0 {
 				err := srv.StandardError("no_message")
 				return chats.NewGetMessagesIDNotFound().WithPayload(err)

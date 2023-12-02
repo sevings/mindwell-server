@@ -67,13 +67,15 @@ invited_by.avatar,
 users.creator_id, 
 created_by.name, created_by.show_name,
 is_online(created_by.last_seen_at), 
-created_by.avatar
+created_by.avatar,
+authority.type
 FROM users 
 INNER JOIN gender ON gender.id = users.gender
 INNER JOIN user_privacy ON users.privacy = user_privacy.id
 INNER JOIN user_chat_privacy ON users.chat_privacy = user_chat_privacy.id
 INNER JOIN font_family ON users.font_family = font_family.id
 INNER JOIN alignment ON users.text_alignment = alignment.id
+INNER JOIN authority ON users.authority = authority.id
 LEFT JOIN users AS invited_by ON users.invited_by = invited_by.id
 LEFT JOIN users AS created_by ON users.creator_id = created_by.id  
 LEFT JOIN chats ON (chats.creator_id = users.id AND chats.partner_id = $2) 
@@ -100,6 +102,7 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 	var createdByIsOnline sql.NullBool
 	var createdByAvatar sql.NullString
 	var chatExists bool
+	var authority string
 
 	tx.Query(query, arg, userID.ID)
 	tx.Scan(&profile.ID, &profile.Name, &profile.ShowName,
@@ -123,7 +126,8 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 		&createdByID,
 		&createdByName, &createdByShowName,
 		&createdByIsOnline,
-		&createdByAvatar)
+		&createdByAvatar,
+		&authority)
 
 	if userID.ID == 0 && profile.Privacy != "all" {
 		return &models.Profile{}
@@ -165,11 +169,16 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 		profile.AgeUpperBound = profile.AgeLowerBound + 5
 	}
 
+	profile.Rights = &models.ProfileAO1Rights{
+		Complain: !userID.Ban.Complain,
+		Ignore:   authority == models.UserIDAuthorityUser,
+	}
+
 	profile.Relations = &models.ProfileAO1Relations{}
 
 	if profile.ID == userID.ID {
 		profile.Relations.IsOpenForMe = true
-		profile.Relations.IsChatAllowed = true
+		profile.Rights.Chat = true
 		return &profile
 	}
 
@@ -189,7 +198,7 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 	profile.Relations.FromMe = relationship(tx, relationQuery, userID.ID, profile.ID)
 	profile.Relations.ToMe = relationship(tx, relationQuery, profile.ID, userID.ID)
 	profile.Relations.IsOpenForMe = isOpenForMe(&profile, userID)
-	profile.Relations.IsChatAllowed = isChatAllowed(chatExists, &profile, userID)
+	profile.Rights.Chat = isChatAllowed(chatExists, &profile, userID)
 
 	return &profile
 }

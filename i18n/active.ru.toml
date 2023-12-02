@@ -34,6 +34,10 @@ other = "Тебе нельзя отправлять сообщения в эту
 hash = "sha1-eb527255e2fb2718ea0ed9ea8c6548c0d2c1b1bc"
 other = "Ты не можешь комментировать данную запись."
 
+[cant_complain]
+hash = "sha1-9a07db45235656563b4d8d6b7c0bfe12df4680e7"
+other = "Тебе нельзя отправлять жалобы."
+
 [cant_create_theme]
 hash = "sha1-5f7459ba18487245ec191f7ff198df2a6626ab92"
 other = "Тебе нельзя создавать темы."

@@ -79,6 +79,8 @@ definitions:
             type: boolean
           live:
             type: boolean
+          complain:
+            type: boolean
   Error:
     type: object
     properties:
@@ -284,14 +286,21 @@ definitions:
             properties:
               isOpenForMe:
                 type: boolean
-              isChatAllowed:
-                type: boolean
               toMe:
                 type: string
                 enum: [followed, requested, ignored, hidden, none]
               fromMe:
                 type: string
                 enum: [followed, requested, ignored, hidden, none]
+          rights:
+            type: object
+            properties:
+              chat:
+                type: boolean
+              ignore:
+                type: boolean
+              complain:
+                type: boolean
         example:
           gender: male
           isDaylog: false

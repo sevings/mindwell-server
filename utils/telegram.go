@@ -472,6 +472,8 @@ func (bot *TelegramBot) ban(upd *tgbotapi.Update) string {
 			q.SetExpr("comment_ban", banUntil)
 		case "invite":
 			q.SetExpr("invite_ban", banUntil)
+		case "complain":
+			q.SetExpr("complain_ban", banUntil)
 		case "adm":
 			q.Set("adm_ban", true)
 		case "user":

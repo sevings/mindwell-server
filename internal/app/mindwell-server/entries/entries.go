@@ -686,7 +686,7 @@ func setEntryRights(entry *models.Entry, userID *models.UserID, themeCreatorID i
 		Delete:   authorID == userID.ID || (entry.Author.IsTheme && themeCreatorID == userID.ID),
 		Comment:  authorID == userID.ID || (!userID.Ban.Comment && entry.IsCommentable),
 		Vote:     authorID != userID.ID && !userID.Ban.Vote && entry.Rating.IsVotable,
-		Complain: authorID != userID.ID && userID.ID > 0,
+		Complain: authorID != userID.ID && !userID.Ban.Complain,
 	}
 }
 

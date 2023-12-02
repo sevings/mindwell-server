@@ -18,6 +18,7 @@ const userIDQuery = `
 				invited_by is not null, karma < -1, verified,
 				invite_ban > CURRENT_DATE, vote_ban > CURRENT_DATE, 
 				comment_ban > CURRENT_DATE, live_ban > CURRENT_DATE,
+				complain_ban > CURRENT_DATE,
 				user_ban > CURRENT_DATE,
 				authority.type
 			FROM users
@@ -42,6 +43,7 @@ func scanUserID(tx *AutoTx) (*models.UserID, error) {
 		&user.IsInvited, &user.NegKarma, &user.Verified,
 		&user.Ban.Invite, &user.Ban.Vote,
 		&user.Ban.Comment, &user.Ban.Live,
+		&user.Ban.Complain,
 		&user.Ban.Account,
 		&user.Authority)
 	if tx.Error() != nil {
@@ -193,10 +195,11 @@ WHERE lower(users.name) = lower($1)
 func NoAuthUser() *models.UserID {
 	return &models.UserID{
 		Ban: &models.UserIDBan{
-			Comment: true,
-			Invite:  true,
-			Live:    true,
-			Vote:    true,
+			Comment:  true,
+			Invite:   true,
+			Live:     true,
+			Vote:     true,
+			Complain: true,
 		},
 	}
 }

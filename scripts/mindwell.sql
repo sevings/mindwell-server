@@ -145,6 +145,7 @@ CREATE TABLE "mindwell"."users" (
     "vote_ban" Date DEFAULT CURRENT_DATE NOT NULL,
     "comment_ban" Date DEFAULT CURRENT_DATE NOT NULL,
     "live_ban" Date DEFAULT CURRENT_DATE NOT NULL,
+    "complain_ban" Date DEFAULT CURRENT_DATE NOT NULL,
     "user_ban" Date DEFAULT CURRENT_DATE NOT NULL,
     "adm_ban" Boolean DEFAULT TRUE NOT NULL,
     "telegram" Integer,
