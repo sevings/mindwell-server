@@ -1152,6 +1152,38 @@ paths:
       responses:
         200:
           description: telegram notification settings has been updated
+  /account/settings/onsite:
+    get:
+      security:
+        - OAuth2Password: []
+        - OAuth2Code: [ "settings:read" ]
+      tags:
+        - account
+      responses:
+        200:
+          description: onsite notification settings
+          schema:
+            type: object
+            properties:
+              wishes:
+                type: boolean
+    put:
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "settings:write" ]
+      tags:
+        - account
+      consumes:
+        - multipart/form-data
+        - application/x-www-form-urlencoded
+      parameters:
+        - in: formData
+          type: boolean
+          name: wishes
+          default: false
+      responses:
+        200:
+          description: onsite notification settings has been updated
   /account/password:
     post:
       summary: change new password

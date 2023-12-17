@@ -511,6 +511,37 @@ func TestTelegramSettings(t *testing.T) {
 	checkUpdateTelegramSettings(t, userIDs[0], true, true, false, false)
 }
 
+func checkOnsiteSettings(t *testing.T, userID *models.UserID, wishes bool) {
+	load := api.AccountGetAccountSettingsOnsiteHandler.Handle
+	resp := load(account.GetAccountSettingsOnsiteParams{}, userID)
+	body, ok := resp.(*account.GetAccountSettingsOnsiteOK)
+	require.True(t, ok)
+
+	settings := body.Payload
+	require.Equal(t, wishes, settings.Wishes)
+}
+
+func checkUpdateOnsiteSettings(t *testing.T, userID *models.UserID, wishes bool) {
+	load := api.AccountPutAccountSettingsOnsiteHandler.Handle
+
+	settings := account.PutAccountSettingsOnsiteParams{
+		Wishes: &wishes,
+	}
+
+	resp := load(settings, userID)
+	_, ok := resp.(*account.PutAccountSettingsOnsiteOK)
+
+	require.True(t, ok)
+
+	checkOnsiteSettings(t, userID, wishes)
+}
+
+func TestOnsiteSettings(t *testing.T) {
+	checkOnsiteSettings(t, userIDs[0], true)
+	checkUpdateOnsiteSettings(t, userIDs[0], false)
+	checkUpdateOnsiteSettings(t, userIDs[0], true)
+}
+
 func TestConnectionToken(t *testing.T) {
 	load := api.AccountGetAccountSubscribeTokenHandler.Handle
 	resp := load(account.GetAccountSubscribeTokenParams{}, userIDs[1])

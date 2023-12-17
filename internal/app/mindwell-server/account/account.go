@@ -50,6 +50,9 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.AccountGetAccountSettingsTelegramHandler = account.GetAccountSettingsTelegramHandlerFunc(newTelegramSettingsLoader(srv))
 	srv.API.AccountPutAccountSettingsTelegramHandler = account.PutAccountSettingsTelegramHandlerFunc(newTelegramSettingsEditor(srv))
 
+	srv.API.AccountGetAccountSettingsOnsiteHandler = account.GetAccountSettingsOnsiteHandlerFunc(newOnsiteSettingsLoader(srv))
+	srv.API.AccountPutAccountSettingsOnsiteHandler = account.PutAccountSettingsOnsiteHandlerFunc(newOnsiteSettingsEditor(srv))
+
 	srv.API.AccountGetAccountSubscribeTokenHandler = account.GetAccountSubscribeTokenHandlerFunc(newConnectionTokenGenerator(srv))
 	srv.API.AccountGetAccountSubscribeTelegramHandler = account.GetAccountSubscribeTelegramHandlerFunc(newTelegramTokenGenerator(srv))
 	srv.API.AccountDeleteAccountSubscribeTelegramHandler = account.DeleteAccountSubscribeTelegramHandlerFunc(newTelegramDeleter(srv))
@@ -678,6 +681,37 @@ func newTelegramSettingsEditor(srv *utils.MindwellServer) func(account.PutAccoun
 			tx.Exec(q, userID.ID, *params.Comments, *params.Followers, *params.Invites, *params.Messages)
 
 			return account.NewPutAccountSettingsTelegramOK()
+		})
+	}
+}
+
+func newOnsiteSettingsLoader(srv *utils.MindwellServer) func(account.GetAccountSettingsOnsiteParams, *models.UserID) middleware.Responder {
+	return func(params account.GetAccountSettingsOnsiteParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			const q = `
+				SELECT send_wishes
+				FROM users 
+				WHERE id = $1`
+
+			settings := account.GetAccountSettingsOnsiteOKBody{}
+			tx.Query(q, userID.ID).Scan(&settings.Wishes)
+
+			return account.NewGetAccountSettingsOnsiteOK().WithPayload(&settings)
+		})
+	}
+}
+
+func newOnsiteSettingsEditor(srv *utils.MindwellServer) func(account.PutAccountSettingsOnsiteParams, *models.UserID) middleware.Responder {
+	return func(params account.PutAccountSettingsOnsiteParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			const q = `
+				UPDATE users 
+				SET send_wishes = $2
+				WHERE id = $1`
+
+			tx.Exec(q, userID.ID, *params.Wishes)
+
+			return account.NewPutAccountSettingsOnsiteOK()
 		})
 	}
 }
