@@ -2,6 +2,7 @@ package utils
 
 import (
 	"database/sql"
+	"errors"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/leporo/sqlf"
 	goconf "github.com/zpatrick/go-config"
@@ -121,7 +122,7 @@ type AutoTx struct {
 }
 
 func (tx *AutoTx) Query(query string, args ...interface{}) *AutoTx {
-	if tx.err != nil && tx.err != sql.ErrNoRows {
+	if tx.HasQueryError() {
 		return tx
 	}
 
@@ -254,12 +255,16 @@ func (tx *AutoTx) Error() error {
 	return tx.err
 }
 
+func (tx *AutoTx) HasQueryError() bool {
+	return tx.err != nil && !errors.Is(tx.err, sql.ErrNoRows)
+}
+
 func (tx *AutoTx) LastQuery() string {
 	return tx.query
 }
 
 func (tx *AutoTx) Exec(query string, args ...interface{}) {
-	if tx.err != nil && tx.err != sql.ErrNoRows {
+	if tx.HasQueryError() {
 		return
 	}
 
@@ -307,7 +312,7 @@ func (tx *AutoTx) Finish() {
 		log.Println(p, " (recovered by AutoTx)")
 		log.Println(tx.LastQuery())
 		debug.PrintStack()
-	} else if tx.Error() == nil || tx.Error() == sql.ErrNoRows {
+	} else if !tx.HasQueryError() {
 		err = tx.tx.Commit()
 	} else {
 		log.Println(tx.Error())
