@@ -1675,3 +1675,11 @@ func (bot *TelegramBot) SendThemeComplain(from, against *models.User, content, t
 
 	bot.sendMessage(bot.group, text)
 }
+
+func (bot *TelegramBot) SendWishComplain(from, against *models.User, wish string, wishID int64) {
+	text := "Пользователь " + bot.userLink(from) + " пожаловался на пожелание " +
+		strconv.FormatInt(wishID, 10) + " от " + bot.userLink(against) + ". " +
+		"Текст пожелания:\n\n«" + wish + "»\n\n"
+
+	bot.sendMessage(bot.group, text)
+}

@@ -211,6 +211,30 @@ WHERE lower(name) = lower($1)`
 	return queryUser(tx, query, name)
 }
 
+func LoadOnlineUsers(tx *AutoTx) []*models.User {
+	const query = `
+SELECT id, name, show_name,
+is_online(last_seen_at) AND creator_id IS NULL, creator_id IS NOT NULL
+FROM users
+WHERE is_online(last_seen_at)
+`
+
+	tx.Query(query)
+
+	var users []*models.User
+	for {
+		user := &models.User{}
+		if !tx.Scan(&user.ID, &user.Name, &user.ShowName,
+			&user.IsOnline, &user.IsTheme) {
+			break
+		}
+
+		users = append(users, user)
+	}
+
+	return users
+}
+
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 const (
 	letterIdxBits = 6                    // 6 bits to represent a letter index

@@ -141,6 +141,7 @@ CREATE TABLE "mindwell"."users" (
     "telegram_followers" Boolean NOT NULL DEFAULT TRUE,
     "telegram_invites" Boolean NOT NULL DEFAULT TRUE,
     "telegram_messages" Boolean NOT NULL DEFAULT TRUE,
+    "send_wishes" Boolean NOT NULL DEFAULT TRUE,
     "invite_ban" Date DEFAULT CURRENT_DATE NOT NULL,
     "vote_ban" Date DEFAULT CURRENT_DATE NOT NULL,
     "comment_ban" Date DEFAULT CURRENT_DATE NOT NULL,
@@ -288,7 +289,49 @@ CREATE OR REPLACE FUNCTION mindwell.ban_adm() RETURNS VOID AS $$
     );
 $$ LANGUAGE SQL;
 
-    
+
+
+-- CREATE TABLE "wish_states" ----------------------------------
+CREATE TABLE "mindwell"."wish_states" (
+    "id" Integer UNIQUE NOT NULL,
+    "state" Text NOT NULL
+);
+-- -------------------------------------------------------------
+
+INSERT INTO "mindwell"."wish_states"(id, state) VALUES (0, 'new');
+INSERT INTO "mindwell"."wish_states"(id, state) VALUES (1, 'sent');
+INSERT INTO "mindwell"."wish_states"(id, state) VALUES (2, 'declined');
+INSERT INTO "mindwell"."wish_states"(id, state) VALUES (3, 'complained');
+INSERT INTO "mindwell"."wish_states"(id, state) VALUES (4, 'thanked');
+
+-- CREATE TABLE "wishes" ---------------------------------------
+CREATE TABLE "mindwell"."wishes" (
+    "id" Serial NOT NULL,
+    "from_id" Integer NOT NULL,
+    "to_id" Integer NOT NULL,
+    "content" Text DEFAULT '' NOT NULL,
+    "state" Integer DEFAULT 0 NOT NULL,
+    "created_at" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT "unique_wish_id" PRIMARY KEY( "id" ),
+    CONSTRAINT "wish_sender" FOREIGN KEY("from_id") REFERENCES "mindwell"."users"("id"),
+    CONSTRAINT "wish_receiver" FOREIGN KEY("to_id") REFERENCES "mindwell"."users"("id"),
+    CONSTRAINT "enum_wish_state" FOREIGN KEY("state") REFERENCES "mindwell"."wish_states"("id")
+);
+-- -------------------------------------------------------------
+
+-- CREATE INDEX "index_wish_id" --------------------------------
+CREATE INDEX "index_wish_id" ON "mindwell"."wishes" USING btree( "id" );
+-- -------------------------------------------------------------
+
+-- CREATE INDEX "index_wish_from_id" ---------------------------
+CREATE INDEX "index_wish_from_id" ON "mindwell"."wishes" USING btree( "from_id" );
+-- -------------------------------------------------------------
+
+-- CREATE INDEX "index_wish_to_id" -----------------------------
+CREATE INDEX "index_wish_to_id" ON "mindwell"."wishes" USING btree( "to_id" );
+-- -------------------------------------------------------------
+
+
 
 -- CREATE TABLE "invite_words" ---------------------------------
 CREATE TABLE "mindwell"."invite_words" (
@@ -1984,6 +2027,8 @@ INSERT INTO "mindwell"."notification_type" VALUES(6, 'invited');
 INSERT INTO "mindwell"."notification_type" VALUES(7, 'adm_sent');
 INSERT INTO "mindwell"."notification_type" VALUES(8, 'adm_received');
 INSERT INTO "mindwell"."notification_type" VALUES(9, 'info');
+INSERT INTO "mindwell"."notification_type" VALUES(10, 'wish_created');
+INSERT INTO "mindwell"."notification_type" VALUES(11, 'wish_received');
 -- -------------------------------------------------------------
 
 
@@ -2105,6 +2150,7 @@ INSERT INTO "mindwell"."complain_type" VALUES(1, 'entry');
 INSERT INTO "mindwell"."complain_type" VALUES(2, 'message');
 INSERT INTO "mindwell"."complain_type" VALUES(3, 'user');
 INSERT INTO "mindwell"."complain_type" VALUES(4, 'theme');
+INSERT INTO "mindwell"."complain_type" VALUES(5, 'wish');
 -- -------------------------------------------------------------
 
 -- CREATE TABLE "complains" ------------------------------------

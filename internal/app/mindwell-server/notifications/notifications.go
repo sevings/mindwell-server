@@ -7,6 +7,7 @@ import (
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/comments"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/entries"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/users"
+	"github.com/sevings/mindwell-server/internal/app/mindwell-server/wishes"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/notifications"
 	"github.com/sevings/mindwell-server/utils"
@@ -129,6 +130,10 @@ func loadNotification(srv *utils.MindwellServer, tx *utils.AutoTx, userID *model
 		break
 	case models.NotificationTypeAdmSent:
 		break
+	case models.NotificationTypeWishCreated:
+		fallthrough
+	case models.NotificationTypeWishReceived:
+		notif.Wish, _ = wishes.LoadWish(tx, userID, not.subj)
 	case models.NotificationTypeInfo:
 		notif.Info = loadInfo(tx, not.subj)
 		break

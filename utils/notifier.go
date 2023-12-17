@@ -28,15 +28,17 @@ const (
 	stateRemoved = "removed"
 	stateRead    = "read"
 
-	typeAdmReceived = "adm_received"
-	typeAdmSent     = "adm_sent"
-	typeInvited     = "invited"
-	typeAccept      = "accept"
-	typeComment     = "comment"
-	typeRequest     = "request"
-	typeFollower    = "follower"
-	typeInvite      = "invite"
-	typeMessage     = "message"
+	typeAdmReceived  = "adm_received"
+	typeAdmSent      = "adm_sent"
+	typeInvited      = "invited"
+	typeAccept       = "accept"
+	typeComment      = "comment"
+	typeRequest      = "request"
+	typeFollower     = "follower"
+	typeInvite       = "invite"
+	typeMessage      = "message"
+	typeWishReceived = "wish_received"
+	typeWishCreated  = "wish_created"
 )
 
 func NewNotifier(apiURL, apiKey string) *Notifier {

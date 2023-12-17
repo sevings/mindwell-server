@@ -23,6 +23,7 @@ import (
 	usersImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/users"
 	votesImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/votes"
 	watchingsImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/watchings"
+	wishesImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/wishes"
 	"github.com/sevings/mindwell-server/utils"
 
 	"github.com/sevings/mindwell-server/models"
@@ -66,6 +67,7 @@ func TestMain(m *testing.M) {
 	tagsImpl.ConfigureAPI(srv)
 	oauth2Impl.ConfigureAPI(srv)
 	imagesImpl.ConfigureAPI(srv)
+	wishesImpl.ConfigureAPI(srv)
 
 	userIDs, profiles = registerTestUsers(db)
 

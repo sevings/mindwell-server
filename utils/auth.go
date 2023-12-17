@@ -90,6 +90,8 @@ var allScopes = [...]string{
 	"watchings:write",
 	"themes:read",
 	"themes:write",
+	"wishes:read",
+	"wishes:write",
 }
 
 func findScope(scope string) (uint32, error) {

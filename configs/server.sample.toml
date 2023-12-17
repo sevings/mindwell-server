@@ -56,3 +56,6 @@ admin_group = ""
 reg_finished = true
 adm_finished = true
 
+[wishes]
+enabled = true
+period = 217

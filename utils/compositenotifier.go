@@ -402,6 +402,22 @@ func (ntf *CompositeNotifier) SendNewThemeComplain(tx *AutoTx, against *models.U
 	ntf.Tg.SendThemeComplain(from, against, content, title)
 }
 
+func (ntf *CompositeNotifier) SendNewWishComplain(tx *AutoTx, wishID, fromID int64) {
+	const q = `
+		SELECT content, from_id
+		FROM wishes 
+		WHERE wishes.id = $1`
+
+	var wish string
+	var authorID int64
+	tx.Query(q, wishID).Scan(&wish, &authorID)
+
+	from := LoadUser(tx, fromID)
+	against := LoadUser(tx, authorID)
+
+	ntf.Tg.SendWishComplain(from, against, wish, wishID)
+}
+
 const retryQuery = `
 SELECT EXISTS(SELECT 1 
 	FROM notifications 
@@ -462,6 +478,14 @@ func (ntf *CompositeNotifier) SendAdmReceived(tx *AutoTx, grandfather string) {
 	}
 
 	ntf.Ntf.Notify(tx, 0, typeAdmReceived, grandfather)
+}
+
+func (ntf *CompositeNotifier) SendWishReceived(tx *AutoTx, wishID int64, user string) {
+	ntf.Ntf.Notify(tx, wishID, typeWishReceived, user)
+}
+
+func (ntf *CompositeNotifier) SendWishCreated(tx *AutoTx, wishID int64, user string) {
+	ntf.Ntf.Notify(tx, wishID, typeWishCreated, user)
 }
 
 func (ntf *CompositeNotifier) NotifyMessage(tx *AutoTx, msg *models.Message, user string) {

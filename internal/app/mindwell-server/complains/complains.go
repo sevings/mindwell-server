@@ -12,6 +12,7 @@ import (
 	"github.com/sevings/mindwell-server/restapi/operations/entries"
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
+	"github.com/sevings/mindwell-server/restapi/operations/wishes"
 	"github.com/sevings/mindwell-server/utils"
 )
 
@@ -28,6 +29,7 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.ChatsPostMessagesIDComplainHandler = chats.PostMessagesIDComplainHandlerFunc(newMessageComplainer(srv))
 	srv.API.UsersPostUsersNameComplainHandler = users.PostUsersNameComplainHandlerFunc(newUserComplainer(srv))
 	srv.API.ThemesPostThemesNameComplainHandler = themes.PostThemesNameComplainHandlerFunc(newThemeComplainer(srv))
+	srv.API.WishesPostWishesIDComplainHandler = wishes.PostWishesIDComplainHandlerFunc(newWishComplainer(srv))
 }
 
 const selectPrevQuery = `
@@ -225,6 +227,42 @@ func newThemeComplainer(srv *utils.MindwellServer) func(themes.PostThemesNameCom
 			tx.Exec(createQuery, userID.ID, "user", against.ID, *params.Content)
 			srv.Ntf.SendNewThemeComplain(tx, against, userID.ID, *params.Content)
 			return themes.NewPostThemesNameComplainNoContent()
+		})
+	}
+}
+
+func newWishComplainer(srv *utils.MindwellServer) func(wishes.PostWishesIDComplainParams, *models.UserID) middleware.Responder {
+	return func(params wishes.PostWishesIDComplainParams, userID *models.UserID) middleware.Responder {
+		if userID.Ban.Complain {
+			return wishes.NewPostWishesIDComplainForbidden().WithPayload(errCC)
+		}
+
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			const wishQuery = `
+UPDATE wishes
+SET state = (SELECT id FROM wish_states WHERE state = 'complained')
+WHERE wishes.id = $1 AND to_id = $2
+	AND state IN (SELECT id FROM wish_states WHERE state = 'sent' OR state = 'complained')
+`
+			tx.Exec(wishQuery, params.ID, userID.ID)
+			if tx.RowsAffected() < 1 {
+				err := srv.StandardError("no_wish")
+				return wishes.NewPostWishesIDThankNotFound().WithPayload(err)
+			}
+
+			tx.QueryInt64(selectPrevQuery, userID.ID, params.ID, "wish")
+			if !errors.Is(tx.Error(), sql.ErrNoRows) {
+				if tx.Error() != nil {
+					err := srv.StandardError("no_wish")
+					return wishes.NewPostWishesIDComplainNotFound().WithPayload(err)
+				}
+
+				return wishes.NewPostWishesIDComplainNoContent()
+			}
+
+			tx.Exec(createQuery, userID.ID, "wish", params.ID, "")
+			srv.Ntf.SendNewWishComplain(tx, params.ID, userID.ID)
+			return wishes.NewPostWishesIDComplainNoContent()
 		})
 	}
 }

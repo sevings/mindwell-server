@@ -30,6 +30,7 @@ import (
 	usersImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/users"
 	votesImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/votes"
 	watchingsImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/watchings"
+	wishesImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/wishes"
 
 	"github.com/sevings/mindwell-server/restapi/operations"
 	"github.com/sevings/mindwell-server/utils"
@@ -96,6 +97,7 @@ func configureAPI(api *operations.MindwellAPI) http.Handler {
 	tagsImpl.ConfigureAPI(srv)
 	oauth2Impl.ConfigureAPI(srv)
 	imagesImpl.ConfigureAPI(srv)
+	wishesImpl.ConfigureAPI(srv)
 
 	// configure the api here
 	api.ServeError = errors.ServeError

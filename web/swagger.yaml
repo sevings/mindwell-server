@@ -43,6 +43,8 @@ securityDefinitions:
       "users:write": change profile info, avatar, etc.
       "votes:write": vote and unvote entries and comments
       "watchings:write": subscribe to entry comments and unsubscribe
+      "wishes:read": read received wishes
+      "wishes:write": send new wishes
 definitions:
   UserID:
     type: object
@@ -642,7 +644,8 @@ definitions:
         minimum: 1
       type: 
         type: string
-        enum: [comment, follower, request, accept, invite, welcome, invited, adm_sent, adm_received, info]
+        enum: [comment, follower, request, accept, invite, welcome, invited,
+               adm_sent, adm_received, wish_created, wish_received, info]
       read:
         type: boolean
       createdAt:
@@ -654,6 +657,8 @@ definitions:
         $ref: '#/definitions/Comment'
       entry: 
         $ref: '#/definitions/Entry'
+      wish:
+        $ref: '#/definitions/Wish'
       info:
         type: object
         properties:
@@ -816,6 +821,22 @@ definitions:
               type: string
             count:
               type: integer
+  Wish:
+    type: object
+    properties:
+      id:
+        type: integer
+        format: int64
+      content:
+        type: string
+      state:
+        type: string
+        enum: [new, sent, expired, declined, thanked, complained]
+      sendUntil:
+        type: number
+        format: double
+      receiver:
+        $ref: '#/definitions/User'
 parameters:
   pathId:
     in: path
@@ -4035,6 +4056,118 @@ paths:
                 type: integer
         410:
           description: adm finished
+          schema:
+            $ref: '#/definitions/Error'
+  /wishes/{id}:
+    parameters:
+      - $ref: '#/parameters/pathId'
+    get:
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "wishes:read" ]
+      tags:
+        - wishes
+      responses:
+        200:
+          description: Wish data
+          schema:
+            $ref: '#/definitions/Wish'
+        403:
+          description: access denied
+          schema:
+            $ref: '#/definitions/Error'
+        404:
+          description: Wish not found
+          schema:
+            $ref: '#/definitions/Error'
+    put:
+      consumes:
+        - multipart/form-data
+      parameters:
+        - in: formData
+          name: content
+          type: string
+          minLength: 1
+          maxLength: 1000
+          required: true
+          pattern: "^\\s*\\w+"
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "wishes:write" ]
+      tags:
+        - wishes
+      responses:
+        200:
+          description: Wish sent
+        403:
+          description: access denied
+          schema:
+            $ref: '#/definitions/Error'
+        404:
+          description: Wish not found
+          schema:
+            $ref: '#/definitions/Error'
+    delete:
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "wishes:write" ]
+      tags:
+        - wishes
+      responses:
+        200:
+          description: Wish declined
+        403:
+          description: access denied
+          schema:
+            $ref: '#/definitions/Error'
+        404:
+          description: Wish not found
+          schema:
+            $ref: '#/definitions/Error'
+  /wishes/{id}/thank:
+    parameters:
+      - $ref: '#/parameters/pathId'
+    post:
+      consumes:
+        - multipart/form-data
+        - application/x-www-form-urlencoded
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ ]
+      tags:
+        - wishes
+      responses:
+        204:
+          description: OK
+        403:
+          description: access denied
+          schema:
+            $ref: '#/definitions/Error'
+        404:
+          description: Wish not found
+          schema:
+            $ref: '#/definitions/Error'
+  /wishes/{id}/complain:
+    parameters:
+      - $ref: '#/parameters/pathId'
+    post:
+      consumes:
+        - multipart/form-data
+        - application/x-www-form-urlencoded
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ ]
+      tags:
+        - wishes
+      responses:
+        204:
+          description: OK
+        403:
+          description: access denied
+          schema:
+            $ref: '#/definitions/Error'
+        404:
+          description: Wish not found
           schema:
             $ref: '#/definitions/Error'
   /images:

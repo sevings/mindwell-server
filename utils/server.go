@@ -92,6 +92,7 @@ func NewMindwellServer(api *operations.MindwellAPI, configPath string) *Mindwell
 			"no_theme":       {ID: "no_theme", Other: "Theme not found or you have no access rights."},
 			"no_chat":        {ID: "no_chat", Other: "Chat not found or you have no access rights."},
 			"no_message":     {ID: "no_message", Other: "Message not found or you have no access rights."},
+			"no_wish":        {ID: "no_wish", Other: "Wish not found or it's not for you."},
 			"no_request":     {ID: "no_friend_request", Other: "You have no friend request from this user."},
 			"invalid_invite": {ID: "invalid_invite", Other: "Invite is invalid."},
 		},
