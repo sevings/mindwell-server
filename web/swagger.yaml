@@ -4122,7 +4122,7 @@ paths:
           minLength: 1
           maxLength: 1000
           required: true
-          pattern: "^\\s*\\w+"
+          pattern: "^\\s*\\S+"
       security:
         - OAuth2Password: [ ]
         - OAuth2Code: [ "wishes:write" ]

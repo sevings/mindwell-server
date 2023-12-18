@@ -68,6 +68,7 @@ func newWishSender(srv *utils.MindwellServer) func(wishes.PutWishesIDParams, *mo
 	return func(params wishes.PutWishesIDParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			content := strings.TrimSpace(params.Content)
+			content = utils.ReplaceToHtml(content)
 			toID, found := saveWish(tx, userID, params.ID, content)
 			if !found {
 				err := srv.StandardError("no_wish")
