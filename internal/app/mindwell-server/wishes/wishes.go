@@ -1,12 +1,14 @@
 package wishes
 
 import (
+	"cmp"
 	"github.com/carlescere/scheduler"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/wishes"
 	"github.com/sevings/mindwell-server/utils"
 	"go.uber.org/zap"
+	"slices"
 	"strings"
 )
 
@@ -37,6 +39,10 @@ func CreateWishes(srv *utils.MindwellServer) {
 	logger := srv.Log("wishes")
 
 	users := utils.LoadOnlineUsers(tx)
+	slices.SortFunc(users, func(a, b *models.User) int {
+		return -cmp.Compare(a.ID, b.ID)
+	})
+
 	for _, user := range users {
 		wishID, created := createWish(tx, user.ID)
 		if created {
@@ -101,9 +107,16 @@ func createWishFromUser(srv *utils.MindwellServer, userID *models.UserID) {
 	tx := utils.NewAutoTx(srv.DB)
 	defer tx.Finish()
 
+	logger := srv.Log("wishes")
+
 	wishID, created := createWish(tx, userID.ID)
 	if created {
 		srv.Ntf.SendWishCreated(tx, wishID, userID.Name)
+		logger.Info("created", zap.String("from", userID.Name))
+	}
+
+	if tx.HasQueryError() {
+		logger.Error(tx.Error().Error())
 	}
 }
 

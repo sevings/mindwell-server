@@ -16,7 +16,7 @@ SELECT wishes.id
 FROM wishes
 JOIN wish_states ON wishes.state = wish_states.id
 WHERE from_id = $1
-	AND wish_states.state = 'new' AND NOW() - created_at < interval '8 hours'
+	AND wish_states.state = 'new' AND NOW() - created_at < interval '12 hours'
 ORDER BY created_at DESC
 LIMIT 1
 `
@@ -28,7 +28,7 @@ LIMIT 1
 func LoadWish(tx *utils.AutoTx, userID *models.UserID, id int64) (*models.Wish, bool) {
 	const q = `
 SELECT content, to_id, wish_states.state,
-	extract(epoch from created_at + interval '8 hours')
+	extract(epoch from created_at + interval '12 hours')
 FROM wishes
 JOIN wish_states ON wishes.state = wish_states.id
 WHERE wishes.id = $1 AND (
@@ -80,7 +80,7 @@ SET content = $3,
     state = (SELECT id FROM wish_states WHERE state = 'sent')
 WHERE wishes.id = $1 AND from_id = $2
 	AND state = (SELECT id FROM wish_states WHERE state = 'new')
-	AND NOW() - created_at < interval '8 hours'
+	AND NOW() - created_at < interval '12 hours'
 RETURNING to_id
 `
 
@@ -94,7 +94,7 @@ UPDATE wishes
 SET state = (SELECT id FROM wish_states WHERE state = 'declined')
 WHERE wishes.id = $1 AND from_id = $2
 	AND state IN (SELECT id FROM wish_states WHERE state IN ('new','declined'))
-	AND NOW() - created_at < interval '8 hours'
+	AND NOW() - created_at < interval '12 hours'
 `
 
 	tx.Exec(q, id, userID.ID)
@@ -126,14 +126,19 @@ SELECT invited_by IS NOT NULL
 	AND karma > 0
     AND verified
 	AND send_wishes
-	AND NOW() - COALESCE(prev_wish.created_at, users.created_at) > interval '3 days'
+	AND CASE
+	    WHEN prev_wish.state = 'new'
+	    THEN NOW() - COALESCE(prev_wish.created_at, users.created_at) > interval '41 hours'
+		ELSE NOW() - COALESCE(prev_wish.created_at, users.created_at) > interval '59 hours'
+	END
 	AND users.authority = (SELECT id FROM authority WHERE type = 'user')
 FROM users
 LEFT JOIN (
-    SELECT from_id, created_at
+    SELECT from_id, created_at, wish_states.state
     FROM wishes
+    JOIN wish_states ON wishes.state = wish_states.id
     WHERE from_id = $1
-    ORDER BY id DESC
+    ORDER BY wishes.id DESC
     LIMIT 1
 ) AS prev_wish ON users.id = prev_wish.from_id
 WHERE users.id = $1
@@ -156,6 +161,7 @@ LEFT JOIN (
     FROM wishes
 	JOIN wish_states ON wishes.state = wish_states.id
     WHERE wish_states.state = 'sent' OR wish_states.state = 'thanked'
+    	OR (wish_states.state = 'new' AND NOW() - created_at < interval '12 hours')
     GROUP BY to_id
 ) AS last_wishes ON users.id = last_wishes.to_id
 LEFT JOIN (
@@ -181,8 +187,9 @@ WHERE NOW() - last_seen_at < interval '1 day'
   	AND authority.type = 'user'
 	AND sent_wishes.to_id IS NULL
 	AND users.id <> $1
-ORDER BY COALESCE(last_wishes.created_at, users.created_at)::DATE,
-	COALESCE(rel_from_me.type, 'none') = 'followed' DESC
+ORDER BY last_wishes.created_at::DATE NULLS FIRST,
+	COALESCE(rel_from_me.type, 'none') = 'followed' DESC,
+	users.id
 LIMIT 1
 `
 
