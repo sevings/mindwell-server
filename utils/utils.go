@@ -108,10 +108,10 @@ func AddCanViewAuthorQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
 CASE user_privacy.type
 WHEN 'all' THEN TRUE
 WHEN 'registered' THEN ?
-WHEN 'invited' THEN ?
+WHEN 'invited' THEN ? OR authors.id = ?
 WHEN 'followers' THEN authors.id = ? OR relations_from_me.type = 'followed'
 ELSE FALSE
-END`, userID.ID > 0, userID.IsInvited, userID.ID)
+END`, userID.ID > 0, userID.IsInvited, userID.ID, userID.ID)
 }
 
 func AddViewAuthorQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
