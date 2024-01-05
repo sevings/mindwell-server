@@ -2,6 +2,7 @@ package entries
 
 import (
 	"database/sql"
+	"errors"
 	"github.com/Workiva/go-datastructures/bitarray"
 	"github.com/leporo/sqlf"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/comments"
@@ -152,7 +153,7 @@ func setEntryTexts(entry *models.Entry, hasAttach bool) {
 }
 
 func initMyEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID,
-	entry *models.Entry, hasAttach bool) *models.Error {
+	entry *models.Entry, images []int64) *models.Error {
 	isTheme := entry.Author.IsTheme
 
 	if entry.Privacy == models.EntryPrivacyMe {
@@ -187,17 +188,24 @@ func initMyEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 		entry.User = users.LoadUserByID(srv, tx, userID.ID)
 	}
 
-	setEntryTexts(entry, hasAttach)
+	loadEntryImages(srv, tx, entry, images)
+	if len(entry.Images) < len(images) {
+		return srv.NewError(&i18n.Message{ID: "attached_image_not_found", Other: "Attached image not found."})
+	}
+	for _, img := range entry.Images {
+		if img.Author.ID != userID.ID {
+			return srv.NewError(&i18n.Message{ID: "attach_not_your_image", Other: "You can attach only your own images."})
+		}
+	}
+
+	setEntryTags(entry)
+	setEntryTexts(entry, len(images) > 0)
 	setEntryRights(entry, userID, 0)
 
 	return nil
 }
 
-func createEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entry *models.Entry, hasAttach bool) *models.Error {
-	if err := initMyEntry(srv, tx, userID, entry, hasAttach); err != nil {
-		return err
-	}
-
+func createEntry(tx *utils.AutoTx, userID *models.UserID, entry *models.Entry) *models.Error {
 	category := entryCategory(entry)
 
 	const q = `
@@ -237,20 +245,14 @@ func loadEntryTags(tx *utils.AutoTx, entry *models.Entry) {
 	entry.Tags = tx.QueryStrings(q, entry.ID)
 }
 
-func attachImages(srv *utils.MindwellServer, tx *utils.AutoTx, entry *models.Entry, images []int64) {
-	if len(images) == 0 {
-		return
-	}
-
+func attachImages(tx *utils.AutoTx, entry *models.Entry) {
 	const q = "INSERT INTO entry_images(entry_id, image_id)	VALUES($1, $2)"
-	for _, imageID := range images {
-		tx.Exec(q, entry.ID, imageID)
+	for _, img := range entry.Images {
+		tx.Exec(q, entry.ID, img.ID)
 	}
-
-	loadEntryImages(srv, tx, entry, images)
 }
 
-func setTags(tx *utils.AutoTx, entry *models.Entry) {
+func setEntryTags(entry *models.Entry) {
 	realTags := make([]string, 0, len(entry.Tags))
 tagLoop:
 	for _, tag := range entry.Tags {
@@ -274,7 +276,11 @@ tagLoop:
 		return
 	}
 
-	for _, tag := range realTags {
+	entry.Tags = realTags
+}
+
+func setTags(tx *utils.AutoTx, entry *models.Entry) {
+	for _, tag := range entry.Tags {
 		tagID := tx.QueryInt64("SELECT id FROM tags WHERE tag = $1", tag)
 		if tagID == 0 {
 			tagID = tx.QueryInt64("INSERT INTO tags(tag) VALUES($1) RETURNING id", tag)
@@ -282,7 +288,6 @@ tagLoop:
 		tx.Exec("INSERT INTO entry_tags(entry_id, tag_id) VALUES($1, $2)", entry.ID, tagID)
 	}
 
-	entry.Tags = realTags
 }
 
 func allowedInLive(followersCount, entryCount int64) bool {
@@ -366,22 +371,6 @@ func canPostInTheme(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.
 	return nil
 }
 
-func checkImagesOwner(srv *utils.MindwellServer, tx *utils.AutoTx, userID int64, images []int64) *models.Error {
-	for _, imageID := range images {
-		authorID := tx.QueryInt64("SELECT user_id FROM images WHERE id = $1", imageID)
-
-		if authorID == 0 {
-			return srv.NewError(&i18n.Message{ID: "attached_image_not_found", Other: "Attached image not found."})
-		}
-
-		if authorID != userID {
-			return srv.NewError(&i18n.Message{ID: "attach_not_your_image", Other: "You can attach only your own images."})
-		}
-	}
-
-	return nil
-}
-
 func postNewEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entry *models.Entry, images []int64) *models.Error {
 	prev, found, same := checkPrev(userID, entry)
 	if found {
@@ -423,19 +412,18 @@ func postNewEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 		}
 	}
 
-	imageErr := checkImagesOwner(srv, tx, userID.ID, images)
-	if imageErr != nil {
-		return imageErr
-	}
-
-	if err := createEntry(srv, tx, userID, entry, len(images) > 0); err != nil {
+	if err := initMyEntry(srv, tx, userID, entry, images); err != nil {
 		return err
 	}
 
-	attachImages(srv, tx, entry, images)
+	if err := createEntry(tx, userID, entry); err != nil {
+		return err
+	}
+
+	attachImages(tx, entry)
 	setTags(tx, entry)
 
-	if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
+	if tx.Error() != nil && !errors.Is(tx.Error(), sql.ErrNoRows) {
 		return srv.NewError(nil)
 	}
 
@@ -505,13 +493,7 @@ func newThemePoster(srv *utils.MindwellServer) func(themes.PostThemesNameTlogPar
 	}
 }
 
-func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entry *models.Entry,
-	hasAttach bool) *models.Error {
-
-	if err := initMyEntry(srv, tx, userID, entry, hasAttach); err != nil {
-		return err
-	}
-
+func updateEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entry *models.Entry) *models.Error {
 	category := entryCategory(entry)
 
 	const q = `
@@ -530,7 +512,7 @@ func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserI
 		category, entry.ID, userID.ID).
 		Scan(&entry.CreatedAt)
 
-	if tx.Error() == sql.ErrNoRows {
+	if errors.Is(tx.Error(), sql.ErrNoRows) {
 		return srv.StandardError("no_entry")
 	}
 
@@ -540,19 +522,10 @@ func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserI
 	return nil
 }
 
-func reattachImages(srv *utils.MindwellServer, tx *utils.AutoTx, entry *models.Entry, images []int64) {
+func reattachImages(tx *utils.AutoTx, entry *models.Entry) {
 	tx.Exec("DELETE FROM entry_images WHERE entry_id = $1", entry.ID)
 
-	if len(images) == 0 {
-		return
-	}
-
-	const q = "INSERT INTO entry_images(entry_id, image_id)	VALUES($1, $2)"
-	for _, imageID := range images {
-		tx.Exec(q, entry.ID, imageID)
-	}
-
-	loadEntryImages(srv, tx, entry, images)
+	attachImages(tx, entry)
 }
 
 func resetTags(tx *utils.AutoTx, entry *models.Entry) {
@@ -599,39 +572,57 @@ func canEditInLive(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 	return nil
 }
 
+func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, uID *models.UserID,
+	entry *models.Entry, images []int64) *models.Error {
+
+	if entry.InLive &&
+		(entry.Privacy == models.EntryPrivacyAll ||
+			entry.Privacy == models.EntryPrivacyRegistered ||
+			entry.Privacy == models.EntryPrivacyInvited) {
+		err := canEditInLive(srv, tx, uID, entry.ID)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !entry.Rating.IsVotable {
+		err := allowedWithoutVoting(srv, uID)
+		if err != nil {
+			return err
+		}
+	}
+
+	authorID := tx.QueryInt64("SELECT author_id FROM entries WHERE id = $1", entry.ID)
+	entry.Author = &models.User{
+		ID:      authorID,
+		IsTheme: authorID != uID.ID,
+	}
+
+	if err := initMyEntry(srv, tx, uID, entry, images); err != nil {
+		return err
+	}
+
+	if err := updateEntry(srv, tx, uID, entry); err != nil {
+		return err
+	}
+
+	reattachImages(tx, entry)
+	resetTags(tx, entry)
+
+	if tx.Error() != nil && !errors.Is(tx.Error(), sql.ErrNoRows) {
+		err := srv.NewError(&i18n.Message{ID: "edit_not_your_entry", Other: "You can't edit someone else's entries."})
+		return err
+	}
+
+	updatePrev(entry, uID)
+	return nil
+}
+
 func newEntryEditor(srv *utils.MindwellServer) func(entries.PutEntriesIDParams, *models.UserID) middleware.Responder {
 	return func(params entries.PutEntriesIDParams, uID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			if *params.InLive &&
-				(params.Privacy == models.EntryPrivacyAll ||
-					params.Privacy == models.EntryPrivacyRegistered ||
-					params.Privacy == models.EntryPrivacyInvited) {
-				err := canEditInLive(srv, tx, uID, params.ID)
-				if err != nil {
-					return entries.NewPutEntriesIDForbidden().WithPayload(err)
-				}
-			}
-
-			if !*params.IsVotable {
-				err := allowedWithoutVoting(srv, uID)
-				if err != nil {
-					return entries.NewPutEntriesIDForbidden().WithPayload(err)
-				}
-			}
-
-			imageErr := checkImagesOwner(srv, tx, uID.ID, params.Images)
-			if imageErr != nil {
-				return entries.NewPutEntriesIDForbidden().WithPayload(imageErr)
-			}
-
-			authorID := tx.QueryInt64("SELECT author_id FROM entries WHERE id = $1", params.ID)
-
 			entry := &models.Entry{
-				ID: params.ID,
-				Author: &models.User{
-					ID:      authorID,
-					IsTheme: authorID != uID.ID,
-				},
+				ID:            params.ID,
 				Privacy:       params.Privacy,
 				IsCommentable: *params.IsCommentable,
 				InLive:        *params.InLive,
@@ -645,19 +636,10 @@ func newEntryEditor(srv *utils.MindwellServer) func(entries.PutEntriesIDParams, 
 				Tags:        params.Tags,
 			}
 
-			if err := editEntry(srv, tx, uID, entry, len(params.Images) > 0); err != nil {
-				return entries.NewPutEntriesIDBadRequest().WithPayload(err)
-			}
-
-			reattachImages(srv, tx, entry, params.Images)
-			resetTags(tx, entry)
-
-			if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
-				err := srv.NewError(&i18n.Message{ID: "edit_not_your_entry", Other: "You can't edit someone else's entries."})
+			err := editEntry(srv, tx, uID, entry, params.Images)
+			if err != nil {
 				return entries.NewPutEntriesIDForbidden().WithPayload(err)
 			}
-
-			updatePrev(entry, uID)
 
 			return entries.NewPutEntriesIDOK().WithPayload(entry)
 		})
