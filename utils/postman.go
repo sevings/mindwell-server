@@ -102,6 +102,7 @@ func (pm *Postman) Start(smtpHost string, smtpPort int, username, password, helo
 			smtpClient, err = smtp.Connect()
 			if err != nil {
 				pm.Logger.Error(err.Error())
+				continue
 			}
 
 			err = msg.Send(smtpClient)
