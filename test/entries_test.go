@@ -23,7 +23,7 @@ func checkEntry(t *testing.T, entry *models.Entry,
 	wc int64, privacy string, commentable, votable, live, shared bool, title, content string, tags []string) {
 
 	req := require.New(t)
-	req.NotEmpty(entry.CreatedAt)
+	req.Positive(entry.CreatedAt)
 	req.Equal("<p>"+content+"</p>\n", entry.Content)
 	req.Equal(wc, entry.WordCount)
 	req.Equal(privacy, entry.Privacy)
@@ -35,7 +35,7 @@ func checkEntry(t *testing.T, entry *models.Entry,
 	req.Empty(entry.CutTitle)
 	req.Empty(entry.CutContent)
 	req.False(entry.HasCut)
-	req.Equal(commentable, entry.IsCommentable)
+	req.Equal(commentable && entry.ID > 0, entry.IsCommentable)
 	req.Equal(live, entry.InLive)
 	req.Equal(shared, entry.IsShared)
 
@@ -104,11 +104,19 @@ tagLoop:
 	}
 
 	rights := entry.Rights
-	req.Equal(canEdit, rights.Edit)
-	req.Equal(canEdit, rights.Delete)
-	req.Equal(true, rights.Comment)
-	req.Equal(!canEdit && rating.IsVotable, rights.Vote)
-	req.Equal(!canEdit, rights.Complain)
+	if entry.ID == 0 {
+		req.False(rights.Edit)
+		req.False(rights.Delete)
+		req.False(rights.Comment)
+		req.False(rights.Vote)
+		req.False(rights.Complain)
+	} else {
+		req.Equal(canEdit, rights.Edit)
+		req.Equal(canEdit, rights.Delete)
+		req.Equal(true, rights.Comment)
+		req.Equal(!canEdit && rating.IsVotable, rights.Vote)
+		req.Equal(!canEdit, rights.Complain)
+	}
 }
 
 func checkLoadEntry(t *testing.T, entryID int64, userID *models.UserID, success bool,
@@ -155,14 +163,17 @@ func checkPostEntry(t *testing.T,
 	}
 
 	entry := body.Payload
+	require.Equal(t, *params.IsDraft, entry.ID == 0)
 	checkEntry(t, entry, user, author, true, 0, true, wc, params.Privacy,
 		*params.IsCommentable, *params.IsVotable, *params.InLive, *params.IsShared,
 		*params.Title, params.Content, params.Tags)
 
-	checkLoadEntry(t, entry.ID, id, true, user, author,
-		true, 0, true, wc, params.Privacy,
-		*params.IsCommentable, *params.IsVotable, *params.InLive, *params.IsShared,
-		*params.Title, params.Content, params.Tags)
+	if !*params.IsDraft {
+		checkLoadEntry(t, entry.ID, id, true, user, author,
+			true, 0, true, wc, params.Privacy,
+			*params.IsCommentable, *params.IsVotable, *params.InLive, *params.IsShared,
+			*params.Title, params.Content, params.Tags)
+	}
 
 	return entry.ID
 }
@@ -231,12 +242,18 @@ func TestPostMyTlog(t *testing.T) {
 	shared := false
 	params.IsShared = &shared
 
+	draft := true
+	params.IsDraft = &draft
+
 	params.Privacy = models.EntryPrivacyAll
 
 	title := "title title ti"
 	params.Title = &title
 
 	params.Tags = []string{"tag1", "tag2"}
+
+	checkPostEntry(t, params, nil, &profiles[0].Profile, userIDs[0], true, 5)
+	draft = false
 
 	id := checkPostEntry(t, params, nil, &profiles[0].Profile, userIDs[0], true, 5)
 	checkEntryWatching(t, userIDs[0], id, true, true)
@@ -319,14 +336,17 @@ func checkPostThemeEntry(t *testing.T,
 	}
 
 	entry := body.Payload
+	require.Equal(t, *params.IsDraft, entry.ID == 0)
 	checkEntry(t, entry, user, author, true, 0, true, wc, params.Privacy,
 		*params.IsCommentable, *params.IsVotable, *params.InLive, *params.IsShared,
 		*params.Title, params.Content, params.Tags)
 
-	checkLoadEntry(t, entry.ID, id, true, user, author,
-		true, 0, true, wc, params.Privacy,
-		*params.IsCommentable, *params.IsVotable, *params.InLive, *params.IsShared,
-		*params.Title, params.Content, params.Tags)
+	if !*params.IsDraft {
+		checkLoadEntry(t, entry.ID, id, true, user, author,
+			true, 0, true, wc, params.Privacy,
+			*params.IsCommentable, *params.IsVotable, *params.InLive, *params.IsShared,
+			*params.Title, params.Content, params.Tags)
+	}
 
 	return entry.ID
 }
@@ -351,6 +371,9 @@ func TestPostToTheme(t *testing.T) {
 	shared := false
 	params.IsShared = &shared
 
+	draft := false
+	params.IsDraft = &draft
+
 	params.Privacy = models.EntryPrivacyAll
 
 	title := "title title ti"
@@ -366,6 +389,10 @@ func TestPostToTheme(t *testing.T) {
 
 	checkPostThemeEntry(t, params, &profiles[1].Profile, theme, userIDs[1], false, 5)
 	checkPostThemeEntry(t, params, &profiles[3].Profile, theme, userIDs[3], false, 5)
+
+	draft = true
+	checkPostThemeEntry(t, params, &profiles[3].Profile, theme, userIDs[3], true, 5)
+	draft = false
 
 	toTheme := &models.AuthProfile{Profile: *theme}
 	checkFollow(t, userIDs[1], nil, toTheme, models.RelationshipRelationFollowed, true)
@@ -436,6 +463,7 @@ func TestLiveRestrictions(t *testing.T) {
 	votable := true
 	live := true
 	shared := false
+	draft := false
 	title := ""
 	postParams := me.PostMeTlogParams{
 		Content:       "test test test",
@@ -445,6 +473,7 @@ func TestLiveRestrictions(t *testing.T) {
 		IsVotable:     &votable,
 		InLive:        &live,
 		IsShared:      &shared,
+		IsDraft:       &draft,
 	}
 	e0 := checkPostEntry(t, postParams, nil, &profiles[0].Profile, userIDs[0], true, 3)
 
@@ -522,6 +551,7 @@ func TestThemeLiveRestrictions(t *testing.T) {
 	votable := true
 	live := true
 	shared := false
+	draft := false
 	title := ""
 	isAnonymous := false
 	postParams := themes.PostThemesNameTlogParams{
@@ -534,6 +564,7 @@ func TestThemeLiveRestrictions(t *testing.T) {
 		IsVotable:     &votable,
 		InLive:        &live,
 		IsShared:      &shared,
+		IsDraft:       &draft,
 	}
 	checkPostThemeEntry(t, postParams, &profiles[0].Profile, theme, userIDs[0], true, 3)
 
@@ -556,6 +587,7 @@ func postEntry(id *models.UserID, privacy string, live bool) *models.Entry {
 	commentable := true
 	votable := true
 	shared := false
+	draft := false
 	title := ""
 	params := me.PostMeTlogParams{
 		Content:       "test test test" + utils.GenerateString(6),
@@ -565,6 +597,7 @@ func postEntry(id *models.UserID, privacy string, live bool) *models.Entry {
 		IsVotable:     &votable,
 		InLive:        &live,
 		IsShared:      &shared,
+		IsDraft:       &draft,
 	}
 	post := api.MePostMeTlogHandler.Handle
 	resp := post(params, id)
@@ -581,6 +614,7 @@ func postThemeEntry(id *models.UserID, themeName, privacy string, isAnonymous bo
 	votable := true
 	live := true
 	shared := false
+	draft := false
 	title := ""
 	params := themes.PostThemesNameTlogParams{
 		Name:          themeName,
@@ -591,6 +625,7 @@ func postThemeEntry(id *models.UserID, themeName, privacy string, isAnonymous bo
 		IsVotable:     &votable,
 		InLive:        &live,
 		IsShared:      &shared,
+		IsDraft:       &draft,
 		IsAnonymous:   &isAnonymous,
 	}
 	post := api.ThemesPostThemesNameTlogHandler.Handle
@@ -1626,6 +1661,9 @@ func TestEntryHTML(t *testing.T) {
 		shared := false
 		params.IsShared = &shared
 
+		draft := false
+		params.IsDraft = &draft
+
 		params.Privacy = models.EntryPrivacyAll
 
 		title := "title title ti"
@@ -1855,6 +1893,7 @@ func checkPostTaggedEntry(t *testing.T, user *models.UserID, author *models.Auth
 	votable := true
 	live := true
 	shared := false
+	draft := false
 	params := me.PostMeTlogParams{
 		Content:       content,
 		Title:         &title,
@@ -1863,6 +1902,7 @@ func checkPostTaggedEntry(t *testing.T, user *models.UserID, author *models.Auth
 		IsVotable:     &votable,
 		InLive:        &live,
 		IsShared:      &shared,
+		IsDraft:       &draft,
 		Tags:          tags,
 	}
 
@@ -1988,11 +2028,13 @@ func TestSearchEntries(t *testing.T) {
 		live := true
 		votable := true
 		shared := false
+		draft := false
 		params := me.PostMeTlogParams{
 			Content:       content,
 			IsCommentable: &commentable,
 			InLive:        &live,
 			IsShared:      &shared,
+			IsDraft:       &draft,
 			IsVotable:     &votable,
 			Privacy:       "all",
 			Tags:          nil,
@@ -2050,11 +2092,13 @@ func TestLoadTlogCalendar(t *testing.T) {
 		live := privacy == "all"
 		votable := false
 		shared := false
+		draft := false
 		params := me.PostMeTlogParams{
 			Content:       content,
 			IsCommentable: &commentable,
 			InLive:        &live,
 			IsShared:      &shared,
+			IsDraft:       &draft,
 			IsVotable:     &votable,
 			Privacy:       privacy,
 			Title:         &title,
@@ -2156,6 +2200,7 @@ func TestLoadAdjacentEntries(t *testing.T) {
 		live := privacy == "all"
 		votable := false
 		shared := false
+		draft := false
 		params := me.PostMeTlogParams{
 			Content:       content,
 			IsCommentable: &commentable,
@@ -2164,6 +2209,7 @@ func TestLoadAdjacentEntries(t *testing.T) {
 			Privacy:       privacy,
 			Title:         &title,
 			IsShared:      &shared,
+			IsDraft:       &draft,
 		}
 
 		return checkPostEntry(t, params, nil, &profiles[0].Profile, userIDs[0], true, wc)

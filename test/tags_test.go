@@ -16,6 +16,7 @@ func postTaggedEntry(t *testing.T, user *models.UserID, privacy string, tags []s
 	votable := true
 	live := true
 	shared := false
+	draft := false
 	params := me.PostMeTlogParams{
 		Content:       "test tagged " + utils.GenerateString(8),
 		Title:         &title,
@@ -24,6 +25,7 @@ func postTaggedEntry(t *testing.T, user *models.UserID, privacy string, tags []s
 		IsVotable:     &votable,
 		InLive:        &live,
 		IsShared:      &shared,
+		IsDraft:       &draft,
 		Tags:          tags,
 	}
 

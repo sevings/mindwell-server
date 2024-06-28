@@ -452,7 +452,16 @@ func newMyTlogPoster(srv *utils.MindwellServer) func(me.PostMeTlogParams, *model
 				Tags:        params.Tags,
 			}
 
-			err := postNewEntry(srv, tx, userID, entry, params.Images)
+			var err *models.Error
+			if *params.IsDraft {
+				err = initMyEntry(srv, tx, userID, entry, params.Images)
+				entry.CreatedAt = float64(time.Now().Unix())
+				entry.Rating.IsVotable = false
+				entry.IsCommentable = false
+				entry.Rights = &models.EntryRights{}
+			} else {
+				err = postNewEntry(srv, tx, userID, entry, params.Images)
+			}
 			if err != nil {
 				return me.NewPostMeTlogForbidden().WithPayload(err)
 			}
@@ -483,7 +492,16 @@ func newThemePoster(srv *utils.MindwellServer) func(themes.PostThemesNameTlogPar
 				Tags:        params.Tags,
 			}
 
-			err := postNewEntry(srv, tx, userID, entry, params.Images)
+			var err *models.Error
+			if *params.IsDraft {
+				err = initMyEntry(srv, tx, userID, entry, params.Images)
+				entry.CreatedAt = float64(time.Now().Unix())
+				entry.Rating.IsVotable = false
+				entry.IsCommentable = false
+				entry.Rights = &models.EntryRights{}
+			} else {
+				err = postNewEntry(srv, tx, userID, entry, params.Images)
+			}
 			if err != nil {
 				return themes.NewPostThemesNameTlogForbidden().WithPayload(err)
 			}
