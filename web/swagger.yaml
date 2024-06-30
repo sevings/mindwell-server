@@ -2988,7 +2988,7 @@ paths:
         - in: query
           name: category
           type: string
-          enum: [month, week]
+          enum: [year, month, week]
           default: month
       security:
         - OAuth2App: [ ]

@@ -415,10 +415,12 @@ func newLiveLoader(srv *utils.MindwellServer) func(entries.GetEntriesLiveParams,
 
 func loadBestFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, category, tag, search, source string, limit int64) *models.Feed {
 	var interval string
-	if category == "month" {
+	if category == "year" {
+		interval = "1 year"
+	} else if category == "month" {
 		interval = "1 month"
 	} else if category == "week" {
-		interval = "7 days"
+		interval = "1 week"
 	} else {
 		srv.LogApi().Sugar().Warn("Unknown best category:", category)
 		interval = "1 month"
