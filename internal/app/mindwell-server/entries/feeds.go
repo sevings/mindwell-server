@@ -122,12 +122,7 @@ func addSourceQuery(q *sqlf.Stmt, source string) *sqlf.Stmt {
 	return q
 }
 
-func addLiveQuery(q *sqlf.Stmt, userID *models.UserID, tag, source string) *sqlf.Stmt {
-	utils.AddAuthorRelationsToMeQuery(q, userID)
-	utils.AddAuthorRelationsFromMeQuery(q, userID)
-	addTagQuery(q, tag)
-	addSourceQuery(q, source)
-
+func addBaseLiveQuery(q *sqlf.Stmt, isRegistered, isInvited bool) *sqlf.Stmt {
 	return q.
 		Where("entries.in_live").
 		Where(`
@@ -137,7 +132,7 @@ WHEN 'registered' THEN ?
 WHEN 'invited' THEN ?
 ELSE FALSE
 END
-`, userID.ID > 0, userID.IsInvited).
+`, isRegistered, isInvited).
 		Where(`
 CASE user_privacy.type
 WHEN 'all' THEN TRUE
@@ -145,7 +140,17 @@ WHEN 'registered' THEN ?
 WHEN 'invited' THEN ?
 ELSE FALSE
 END
-`, userID.ID > 0, userID.IsInvited).
+`, isRegistered, isInvited)
+}
+
+func addLiveQuery(q *sqlf.Stmt, userID *models.UserID, tag, source string) *sqlf.Stmt {
+	utils.AddAuthorRelationsToMeQuery(q, userID)
+	utils.AddAuthorRelationsFromMeQuery(q, userID)
+	addTagQuery(q, tag)
+	addSourceQuery(q, source)
+	addBaseLiveQuery(q, userID.ID > 0, userID.IsInvited)
+
+	return q.
 		Where("(relations_to_me.type IS NULL OR relations_to_me.type <> 'ignored')").
 		Where("(relations_from_me.type IS NULL OR relations_from_me.type NOT IN ('ignored', 'hidden'))")
 }
@@ -176,6 +181,20 @@ func addLiveCommentsQuery(q *sqlf.Stmt, userID *models.UserID, tag, source strin
 func liveCommentsQuery(userID *models.UserID, limit int64, tag, source string) *sqlf.Stmt {
 	q := feedQuery(userID, limit)
 	return addLiveCommentsQuery(q, userID, tag, source)
+}
+
+func bestIDQuery(limit int64, interval string) *sqlf.Stmt {
+	q := sqlf.
+		Select("entries.id").
+		From("entries").
+		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
+		Join("users AS authors", "entries.author_id = authors.id").
+		Join("user_privacy", "authors.privacy = user_privacy.id").
+		Where("entries.created_at >= CURRENT_TIMESTAMP - interval '" + interval + "'").
+		OrderBy("entries.rating DESC").
+		Limit(limit)
+	addBaseLiveQuery(q, true, true)
+	return q
 }
 
 func AddRelationToTlogQuery(q *sqlf.Stmt, userID *models.UserID, tlog string) *sqlf.Stmt {
@@ -426,15 +445,13 @@ func loadBestFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 		interval = "1 month"
 	}
 
-	query := liveInvitedQuery(userID, limit, "", source).
-		Where("entries.created_at >= CURRENT_TIMESTAMP - interval '" + interval + "'").
-		OrderBy("entries.rating DESC")
-
-	query = addSubQuery(query).
+	topQuery := bestIDQuery(limit, interval)
+	query := liveInvitedQuery(userID, limit, tag, source).
+		Join("top_entries", "entries.id = top_entries.id").
+		With("top_entries", topQuery).
 		OrderBy("entries.created_at DESC")
-
-	addTagQuery(query, tag)
 	query = addSearchQuery(query, search)
+
 	tx.QueryStmt(query)
 
 	feed := loadFeed(srv, tx, userID, false)
