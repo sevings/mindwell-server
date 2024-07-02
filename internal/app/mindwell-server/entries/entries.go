@@ -108,7 +108,7 @@ func entryCategory(entry *models.Entry) string {
 	}
 
 	if entry.WordCount < 50 {
-		hasMedia := len(entry.Images) > 0
+		hasMedia := len(entry.Images)+len(entry.InsertedImages) > 0
 		if !hasMedia {
 			hasMedia = len(imgRe.FindAllStringIndex(entry.EditContent, -1)) > 0
 		}
@@ -189,17 +189,18 @@ func initMyEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 	}
 
 	loadEntryImages(srv, tx, entry, images)
-	if len(entry.Images) < len(images) {
+	allImages := append(entry.Images, entry.InsertedImages...)
+	if len(allImages) < len(images) {
 		return srv.NewError(&i18n.Message{ID: "attached_image_not_found", Other: "Attached image not found."})
 	}
-	for _, img := range entry.Images {
+	for _, img := range allImages {
 		if img.Author.ID != userID.ID {
 			return srv.NewError(&i18n.Message{ID: "attach_not_your_image", Other: "You can attach only your own images."})
 		}
 	}
 
 	setEntryTags(entry)
-	setEntryTexts(entry, len(images) > 0)
+	setEntryTexts(entry, len(entry.Images) > 0)
 	setEntryRights(entry, userID, 0)
 
 	return nil
@@ -235,7 +236,11 @@ func loadEntryImages(srv *utils.MindwellServer, tx *utils.AutoTx, entry *models.
 	for _, imageID := range images {
 		img := utils.LoadImage(srv, tx, imageID)
 		if img != nil {
-			entry.Images = append(entry.Images, img)
+			if strings.Contains(entry.EditContent, img.Large.URL) {
+				entry.InsertedImages = append(entry.InsertedImages, img)
+			} else {
+				entry.Images = append(entry.Images, img)
+			}
 		}
 	}
 }
@@ -247,7 +252,8 @@ func loadEntryTags(tx *utils.AutoTx, entry *models.Entry) {
 
 func attachImages(tx *utils.AutoTx, entry *models.Entry) {
 	const q = "INSERT INTO entry_images(entry_id, image_id)	VALUES($1, $2)"
-	for _, img := range entry.Images {
+	allImages := append(entry.Images, entry.InsertedImages...)
+	for _, img := range allImages {
 		tx.Exec(q, entry.ID, img.ID)
 	}
 }

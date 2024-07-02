@@ -30,7 +30,8 @@ func checkPrev(userID *models.UserID, entry *models.Entry) (prev *models.Entry, 
 		prev.Rating.IsVotable == entry.Rating.IsVotable &&
 		prev.Privacy == entry.Privacy &&
 		strings.TrimSpace(prev.Title) == strings.TrimSpace(entry.Title) &&
-		len(prev.Images) == len(entry.Images)
+		len(prev.Images) == len(entry.Images) &&
+		len(prev.InsertedImages) == len(entry.InsertedImages)
 	//! \todo check visible for
 	if !same {
 		return

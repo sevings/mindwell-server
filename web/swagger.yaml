@@ -414,6 +414,10 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/Image'
+      insertedImages:
+        type: array
+        items:
+          $ref: '#/definitions/Image'
       tags:
         type: array
         items:
