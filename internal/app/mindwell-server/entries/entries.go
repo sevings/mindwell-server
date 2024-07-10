@@ -130,13 +130,15 @@ func setEntryTexts(entry *models.Entry, hasAttach bool) {
 	cutTitle, isTitleCut := utils.CutText(title, 100)
 
 	lineCount := 15
+	imgCount := 1
 	if hasAttach {
 		lineCount = 5
+		imgCount = 0
 	}
 
 	editContent := strings.TrimSpace(entry.EditContent)
 	content := md.RenderToString([]byte(editContent))
-	cutContent, isContentCut := utils.CutHtml(content, lineCount, 44)
+	cutContent, isContentCut := utils.CutHtml(content, lineCount, 44, imgCount)
 
 	hasCut := isTitleCut || isContentCut
 	if !hasCut {

@@ -95,7 +95,7 @@ func loadCalendarEntry(tx *utils.AutoTx) *models.CalendarEntry {
 		content = strings.TrimSpace(content)
 		content = md.RenderToString([]byte(content))
 		content = utils.RemoveHTML(content)
-		entry.Title, _ = utils.CutHtml(content, 1, 100)
+		entry.Title, _ = utils.CutHtml(content, 1, 100, 0)
 	}
 
 	return &entry
