@@ -308,7 +308,6 @@ func CutText(text string, size int) (string, bool) {
 }
 
 func CutHtml(text string, maxLineCount, maxLineLen, maxImageCount int) (string, bool) {
-	var output bytes.Buffer
 	var tags []string
 	var hasTags bool
 	idx := 0
@@ -355,7 +354,6 @@ func CutHtml(text string, maxLineCount, maxLineLen, maxImageCount int) (string, 
 				lineCount++
 			}
 
-			output.WriteRune(c)
 			continue
 		}
 
@@ -381,20 +379,15 @@ func CutHtml(text string, maxLineCount, maxLineLen, maxImageCount int) (string, 
 		tag := text[tagStart:idx]
 
 		if tag == "img" {
-			if imageCount >= maxImageCount {
-				break
-			}
-			if lineCount >= maxLineCount-1 {
+			if imageCount >= maxImageCount || lineCount >= maxLineCount-1 {
+				idx = tagStart - 1
 				break
 			}
 
 			imageCount++
 		}
 
-		output.WriteByte('<')
-
 		if isClosing {
-			output.WriteByte('/')
 			for i := len(tags) - 1; i >= 0; i-- {
 				if tags[i] != tag {
 					continue
@@ -418,20 +411,13 @@ func CutHtml(text string, maxLineCount, maxLineLen, maxImageCount int) (string, 
 			}
 		}
 
-		output.WriteString(tag)
-
 		for idx < textLen {
 			tagChar := text[idx]
+			idx++
 			if tagChar == '>' {
 				break
 			}
-
-			idx++
-			output.WriteByte(tagChar)
 		}
-
-		idx++
-		output.WriteByte('>')
 
 		if tag == "br" || (isClosing && tag == "p") || (isClosing && tag == "blockquote") {
 			lineCount++
@@ -446,10 +432,12 @@ func CutHtml(text string, maxLineCount, maxLineLen, maxImageCount int) (string, 
 		return text, false
 	}
 
+	resLen := idx
 	c, _ := utf8.DecodeRuneInString(text[idx:])
 	wasSpace := unicode.IsSpace(c)
-	for idx = output.Len(); idx > 0; {
-		c, size := utf8.DecodeLastRune(output.Bytes()[:idx])
+	var wasImg bool
+	for idx > 0 {
+		c, size := utf8.DecodeLastRune([]byte(text)[:idx])
 
 		isSpace := unicode.IsSpace(c) || unicode.IsPunct(c)
 		if c == '>' {
@@ -465,7 +453,8 @@ func CutHtml(text string, maxLineCount, maxLineLen, maxImageCount int) (string, 
 				tags = append(tags, "p")
 				isSpace = true
 				size = 4
-			} else if tag[1:4] == "img" {
+			} else if len(tag) > 4 && tag[1:4] == "img" {
+				wasImg = true
 				break
 			} else if tag[1] != '/' {
 				isSpace = true
@@ -487,23 +476,36 @@ func CutHtml(text string, maxLineCount, maxLineLen, maxImageCount int) (string, 
 	}
 
 	if idx == 0 {
-		idx = output.Len() - 1
-	}
-
-	output.Truncate(idx)
-	if len(tags) > 0 || !hasTags {
-		output.WriteString("…")
-
-		for i := len(tags) - 1; i >= 0; i-- {
-			output.WriteString("</")
-			output.WriteString(tags[i])
-			output.WriteString(">")
-		}
+		resLen--
 	} else {
-		output.WriteString("<p>…</p>")
+		resLen = idx
+	}
+	text = text[:resLen]
+
+	if !wasImg && hasTags && len(tags) == 0 {
+		return text + "<p>…</p>", true
+	}
+	if !wasImg && !hasTags {
+		return text + "…", true
+	}
+	if len(tags) == 0 {
+		return text, true
 	}
 
-	return output.String(), true
+	var res bytes.Buffer
+	res.Grow(resLen + len(tags)*4)
+	res.WriteString(text)
+	if !wasImg {
+		res.WriteString("…")
+	}
+
+	for i := len(tags) - 1; i >= 0; i-- {
+		res.WriteString("</")
+		res.WriteString(tags[i])
+		res.WriteString(">")
+	}
+
+	return res.String(), true
 }
 
 func ParseFloat(val string) float64 {

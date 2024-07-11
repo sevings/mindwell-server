@@ -58,8 +58,16 @@ func TestCutHtml(t *testing.T) {
 
 	out, cut = CutHtml(in, 3, 40, 1)
 	req.True(cut)
-	req.Equal("<p>test test test</p><img src='link'><p>…</p>", out)
+	req.Equal("<p>test test test</p><img src='link'>", out)
 
 	out, cut = CutHtml(in, 4, 40, 1)
 	req.False(cut)
+}
+
+func BenchmarkCutHtml(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		in := "<p>test test test</p><img src='link'><p>after image</p>"
+		CutHtml(in, 3, 40, 0)
+	}
 }
