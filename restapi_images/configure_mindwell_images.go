@@ -52,6 +52,7 @@ func configureAPI(api *operations.MindwellImagesAPI) http.Handler {
 	api.ThemesPutThemesNameAvatarHandler = themes.PutThemesNameAvatarHandlerFunc(imagesImpl.NewThemeAvatarUpdater(mi))
 	api.ThemesPutThemesNameCoverHandler = themes.PutThemesNameCoverHandlerFunc(imagesImpl.NewThemeCoverUpdater(mi))
 
+	api.ImagesGetImagesFindHandler = images.GetImagesFindHandlerFunc(imagesImpl.NewImageFinder(mi))
 	api.ImagesPostImagesHandler = images.PostImagesHandlerFunc(imagesImpl.NewImageUploader(mi))
 	api.ImagesGetImagesIDHandler = images.GetImagesIDHandlerFunc(imagesImpl.NewImageLoader(mi))
 	api.ImagesDeleteImagesIDHandler = images.DeleteImagesIDHandlerFunc(imagesImpl.NewImageDeleter(mi))

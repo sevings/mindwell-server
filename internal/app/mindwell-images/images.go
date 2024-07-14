@@ -5,6 +5,7 @@ import (
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi_images/operations/images"
 	"github.com/sevings/mindwell-server/utils"
+	"regexp"
 )
 
 func setProcessingImage(mi *MindwellImages, img *models.Image) {
@@ -30,6 +31,65 @@ func setProcessingImage(mi *MindwellImages, img *models.Image) {
 		Width:  1440,
 		Height: 900,
 		URL:    mi.BaseURL() + "albums/large/processing.png",
+	}
+}
+
+func loadImageSizes(mi *MindwellImages, tx *utils.AutoTx, img *models.Image,
+	path string, extension string, previewExt string) {
+	var width, height int64
+	var size string
+	tx.Query(`
+				SELECT width, height, (SELECT type FROM size WHERE size.id = image_sizes.size)
+				FROM image_sizes
+				WHERE image_sizes.image_id = $1
+			`, img.ID)
+
+	filePath := path + "." + extension
+
+	var previewPath string
+	if img.IsAnimated {
+		previewPath = path + "." + previewExt
+	}
+
+	for tx.Scan(&width, &height, &size) {
+		switch size {
+		case "thumbnail":
+			img.Thumbnail = &models.ImageSize{
+				Height: height,
+				Width:  width,
+				URL:    mi.BaseURL() + "albums/thumbnails/" + filePath,
+			}
+			if img.IsAnimated {
+				img.Thumbnail.Preview = mi.BaseURL() + "albums/thumbnails/" + previewPath
+			}
+		case "small":
+			img.Small = &models.ImageSize{
+				Height: height,
+				Width:  width,
+				URL:    mi.BaseURL() + "albums/small/" + filePath,
+			}
+			if img.IsAnimated {
+				img.Small.Preview = mi.BaseURL() + "albums/small/" + previewPath
+			}
+		case "medium":
+			img.Medium = &models.ImageSize{
+				Height: height,
+				Width:  width,
+				URL:    mi.BaseURL() + "albums/medium/" + filePath,
+			}
+			if img.IsAnimated {
+				img.Medium.Preview = mi.BaseURL() + "albums/medium/" + previewPath
+			}
+		case "large":
+			img.Large = &models.ImageSize{
+				Height: height,
+				Width:  width,
+				URL:    mi.BaseURL() + "albums/large/" + filePath,
+			}
+			if img.IsAnimated {
+				img.Large.Preview = mi.BaseURL() + "albums/large/" + previewPath
+			}
+		}
 	}
 }
 
@@ -109,66 +169,52 @@ func NewImageLoader(mi *MindwellImages) func(images.GetImagesIDParams, *models.U
 
 			if processing {
 				setProcessingImage(mi, img)
-				return images.NewGetImagesIDOK().WithPayload(img)
-			}
-
-			var width, height int64
-			var size string
-			tx.Query(`
-				SELECT width, height, (SELECT type FROM size WHERE size.id = image_sizes.size)
-				FROM image_sizes
-				WHERE image_sizes.image_id = $1
-			`, params.ID)
-
-			filePath := path + "." + extension
-
-			var previewPath string
-			if img.IsAnimated {
-				previewPath = path + "." + previewExt
-			}
-
-			for tx.Scan(&width, &height, &size) {
-				switch size {
-				case "thumbnail":
-					img.Thumbnail = &models.ImageSize{
-						Height: height,
-						Width:  width,
-						URL:    mi.BaseURL() + "albums/thumbnails/" + filePath,
-					}
-					if img.IsAnimated {
-						img.Thumbnail.Preview = mi.BaseURL() + "albums/thumbnails/" + previewPath
-					}
-				case "small":
-					img.Small = &models.ImageSize{
-						Height: height,
-						Width:  width,
-						URL:    mi.BaseURL() + "albums/small/" + filePath,
-					}
-					if img.IsAnimated {
-						img.Small.Preview = mi.BaseURL() + "albums/small/" + previewPath
-					}
-				case "medium":
-					img.Medium = &models.ImageSize{
-						Height: height,
-						Width:  width,
-						URL:    mi.BaseURL() + "albums/medium/" + filePath,
-					}
-					if img.IsAnimated {
-						img.Medium.Preview = mi.BaseURL() + "albums/medium/" + previewPath
-					}
-				case "large":
-					img.Large = &models.ImageSize{
-						Height: height,
-						Width:  width,
-						URL:    mi.BaseURL() + "albums/large/" + filePath,
-					}
-					if img.IsAnimated {
-						img.Large.Preview = mi.BaseURL() + "albums/large/" + previewPath
-					}
-				}
+			} else {
+				loadImageSizes(mi, tx, img, path, extension, previewExt)
 			}
 
 			return images.NewGetImagesIDOK().WithPayload(img)
+		})
+	}
+}
+
+func NewImageFinder(mi *MindwellImages) func(images.GetImagesFindParams, *models.UserID) middleware.Responder {
+	pathRe := regexp.MustCompile("^" + mi.BaseURL() + `albums/(?:thumbnails|small|medium|large)/([a-zA-Z0-9\-_/]+)\.\w+$`)
+
+	return func(params images.GetImagesFindParams, userID *models.UserID) middleware.Responder {
+		return utils.Transact(mi.DB(), func(tx *utils.AutoTx) middleware.Responder {
+			var authorID, imgID int64
+			var extension, previewExt string
+			var processing bool
+
+			match := pathRe.FindStringSubmatch(params.Link)
+			if len(match) == 0 {
+				return images.NewGetImagesFindNotFound()
+			}
+			path := match[1]
+
+			const query = `SELECT id, user_id, extension, preview_extension, processing FROM images WHERE path = $1`
+			tx.Query(query, path).Scan(&imgID, &authorID, &extension, &previewExt, &processing)
+			if authorID == 0 {
+				return images.NewGetImagesFindNotFound()
+			}
+
+			img := &models.Image{
+				ID: imgID,
+				Author: &models.User{
+					ID: authorID,
+				},
+				IsAnimated: previewExt != "" && !processing,
+				Processing: processing,
+			}
+
+			if processing {
+				setProcessingImage(mi, img)
+			} else {
+				loadImageSizes(mi, tx, img, path, extension, previewExt)
+			}
+
+			return images.NewGetImagesFindOK().WithPayload(img)
 		})
 	}
 }

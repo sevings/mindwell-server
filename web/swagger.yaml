@@ -4276,3 +4276,25 @@ paths:
           description: Image not found
           schema:
             $ref: '#/definitions/Error'
+  /images/find:
+    get:
+      security:
+        - OAuth2App: [ ]
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "images:read" ]
+      tags:
+        - images
+      parameters:
+        - in: query
+          name: link
+          type: string
+          required: true
+      responses:
+        200:
+          description: Image
+          schema:
+            $ref: '#/definitions/Image'
+        404:
+          description: Image not found
+          schema:
+            $ref: '#/definitions/Error'

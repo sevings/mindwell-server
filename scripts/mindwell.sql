@@ -2087,6 +2087,10 @@ CREATE TABLE "mindwell"."images" (
 CREATE UNIQUE INDEX "index_image_id" ON "mindwell"."images" USING btree( "id" );
 -- -------------------------------------------------------------
 
+-- CREATE INDEX "index_image_path" -----------------------------
+CREATE UNIQUE INDEX "index_image_path" ON "mindwell"."images" USING btree( "path" );
+-- -------------------------------------------------------------
+
 
 
 -- CREATE TABLE "size" -----------------------------------------
