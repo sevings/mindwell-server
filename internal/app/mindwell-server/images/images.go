@@ -46,8 +46,8 @@ func tlogFeedQuery(userID *models.UserID, limit int64, tlog string) *sqlf.Stmt {
 func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx,
 	query, scrollQ *sqlf.Stmt, afterS, beforeS string) *models.ImageList {
 	defer scrollQ.Close()
-	after := utils.ParseInt64(afterS)
-	before := utils.ParseInt64(beforeS)
+	after := utils.ParseFloat(afterS)
+	before := utils.ParseFloat(beforeS)
 	reverse := false
 	if after > 0 {
 		reverse = true
