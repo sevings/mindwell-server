@@ -863,7 +863,7 @@ parameters:
     type: string
     maxLength: 500
     required: true
-    pattern: ".+@.+"
+    pattern: "^.+@.+\\..+$"
   password:
     in: formData
     name: password
