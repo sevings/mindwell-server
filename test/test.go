@@ -354,7 +354,7 @@ func saveImage(db *sql.DB, userID int64, img *models.Image, fileName string) {
 
 func createImage(srv *utils.MindwellServer, db *sql.DB, userID *models.UserID) *models.Image {
 	baseURL := srv.ConfigString("images.base_url")
-	path := "a/a/aaa"
+	path := "a/aa/" + utils.GenerateString(5)
 
 	img := &models.Image{
 		Author: &models.User{
