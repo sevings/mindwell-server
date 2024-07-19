@@ -129,6 +129,10 @@ func (pm *Postman) Stop() {
 }
 
 func (pm *Postman) send(email hermes.Email, address, subj, name string) {
+	if pm.ch == nil {
+		return
+	}
+
 	email.Body.Title = "Привет, " + name
 	email.Body.Signature = "С наилучшими пожеланиями"
 	email.Body.Outros = []string{
@@ -171,6 +175,10 @@ func (pm *Postman) send(email hermes.Email, address, subj, name string) {
 }
 
 func (pm *Postman) sendComplain(email hermes.Email, subj string) {
+	if pm.ch == nil {
+		return
+	}
+
 	email.Body.Title = "Привет, дорогой модератор"
 
 	text, err := pm.h.GeneratePlainText(email)
