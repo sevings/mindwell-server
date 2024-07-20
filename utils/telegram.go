@@ -196,6 +196,7 @@ func (bot *TelegramBot) run() {
 
 func (bot *TelegramBot) command(upd tgbotapi.Update) {
 	cmd := upd.Message.Command()
+	cmd = strings.ToLower(cmd)
 	bot.log.Info("update",
 		zap.String("cmd", cmd),
 		zap.String("from", upd.Message.From.UserName),
