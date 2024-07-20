@@ -79,8 +79,8 @@ func TestMyTags(t *testing.T) {
 
 	req := require.New(t)
 
-	load := func(userID *models.UserID, limit int64, exp []*models.TagListDataItems0) *models.TagList {
-		params := me.GetMeTagsParams{Limit: &limit}
+	search := func(userID *models.UserID, limit int64, query string, exp []*models.TagListDataItems0) *models.TagList {
+		params := me.GetMeTagsParams{Limit: &limit, Query: &query}
 		get := api.MeGetMeTagsHandler.Handle
 		resp := get(params, userID)
 		tags, ok := resp.(*me.GetMeTagsOK)
@@ -90,10 +90,16 @@ func TestMyTags(t *testing.T) {
 
 		return tags.Payload
 	}
+	load := func(userID *models.UserID, limit int64, exp []*models.TagListDataItems0) *models.TagList {
+		return search(userID, limit, "", exp)
+	}
 
 	load(userIDs[1], 10, nil)
 	load(userIDs[0], 10, []*models.TagListDataItems0{aaa, bbb, ccc})
 	load(userIDs[0], 1, []*models.TagListDataItems0{aaa})
+
+	search(userIDs[0], 10, "eee", nil)
+	search(userIDs[0], 10, "aa", []*models.TagListDataItems0{aaa})
 
 	e2 = editTaggedEntry(t, userIDs[0], e2, e2.Privacy, []string{"aaa"})
 	ccc1 := &models.TagListDataItems0{Count: 1, Tag: "ccc"}
@@ -125,8 +131,8 @@ func TestUserTags(t *testing.T) {
 
 	req := require.New(t)
 
-	load := func(userID *models.UserID, tlog string, limit int64, success bool, exp []*models.TagListDataItems0) *models.TagList {
-		params := users.GetUsersNameTagsParams{Limit: &limit, Name: tlog}
+	search := func(userID *models.UserID, tlog string, limit int64, query string, success bool, exp []*models.TagListDataItems0) *models.TagList {
+		params := users.GetUsersNameTagsParams{Limit: &limit, Name: tlog, Query: &query}
 		get := api.UsersGetUsersNameTagsHandler.Handle
 		resp := get(params, userID)
 		tags, ok := resp.(*users.GetUsersNameTagsOK)
@@ -139,6 +145,9 @@ func TestUserTags(t *testing.T) {
 
 		return tags.Payload
 	}
+	load := func(userID *models.UserID, tlog string, limit int64, success bool, exp []*models.TagListDataItems0) *models.TagList {
+		return search(userID, tlog, limit, "", success, exp)
+	}
 
 	noAuthUser := utils.NoAuthUser()
 
@@ -148,11 +157,17 @@ func TestUserTags(t *testing.T) {
 	load(userIDs[0], userIDs[0].Name, 10, true, []*models.TagListDataItems0{aaa4, bbb, ccc, ddd})
 	load(userIDs[1], userIDs[0].Name, 1, true, []*models.TagListDataItems0{aaa})
 
+	search(userIDs[1], userIDs[0].Name, 10, "eee", true, nil)
+	search(userIDs[0], userIDs[0].Name, 10, "aa", true, []*models.TagListDataItems0{aaa4})
+	search(userIDs[1], userIDs[0].Name, 10, "aa", true, []*models.TagListDataItems0{aaa})
+
 	setUserPrivacy(t, userIDs[0], "followers")
 
 	load(userIDs[1], userIDs[0].Name, 10, false, nil)
 	load(noAuthUser, userIDs[0].Name, 10, false, nil)
 	load(userIDs[0], userIDs[0].Name, 10, true, []*models.TagListDataItems0{aaa4, bbb, ccc, ddd})
+
+	search(userIDs[1], userIDs[0].Name, 10, "aa", false, nil)
 
 	checkFollow(t, userIDs[1], userIDs[0], profiles[0], models.RelationshipRelationRequested, true)
 	checkPermitFollow(t, userIDs[0], userIDs[1], true)
@@ -160,12 +175,17 @@ func TestUserTags(t *testing.T) {
 	load(userIDs[1], userIDs[0].Name, 10, true, []*models.TagListDataItems0{aaa, bbb, ccc})
 	load(userIDs[0], userIDs[0].Name, 10, true, []*models.TagListDataItems0{aaa4, bbb, ccc, ddd})
 
+	search(userIDs[1], userIDs[0].Name, 10, "aa", true, []*models.TagListDataItems0{aaa})
+
 	checkUnfollow(t, userIDs[1], userIDs[0])
 	setUserPrivacy(t, userIDs[0], "registered")
 
 	load(userIDs[0], userIDs[0].Name, 10, true, []*models.TagListDataItems0{aaa4, bbb, ccc, ddd})
 	load(noAuthUser, userIDs[0].Name, 10, false, nil)
 	load(userIDs[0], userIDs[0].Name, 10, true, []*models.TagListDataItems0{aaa4, bbb, ccc, ddd})
+
+	search(noAuthUser, userIDs[0].Name, 10, "aa", false, nil)
+	search(userIDs[1], userIDs[0].Name, 10, "aa", true, []*models.TagListDataItems0{aaa})
 
 	setUserPrivacy(t, userIDs[0], "all")
 
@@ -198,8 +218,8 @@ func TestLiveTags(t *testing.T) {
 
 	req := require.New(t)
 
-	load := func(userID *models.UserID, limit int64, exp []*models.TagListDataItems0) *models.TagList {
-		params := entries.GetEntriesTagsParams{Limit: &limit}
+	search := func(userID *models.UserID, limit int64, query string, exp []*models.TagListDataItems0) *models.TagList {
+		params := entries.GetEntriesTagsParams{Limit: &limit, Query: &query}
 		get := api.EntriesGetEntriesTagsHandler.Handle
 		resp := get(params, userID)
 		tags, ok := resp.(*entries.GetEntriesTagsOK)
@@ -209,10 +229,15 @@ func TestLiveTags(t *testing.T) {
 
 		return tags.Payload
 	}
+	load := func(userID *models.UserID, limit int64, exp []*models.TagListDataItems0) *models.TagList {
+		return search(userID, limit, "", exp)
+	}
 
 	load(userIDs[0], 10, []*models.TagListDataItems0{aaa, bbb, ccc})
 	load(userIDs[1], 10, []*models.TagListDataItems0{aaa, bbb, ccc})
 	load(userIDs[1], 1, []*models.TagListDataItems0{aaa})
+
+	search(userIDs[0], 10, "aa", []*models.TagListDataItems0{aaa})
 
 	checkDeleteEntry(t, e0.ID, userIDs[0], true)
 	checkDeleteEntry(t, e1.ID, userIDs[1], true)

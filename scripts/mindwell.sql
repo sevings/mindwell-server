@@ -1388,6 +1388,10 @@ CREATE TABLE "mindwell"."tags" (
 CREATE UNIQUE INDEX "index_tag" ON "mindwell"."tags" USING btree( "tag" ) ;
 -- -------------------------------------------------------------
 
+-- CREATE INDEX "index_tag_search" -----------------------------
+CREATE INDEX "index_tag_search" ON "mindwell"."tags" USING GIST("tag" gist_trgm_ops);
+-- -------------------------------------------------------------
+
 
 
 -- CREATE TABLE "entry_tags" -----------------------------------

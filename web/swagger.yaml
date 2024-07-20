@@ -1817,6 +1817,11 @@ paths:
       parameters:
         - $ref: '#/parameters/pathName'
         - $ref: '#/parameters/limit'
+        - in: query
+          name: query
+          type: string
+          minLength: 1
+          maxLength: 50
       security:
         - OAuth2App: [ ]
         - OAuth2Password: [ ]
@@ -2250,6 +2255,11 @@ paths:
       parameters:
         - $ref: '#/parameters/pathName'
         - $ref: '#/parameters/limit'
+        - in: query
+          name: query
+          type: string
+          minLength: 1
+          maxLength: 50
       security:
         - OAuth2App: [ ]
         - OAuth2Password: [ ]
@@ -2699,6 +2709,11 @@ paths:
     get:
       parameters:
         - $ref: '#/parameters/limit'
+        - in: query
+          name: query
+          type: string
+          minLength: 1
+          maxLength: 50
       security:
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
@@ -3025,6 +3040,11 @@ paths:
     get:
       parameters:
         - $ref: '#/parameters/limit'
+        - in: query
+          name: query
+          type: string
+          minLength: 1
+          maxLength: 50
       security:
         - OAuth2Password: [ ]
         - OAuth2Code: [ "entries:read" ]
