@@ -1669,10 +1669,10 @@ func (bot *TelegramBot) SendCommentComplain(from, against *models.User, content,
 
 	text := "Пользователь " + bot.userLink(from) + " пожаловался на комментарий " +
 		strconv.FormatInt(commentID, 10) + " от " + bot.userLink(against) + ". " +
-		"Текст комментария:\n\n«" + comment + "»\n\n"
+		"Текст комментария:\n\n«" + tgHtmlEsc.Replace(comment) + "»\n\n"
 
 	if content != "" {
-		text += "Пояснение:\n«" + content + "»\n\n"
+		text += "Пояснение:\n«" + tgHtmlEsc.Replace(content) + "»\n\n"
 	}
 
 	link := bot.url + "entries/" + strconv.FormatInt(entryID, 10) + "#comments"
@@ -1686,10 +1686,10 @@ func (bot *TelegramBot) SendEntryComplain(from, against *models.User, content, e
 
 	text := "Пользователь " + bot.userLink(from) + " пожаловался на запись " +
 		strconv.FormatInt(entryID, 10) + " от " + bot.userLink(against) + ". " +
-		"Текст записи:\n\n«" + entry + "»\n\n"
+		"Текст записи:\n\n«" + tgHtmlEsc.Replace(entry) + "»\n\n"
 
 	if content != "" {
-		text += "Пояснение:\n«" + content + "»\n\n"
+		text += "Пояснение:\n«" + tgHtmlEsc.Replace(content) + "»\n\n"
 	}
 
 	link := bot.url + "entries/" + strconv.FormatInt(entryID, 10)
@@ -1701,10 +1701,10 @@ func (bot *TelegramBot) SendEntryComplain(from, against *models.User, content, e
 func (bot *TelegramBot) SendMessageComplain(from, against *models.User, content, message string, messageID int64) {
 	text := "Пользователь " + bot.userLink(from) + " пожаловался на сообщение " +
 		strconv.FormatInt(messageID, 10) + " от " + bot.userLink(against) + ". " +
-		"Текст сообщения:\n\n«" + message + "»\n\n"
+		"Текст сообщения:\n\n«" + tgHtmlEsc.Replace(message) + "»\n\n"
 
 	if content != "" {
-		text += "Пояснение:\n«" + content + "»\n\n"
+		text += "Пояснение:\n«" + tgHtmlEsc.Replace(content) + "»\n\n"
 	}
 
 	bot.sendMessage(bot.group, text)
@@ -1715,11 +1715,11 @@ func (bot *TelegramBot) SendUserComplain(from, against *models.User, content, ti
 		bot.userLink(against) + ". "
 
 	if title != "" {
-		text += "Информация профиля:\n\n«" + title + "»\n\n"
+		text += "Информация профиля:\n\n«" + tgHtmlEsc.Replace(title) + "»\n\n"
 	}
 
 	if content != "" {
-		text += "Пояснение:\n«" + content + "»\n\n"
+		text += "Пояснение:\n«" + tgHtmlEsc.Replace(content) + "»\n\n"
 	}
 
 	bot.sendMessage(bot.group, text)
@@ -1730,11 +1730,11 @@ func (bot *TelegramBot) SendThemeComplain(from, against *models.User, content, t
 		bot.userLink(against) + ". "
 
 	if title != "" {
-		text += "Информация темы:\n\n«" + title + "»\n\n"
+		text += "Информация темы:\n\n«" + tgHtmlEsc.Replace(title) + "»\n\n"
 	}
 
 	if content != "" {
-		text += "Пояснение:\n«" + content + "»\n\n"
+		text += "Пояснение:\n«" + tgHtmlEsc.Replace(content) + "»\n\n"
 	}
 
 	bot.sendMessage(bot.group, text)
@@ -1743,7 +1743,7 @@ func (bot *TelegramBot) SendThemeComplain(from, against *models.User, content, t
 func (bot *TelegramBot) SendWishComplain(from, against *models.User, wish string, wishID int64) {
 	text := "Пользователь " + bot.userLink(from) + " пожаловался на пожелание " +
 		strconv.FormatInt(wishID, 10) + " от " + bot.userLink(against) + ". " +
-		"Текст пожелания:\n\n«" + wish + "»\n\n"
+		"Текст пожелания:\n\n«" + tgHtmlEsc.Replace(wish) + "»\n\n"
 
 	bot.sendMessage(bot.group, text)
 }
