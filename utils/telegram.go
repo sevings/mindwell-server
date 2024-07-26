@@ -234,6 +234,8 @@ func (bot *TelegramBot) command(upd tgbotapi.Update) {
 		reply = bot.crossVotes(&upd)
 	case "stat":
 		reply = bot.stat(&upd)
+	case "notify":
+		reply = bot.notify(&upd)
 	default:
 		reply = unrecognisedText
 	}
@@ -358,6 +360,7 @@ func (bot *TelegramBot) help(upd *tgbotapi.Update) string {
 <code>/votes {id или ссылка}</code> — посмотреть голоса за запись.
 <code>/create app {dev_name} {public | private} {code | password} {redirect_uri} {name} {show_name} {platform} {info}</code> - создать приложение.
 <code>/create theme {name} {creator}</code> — создать тему.
+<code>/notify {link} {text}</code> — отправить уведомление всем пользователям.
 /stat — статистика сервера.
 `
 	}
@@ -1312,6 +1315,47 @@ WHERE created_at::date < current_date
 	}
 
 	return text
+}
+
+func (bot *TelegramBot) notify(upd *tgbotapi.Update) string {
+	if !bot.isAdmin(upd) {
+		return unrecognisedText
+	}
+
+	args := strings.Split(upd.Message.CommandArguments(), "\n")
+	if len(args) < 2 {
+		return "Укажи необходимые аргументы."
+	}
+
+	link := args[0]
+	text := args[1]
+	if len(link) == 0 || len(text) == 0 {
+		return "Укажи необходимые аргументы."
+	}
+
+	atx := NewAutoTx(bot.srv.DB)
+	defer atx.Finish()
+
+	infoQuery := sqlf.InsertInto("info").
+		Set("content", text).
+		Set("link", link).
+		Returning("id")
+
+	id := atx.QueryStmt(infoQuery).ScanInt64()
+
+	const notifyQuery = `
+INSERT INTO notifications(user_id, type, subject_id)
+SELECT users.id, notification_type.id, $1
+FROM users, notification_type
+WHERE notification_type.type = 'info'
+`
+
+	atx.Exec(notifyQuery, id)
+	if atx.RowsAffected() == 0 {
+		return "Что-то пошло не так…"
+	}
+
+	return "Уведомления отправлены."
 }
 
 func idToString(id int64) string {
