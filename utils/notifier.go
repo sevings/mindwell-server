@@ -185,6 +185,37 @@ func (ntf *Notifier) NotifyRead(user string, ntfID int64) {
 	}
 }
 
+func (ntf *Notifier) NotifyNewFollower(tx *AutoTx, fromID int64, to string, isPrivate bool) {
+	tpe := typeFollower
+	if isPrivate {
+		tpe = typeRequest
+	}
+
+	ntf.Notify(tx, fromID, tpe, to)
+}
+
+func (ntf *Notifier) NotifyRemoveFollower(tx *AutoTx, fromID, toID int64, to string) {
+	const q = `
+		DELETE FROM notifications 
+	    WHERE id = (SELECT MAX(id) FROM notifications
+			WHERE subject_id = $1 
+			  AND user_id = $2
+			  AND type IN (SELECT id FROM notification_type WHERE type = $3 OR type = $4)
+		)
+		RETURNING id
+	`
+
+	ntfID := tx.QueryInt64(q, fromID, toID, typeFollower, typeRequest)
+
+	if ntf.ch != nil {
+		ntf.ch <- &message{
+			ID:    ntfID,
+			State: stateRemoved,
+			ch:    notificationsChannel(to),
+		}
+	}
+}
+
 func messagesChannel(userName string) string {
 	return "messages#" + userName
 }

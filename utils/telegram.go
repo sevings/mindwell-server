@@ -70,6 +70,7 @@ type TelegramBot struct {
 	logins *cache.Cache
 	cmts   *cache.Cache
 	msgs   *cache.Cache
+	rels   *cache.Cache
 	send   chan func()
 	stop   chan interface{}
 }
@@ -93,6 +94,7 @@ func NewTelegramBot(srv *MindwellServer) *TelegramBot {
 		logins: cache.New(10*time.Minute, 10*time.Minute),
 		cmts:   cache.New(12*time.Hour, 1*time.Hour),
 		msgs:   cache.New(12*time.Hour, 1*time.Hour),
+		rels:   cache.New(1*time.Hour, 1*time.Hour),
 		send:   make(chan func(), 200),
 		stop:   make(chan interface{}),
 	}
@@ -1471,7 +1473,7 @@ func (bot *TelegramBot) SendEmailChanged(chat int64) {
 	bot.sendMessage(chat, text)
 }
 
-func (bot *TelegramBot) SendNewFollower(chat int64, fromName, fromShowName, fromGender string, toPrivate bool) {
+func (bot *TelegramBot) SendNewFollower(chat int64, toName, fromName, fromShowName, fromGender string, toPrivate bool) {
 	if bot.api == nil {
 		return
 	}
@@ -1492,7 +1494,37 @@ func (bot *TelegramBot) SendNewFollower(chat int64, fromName, fromShowName, from
 		text = link + " подписал" + ending + " на твой тлог."
 	}
 
-	bot.sendMessage(chat, text)
+	bot.send <- func() {
+		msg := bot.sendMessageNow(chat, text)
+		if msg.MessageID <= 0 {
+			return
+		}
+
+		relID := strings.ToLower(fromName + ":" + toName)
+		bot.rels.SetDefault(relID, messageID{chat, msg.MessageID})
+	}
+}
+
+func (bot *TelegramBot) SendRemoveFollower(fromName, toName string) {
+	if bot.api == nil {
+		return
+	}
+
+	relID := strings.ToLower(fromName + ":" + toName)
+	msgIDVar, found := bot.rels.Get(relID)
+	if !found {
+		return
+	}
+
+	msgID := msgIDVar.(messageID)
+
+	bot.send <- func() {
+		msg := tgbotapi.NewDeleteMessage(msgID.chat, msgID.msg)
+		_, err := bot.api.Request(msg)
+		if err != nil {
+			bot.log.Error(err.Error())
+		}
+	}
 }
 
 func (bot *TelegramBot) SendNewAccept(chat int64, fromName, fromShowName, fromGender string) {

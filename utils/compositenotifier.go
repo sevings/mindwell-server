@@ -288,14 +288,32 @@ func (ntf *CompositeNotifier) SendNewFollower(tx *AutoTx, toPrivate bool, from, 
 	}
 
 	if tg.Valid && sendTg {
-		ntf.Tg.SendNewFollower(tg.Int64, from, fromShowName, fromGender, toPrivate)
+		ntf.Tg.SendNewFollower(tg.Int64, to, from, fromShowName, fromGender, toPrivate)
 	}
 
-	if toPrivate {
-		ntf.Ntf.Notify(tx, fromID, typeRequest, to)
-	} else {
-		ntf.Ntf.Notify(tx, fromID, typeFollower, to)
+	ntf.Ntf.NotifyNewFollower(tx, fromID, to, toPrivate)
+}
+
+func (ntf *CompositeNotifier) SendRemoveFollower(tx *AutoTx, fromID int64, toName string) {
+	const toQ = `
+		SELECT id, telegram, telegram_followers
+		FROM users 
+		WHERE lower(name) = lower($1)
+	`
+
+	var toID int64
+	var sendTg bool
+	var tg sql.NullInt64
+	tx.Query(toQ, toName).Scan(&toID, &tg, &sendTg)
+
+	const fromQ = `SELECT name FROM users WHERE id = $1`
+	fromName := tx.QueryString(fromQ, fromID)
+
+	if tg.Valid && sendTg {
+		ntf.Tg.SendRemoveFollower(fromName, toName)
 	}
+
+	ntf.Ntf.NotifyRemoveFollower(tx, fromID, toID, toName)
 }
 
 func (ntf *CompositeNotifier) SendNewAccept(tx *AutoTx, from, to string) {

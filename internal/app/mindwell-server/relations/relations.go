@@ -80,7 +80,15 @@ func newToRelationSetter(srv *utils.MindwellServer) func(relations.PutRelationsT
 			}
 
 			if params.R == models.RelationshipRelationFollowed {
-				srv.Ntf.SendNewFollower(tx, isPrivate, uID.Name, params.Name)
+				if !checkPrev(uID, params.Name) {
+					setPrev(uID, params.Name, relation)
+					srv.Ntf.SendNewFollower(tx, isPrivate, uID.Name, params.Name)
+				}
+			} else {
+				if checkPrev(uID, params.Name) {
+					srv.Ntf.SendRemoveFollower(tx, uID.ID, params.Name)
+					removePrev(uID, params.Name)
+				}
 			}
 
 			return relations.NewPutRelationsToNameOK().WithPayload(relation)
@@ -113,6 +121,11 @@ func newFromRelationSetter(srv *utils.MindwellServer) func(relations.PutRelation
 func newToRelationDeleter(srv *utils.MindwellServer) func(relations.DeleteRelationsToNameParams, *models.UserID) middleware.Responder {
 	return func(params relations.DeleteRelationsToNameParams, uID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			if checkPrev(uID, params.Name) {
+				srv.Ntf.SendRemoveFollower(tx, uID.ID, params.Name)
+				removePrev(uID, params.Name)
+			}
+
 			relation := removeRelationship(tx, uID.Name, params.Name)
 			return relations.NewDeleteRelationsToNameOK().WithPayload(relation)
 		})
