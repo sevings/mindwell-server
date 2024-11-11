@@ -41,6 +41,7 @@ func tlogTagsQuery(userID *models.UserID, limit int64, tlog string) *sqlf.Stmt {
 	q := tagsQuery(limit).
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
 		Join("users AS authors", "entries.author_id = authors.id").
+		Join("users AS entry_users", "entries.user_id = entry_users.id").
 		Where("entries.author_id = (SELECT id FROM users WHERE lower(name) = lower(?))", tlog).
 		OrderBy("max(entries.created_at) DESC").
 		OrderBy("cnt DESC")
@@ -51,6 +52,7 @@ func tlogTagsQuery(userID *models.UserID, limit int64, tlog string) *sqlf.Stmt {
 func liveTagsQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 	q := tagsQuery(limit).
 		Join("users AS authors", "entries.author_id = authors.id").
+		Join("users AS entry_users", "entries.user_id = entry_users.id").
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
 		Join("user_privacy", "authors.privacy = user_privacy.id").
 		Where("age(entries.created_at) <= interval '1 year'").

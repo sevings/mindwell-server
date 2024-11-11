@@ -122,25 +122,28 @@ func addSourceQuery(q *sqlf.Stmt, source string) *sqlf.Stmt {
 	return q
 }
 
-func addBaseLiveQuery(q *sqlf.Stmt, isRegistered, isInvited bool) *sqlf.Stmt {
+func addBaseLiveQuery(q *sqlf.Stmt, isRegistered, isInvited, shadowBan bool) *sqlf.Stmt {
 	return q.
 		Where("entries.in_live").
 		Where(`
 CASE entry_privacy.type
 WHEN 'all' THEN TRUE
 WHEN 'registered' THEN ?
-WHEN 'invited' THEN ?
+WHEN 'invited' THEN ? AND
+	(? = entry_users.shadow_ban OR (? AND relations_from_me.type = 'followed'))
 ELSE FALSE
 END
-`, isRegistered, isInvited).
+`, isRegistered, isInvited, shadowBan, !shadowBan).
 		Where(`
 CASE user_privacy.type
 WHEN 'all' THEN TRUE
 WHEN 'registered' THEN ?
-WHEN 'invited' THEN ?
+WHEN 'invited' THEN ? AND
+	(? = entry_users.shadow_ban OR (? AND relations_from_me.type = 'followed'))
 ELSE FALSE
 END
-`, isRegistered, isInvited)
+`, isRegistered, isInvited, shadowBan, !shadowBan).
+		Where(`(? OR NOT entry_users.shadow_ban OR relations_from_me.type = 'followed')`, shadowBan)
 }
 
 func addLiveQuery(q *sqlf.Stmt, userID *models.UserID, tag, source string) *sqlf.Stmt {
@@ -148,7 +151,7 @@ func addLiveQuery(q *sqlf.Stmt, userID *models.UserID, tag, source string) *sqlf
 	utils.AddAuthorRelationsFromMeQuery(q, userID)
 	addTagQuery(q, tag)
 	addSourceQuery(q, source)
-	addBaseLiveQuery(q, userID.ID > 0, userID.IsInvited)
+	addBaseLiveQuery(q, userID.ID > 0, userID.IsInvited, userID.Ban.Shadow)
 
 	return q.
 		Where("(relations_to_me.type IS NULL OR relations_to_me.type <> 'ignored')").
@@ -189,11 +192,13 @@ func bestIDQuery(limit int64, interval string) *sqlf.Stmt {
 		From("entries").
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
 		Join("users AS authors", "entries.author_id = authors.id").
+		Join("users AS entry_users", "entries.user_id = entry_users.id").
 		Join("user_privacy", "authors.privacy = user_privacy.id").
 		Where("entries.created_at >= CURRENT_TIMESTAMP - interval '" + interval + "'").
 		OrderBy("entries.rating DESC").
 		Limit(limit)
-	addBaseLiveQuery(q, true, true)
+	utils.AddAuthorRelationsFromMeQuery(q, utils.NoAuthUser())
+	addBaseLiveQuery(q, true, true, false)
 	return q
 }
 
@@ -219,7 +224,8 @@ func addRelationToQuery(q *sqlf.Stmt, userID *models.UserID, tlogID int64) *sqlf
 }
 
 func addTlogQuery(q *sqlf.Stmt, userID *models.UserID, tlog, tag string) *sqlf.Stmt {
-	q.Where("lower(authors.name) = lower(?)", tlog)
+	q.Where("lower(authors.name) = lower(?)", tlog).
+		Where(`(entries.user_id = entries.author_id OR NOT entry_users.shadow_ban OR ?)`, userID.Ban.Shadow)
 	addTagQuery(q, tag)
 	AddRelationToTlogQuery(q, userID, tlog)
 	return utils.AddEntryOpenQuery(q, userID, false)
@@ -268,6 +274,7 @@ func scrollQuery() *sqlf.Stmt {
 	return sqlf.
 		From("entries").
 		Join("users AS authors", "entries.author_id = authors.id").
+		Join("users AS entry_users", "entries.user_id = entry_users.id").
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
 		Join("user_privacy", "authors.privacy = user_privacy.id").
 		Limit(1)

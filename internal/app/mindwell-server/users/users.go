@@ -195,15 +195,18 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 				AND relations.to_id = $2
 				AND relations.type = relation.id`
 
+	const banQ = `SELECT shadow_ban FROM users WHERE id = $1`
+	shadowBan := tx.QueryBool(banQ, profile.ID)
+
 	profile.Relations.FromMe = relationship(tx, relationQuery, userID.ID, profile.ID)
 	profile.Relations.ToMe = relationship(tx, relationQuery, profile.ID, userID.ID)
-	profile.Relations.IsOpenForMe = isOpenForMe(&profile, userID)
-	profile.Rights.Chat = isChatAllowed(chatExists, &profile, userID)
+	profile.Relations.IsOpenForMe = isOpenForMe(shadowBan, &profile, userID)
+	profile.Rights.Chat = isChatAllowed(shadowBan, chatExists, &profile, userID)
 
 	return &profile
 }
 
-func isOpenForMe(profile *models.Profile, me *models.UserID) bool {
+func isOpenForMe(shadowBan bool, profile *models.Profile, me *models.UserID) bool {
 	if profile.ID == me.ID {
 		return true
 	}
@@ -224,13 +227,15 @@ func isOpenForMe(profile *models.Profile, me *models.UserID) bool {
 	case "followers":
 		return profile.Relations.FromMe == models.RelationshipRelationFollowed
 	case "invited":
-		return me.IsInvited
+		return me.IsInvited &&
+			(!me.Ban.Shadow || shadowBan ||
+				profile.Relations.FromMe == models.RelationshipRelationFollowed)
 	}
 
 	return false
 }
 
-func isChatAllowed(chatExists bool, profile *models.Profile, me *models.UserID) bool {
+func isChatAllowed(shadowBan, chatExists bool, profile *models.Profile, me *models.UserID) bool {
 	if profile.ID == me.ID {
 		return true
 	}
@@ -245,9 +250,10 @@ func isChatAllowed(chatExists bool, profile *models.Profile, me *models.UserID) 
 
 	switch profile.ChatPrivacy {
 	case "invited":
-		return me.IsInvited
+		return me.IsInvited && (!me.Ban.Shadow || shadowBan)
 	case "followers":
-		return me.IsInvited && profile.Relations.FromMe == models.RelationshipRelationFollowed
+		return me.IsInvited && (!me.Ban.Shadow || shadowBan) &&
+			profile.Relations.FromMe == models.RelationshipRelationFollowed
 	case "friends":
 		return profile.Relations.FromMe == models.RelationshipRelationFollowed &&
 			profile.Relations.ToMe == models.RelationshipRelationFollowed

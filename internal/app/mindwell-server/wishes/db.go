@@ -123,6 +123,7 @@ SELECT invited_by IS NOT NULL
 	AND complain_ban <= CURRENT_DATE
 	AND user_ban <= CURRENT_DATE
 	AND NOT adm_ban
+    AND NOT shadow_ban
 	AND karma > 0
     AND verified
 	AND send_wishes
@@ -179,6 +180,7 @@ WHERE NOW() - last_seen_at < interval '1 day'
 	AND complain_ban <= CURRENT_DATE
 	AND user_ban <= CURRENT_DATE
 	AND NOT adm_ban
+    AND NOT shadow_ban
 	AND karma > 0
   	AND verified
 	AND send_wishes

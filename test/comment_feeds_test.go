@@ -443,11 +443,35 @@ func TestEntryComments(t *testing.T) {
 	checkUnfollow(t, userIDs[1], userIDs[0])
 	checkUnfollow(t, userIDs[0], userIDs[2])
 
+	banShadow(db, userIDs[0])
+	banShadow(db, userIDs[1])
+
+	list = checkLoadEntryComments(t, userIDs[0], e1, 10, "", "", 2)
+	list = checkLoadEntryComments(t, userIDs[1], e1, 10, "", "", 2)
+	list = checkLoadEntryComments(t, userIDs[2], e1, 10, "", "", 1)
+	req.Equal(id1, list.Data[0].ID)
+
+	e6 := postEntry(userIDs[2], models.EntryPrivacyAll, true).ID
+	postComment(userIDs[0], e6)
+	checkLoadEntryComments(t, userIDs[0], e6, 10, "", "", 1)
+	checkLoadEntryComments(t, userIDs[1], e6, 10, "", "", 1)
+	checkLoadEntryComments(t, userIDs[2], e6, 10, "", "", 0)
+
+	e7 := postEntry(userIDs[0], models.EntryPrivacyAll, true).ID
+	postComment(userIDs[0], e7)
+	checkLoadEntryComments(t, userIDs[0], e7, 10, "", "", 1)
+	checkLoadEntryComments(t, userIDs[1], e7, 10, "", "", 1)
+	checkLoadEntryComments(t, userIDs[2], e7, 10, "", "", 1)
+
+	removeUserRestrictions(db, userIDs)
+
 	checkDeleteEntry(t, e1, userIDs[0], true)
 	checkDeleteEntry(t, e2, userIDs[0], true)
 	checkDeleteEntry(t, e3, userIDs[0], true)
 	checkDeleteEntry(t, e4, userIDs[1], true)
 	checkDeleteEntry(t, e5, userIDs[2], true)
+	checkDeleteEntry(t, e6, userIDs[2], true)
+	checkDeleteEntry(t, e7, userIDs[0], true)
 
 	deleteTheme(t, theme)
 }

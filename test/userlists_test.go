@@ -374,6 +374,7 @@ func TestMyInvited(t *testing.T) {
 	inviter := models.UserID{
 		ID:   1,
 		Name: "mindwell",
+		Ban:  &models.UserIDBan{},
 	}
 	list = checkMyInvited(t, &inviter, "", "", 100, 4)
 	req.Equal(profiles[2].ID, list.Users[0].ID)
@@ -432,12 +433,12 @@ func TestPrivateFollows(t *testing.T) {
 	setUserPrivacy(t, userIDs[2], "all")
 }
 
-func checkTopUsers(t *testing.T, top string, size int) []*models.Friend {
+func checkTopUsers(t *testing.T, userID *models.UserID, top string, size int) []*models.Friend {
 	get := api.UsersGetUsersHandler.Handle
 	params := users.GetUsersParams{
 		Top: &top,
 	}
-	resp := get(params, userIDs[0])
+	resp := get(params, userID)
 	body, ok := resp.(*users.GetUsersOK)
 
 	require.True(t, ok)
@@ -451,23 +452,33 @@ func checkTopUsers(t *testing.T, top string, size int) []*models.Friend {
 }
 
 func TestTopUsers(t *testing.T) {
-	list := checkTopUsers(t, "new", 4)
+	list := checkTopUsers(t, userIDs[0], "new", 4)
 
 	req := require.New(t)
 	req.Equal(int64(1), list[3].ID)
 
-	checkTopUsers(t, "rank", 4)
+	checkTopUsers(t, userIDs[0], "rank", 4)
 
-	list = checkTopUsers(t, "waiting", 1)
+	list = checkTopUsers(t, userIDs[0], "waiting", 1)
 	req.Equal(userIDs[3].ID, list[0].ID)
+
+	banShadow(db, userIDs[0])
+	checkTopUsers(t, userIDs[0], "rank", 4)
+	checkTopUsers(t, userIDs[1], "rank", 3)
+
+	banShadow(db, userIDs[1])
+	checkTopUsers(t, userIDs[0], "rank", 4)
+	checkTopUsers(t, userIDs[1], "rank", 4)
+
+	removeUserRestrictions(db, userIDs)
 }
 
-func checkSearchUsers(t *testing.T, query string, size int) []*models.Friend {
+func checkSearchUsers(t *testing.T, userID *models.UserID, query string, size int) []*models.Friend {
 	get := api.UsersGetUsersHandler.Handle
 	params := users.GetUsersParams{
 		Query: &query,
 	}
-	resp := get(params, userIDs[0])
+	resp := get(params, userID)
 	body, ok := resp.(*users.GetUsersOK)
 
 	require.True(t, ok)
@@ -481,7 +492,17 @@ func checkSearchUsers(t *testing.T, query string, size int) []*models.Friend {
 }
 
 func TestSearchUsers(t *testing.T) {
-	checkSearchUsers(t, "testo", 4)
-	checkSearchUsers(t, "mind", 1)
-	checkSearchUsers(t, "psychotherapist", 0)
+	checkSearchUsers(t, userIDs[0], "testo", 4)
+	checkSearchUsers(t, userIDs[0], "mind", 1)
+	checkSearchUsers(t, userIDs[0], "psychotherapist", 0)
+
+	banShadow(db, userIDs[0])
+	checkSearchUsers(t, userIDs[0], "test", 4)
+	checkSearchUsers(t, userIDs[1], "test", 3)
+
+	banShadow(db, userIDs[1])
+	checkSearchUsers(t, userIDs[0], "test", 4)
+	checkSearchUsers(t, userIDs[1], "test", 4)
+
+	removeUserRestrictions(db, userIDs)
 }

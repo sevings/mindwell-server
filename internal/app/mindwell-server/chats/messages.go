@@ -170,17 +170,19 @@ func canSendMessage(tx *utils.AutoTx, userID *models.UserID, partnerID, chatID i
 	}
 
 	const chatPrivacyQuery = `
-SELECT type
+SELECT type, shadow_ban
 FROM users
 JOIN user_chat_privacy ON users.chat_privacy = user_chat_privacy.id
 WHERE users.id = $1`
-	chatPrivacy := tx.QueryString(chatPrivacyQuery, partnerID)
+	var chatPrivacy string
+	var partnerShadowBan bool
+	tx.Query(chatPrivacyQuery, partnerID).Scan(&chatPrivacy, &partnerShadowBan)
 
 	switch chatPrivacy {
 	case "invited":
-		return userID.IsInvited
+		return userID.IsInvited && (!userID.Ban.Shadow || partnerShadowBan)
 	case "followers":
-		return userID.IsInvited &&
+		return userID.IsInvited && (!userID.Ban.Shadow || partnerShadowBan) &&
 			utils.LoadRelation(tx, userID.ID, partnerID) == models.RelationshipRelationFollowed
 	case "friends":
 		return toMe == models.RelationshipRelationFollowed &&

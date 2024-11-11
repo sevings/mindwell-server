@@ -73,6 +73,8 @@ definitions:
         properties:
           account:
             type: boolean
+          shadow:
+            type: boolean
           invite:
             type: boolean
           vote:

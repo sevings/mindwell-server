@@ -25,7 +25,8 @@ func baseFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 func addEntryQuery(q *sqlf.Stmt, userID *models.UserID, entryID int64) *sqlf.Stmt {
 	utils.AddViewCommentQuery(q, userID)
 
-	return q.Where("entry_id = ?", entryID)
+	return q.Where("entry_id = ?", entryID).
+		Where("(? OR NOT users.shadow_ban OR entries.user_id = comments.user_id)", userID.Ban.Shadow)
 }
 
 func entryFeedQuery(userID *models.UserID, entryID, limit int64) *sqlf.Stmt {
@@ -36,6 +37,7 @@ func entryFeedQuery(userID *models.UserID, entryID, limit int64) *sqlf.Stmt {
 func addCanViewEntryQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
 	q.Join("entries", "entry_id = entries.id").
 		Join("users AS authors", "entries.author_id = authors.id").
+		Join("users AS entry_users", "entries.user_id = entry_users.id").
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
 		Join("user_privacy", "authors.privacy = user_privacy.id")
 	return utils.AddCanViewEntryQuery(q, userID)
@@ -69,6 +71,7 @@ func themeFeedQuery(userID *models.UserID, name string, limit int64) *sqlf.Stmt 
 func scrollQuery() *sqlf.Stmt {
 	return sqlf.
 		From("comments").
+		Join("users", "comments.author_id = users.id").
 		Limit(1)
 }
 
@@ -225,9 +228,7 @@ func loadUserComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *model
 	tx.QueryStmt(query)
 	cmts := loadFeed(srv, tx, userID, after > 0)
 
-	scrollQ := scrollQuery().
-		Join("users", "comments.author_id = users.id")
-
+	scrollQ := scrollQuery()
 	addUserQuery(scrollQ, userID, author)
 	defer scrollQ.Close()
 

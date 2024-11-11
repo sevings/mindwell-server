@@ -159,8 +159,12 @@ func TestOpenComments(t *testing.T) {
 	checkPostComment(t, entry, "bbb", true, profiles[0], userIDs[0])
 	checkPostComment(t, entry, "bbb", false, profiles[1], userIDs[1])
 
-	commentable = false
+	commentable = true
 	editEntry(params, userIDs[0])
+
+	banShadow(db, userIDs[1])
+	checkPostComment(t, entry, "ccc", true, profiles[1], userIDs[1])
+	removeUserRestrictions(db, userIDs)
 
 	checkDeleteEntry(t, entry.ID, userIDs[0], true)
 }
@@ -179,6 +183,10 @@ func TestPrivateComments(t *testing.T) {
 	checkEditComment(t, id, "edited comment", entry, false, profiles[1], userIDs[1])
 	id = checkPostComment(t, entry, "blabla", false, profiles[1], userIDs[1])
 	checkEntryWatching(t, userIDs[1], entry.ID, false, false)
+
+	banShadow(db, userIDs[1])
+	checkPostComment(t, entry, "ccc", false, profiles[1], userIDs[1])
+	removeUserRestrictions(db, userIDs)
 
 	checkDeleteEntry(t, entry.ID, userIDs[0], true)
 }

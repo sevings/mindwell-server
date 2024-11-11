@@ -152,6 +152,8 @@ func register(name string) (*models.UserID, *models.AuthProfile) {
 		NegKarma:       false,
 		FollowersCount: 0,
 		Ban: &models.UserIDBan{
+			Account: false,
+			Shadow:  false,
 			Invite:  false,
 			Comment: false,
 			Live:    false,
@@ -217,7 +219,8 @@ func removeUserRestrictions(db *sql.DB, userIDs []*models.UserID) {
 		vote_ban = CURRENT_DATE, 
 		invite_ban = CURRENT_DATE, 
 		comment_ban = CURRENT_DATE,
-		live_ban = CURRENT_DATE
+		live_ban = CURRENT_DATE,
+		shadow_ban = FALSE
 	WHERE creator_id IS NULL`)
 	if err != nil {
 		log.Println(err)
@@ -229,6 +232,7 @@ func removeUserRestrictions(db *sql.DB, userIDs []*models.UserID) {
 		user.Ban.Comment = false
 		user.Ban.Live = false
 		user.Ban.Vote = false
+		user.Ban.Shadow = false
 		user.Verified = true
 	}
 }
@@ -267,6 +271,15 @@ func banLive(db *sql.DB, userID *models.UserID) {
 	}
 
 	userID.Ban.Live = true
+}
+
+func banShadow(db *sql.DB, userID *models.UserID) {
+	_, err := db.Exec("UPDATE users SET shadow_ban = TRUE WHERE id = $1", userID.ID)
+	if err != nil {
+		log.Println(err)
+	}
+
+	userID.Ban.Shadow = true
 }
 
 func createTlogEntry(t *testing.T, id *models.UserID, privacy string, commentable, votable, live bool) *models.Entry {

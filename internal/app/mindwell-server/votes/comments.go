@@ -96,15 +96,17 @@ func loadCommentRating(tx *utils.AutoTx, commentID int64) *models.Rating {
 	return rating
 }
 
-func voteForComment(tx *utils.AutoTx, userID, commentID int64, positive bool) *models.Rating {
+func voteForComment(tx *utils.AutoTx, userID *models.UserID, commentID int64, positive bool) *models.Rating {
 	const q = `
 		INSERT INTO comment_votes (user_id, comment_id, vote)
-		VALUES ($1, $2, (
+		VALUES ($1, $2, CASE
+		    WHEN $4 THEN 0.001 * $3
+		    ELSE (
 			SELECT GREATEST(0.001, weight) * $3
 			FROM vote_weights
 			WHERE vote_weights.user_id = $1 AND vote_weights.category = 
 					(SELECT id FROM categories WHERE "type" = 'comment')
-		))
+		) END)
 		ON CONFLICT ON CONSTRAINT unique_comment_vote
 		DO UPDATE SET vote = EXCLUDED.vote`
 
@@ -114,7 +116,7 @@ func voteForComment(tx *utils.AutoTx, userID, commentID int64, positive bool) *m
 	} else {
 		vote = -1
 	}
-	tx.Exec(q, userID, commentID, vote)
+	tx.Exec(q, userID.ID, commentID, vote, userID.Ban.Shadow)
 
 	rating := loadCommentRating(tx, commentID)
 
@@ -137,7 +139,7 @@ func newCommentVoter(srv *utils.MindwellServer) func(votes.PutCommentsIDVotePara
 				return votes.NewPutCommentsIDVoteForbidden().WithPayload(err)
 			}
 
-			status := voteForComment(tx, userID.ID, params.ID, *params.Positive)
+			status := voteForComment(tx, userID, params.ID, *params.Positive)
 			if tx.Error() != nil {
 				err := srv.NewError(nil)
 				return votes.NewPutCommentsIDVoteNotFound().WithPayload(err)

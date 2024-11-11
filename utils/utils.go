@@ -88,14 +88,14 @@ func AddEntryOpenQuery(q *sqlf.Stmt, userID *models.UserID, showMe bool) *sqlf.S
 CASE entry_privacy.type
 WHEN 'all' THEN TRUE
 WHEN 'registered' THEN ?
-WHEN 'invited' THEN ? OR authors.id = ?
+WHEN 'invited' THEN (? AND (NOT ? OR entry_users.shadow_ban)) OR authors.id = ?
 WHEN 'followers' THEN authors.id = ? OR authors.creator_id = ? OR relations_from_me.type = 'followed'
 WHEN 'some' THEN authors.id = ? OR authors.creator_id = ?
 	OR EXISTS(SELECT 1 from entries_privacy WHERE user_id = ? AND entry_id = entries.id)
 WHEN 'me' THEN ? AND authors.id = ?
 ELSE FALSE
 END
-`, userID.ID > 0, userID.IsInvited, userID.ID, userID.ID, userID.ID, userID.ID, userID.ID, userID.ID, showMe, userID.ID)
+`, userID.ID > 0, userID.IsInvited, userID.Ban.Shadow, userID.ID, userID.ID, userID.ID, userID.ID, userID.ID, userID.ID, showMe, userID.ID)
 }
 
 func AddCanViewAuthorQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
@@ -104,14 +104,15 @@ func AddCanViewAuthorQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
 
 	return q.
 		Where("(relations_to_me.type IS NULL OR relations_to_me.type <> 'ignored')").
-		Where(`
+		Where(`(
+authors.id = ? OR
 CASE user_privacy.type
 WHEN 'all' THEN TRUE
 WHEN 'registered' THEN ?
-WHEN 'invited' THEN ? OR authors.id = ?
-WHEN 'followers' THEN authors.id = ? OR relations_from_me.type = 'followed'
+WHEN 'invited' THEN ? AND (NOT ? OR authors.shadow_ban)
+WHEN 'followers' THEN relations_from_me.type = 'followed'
 ELSE FALSE
-END`, userID.ID > 0, userID.IsInvited, userID.ID, userID.ID)
+END)`, userID.ID, userID.ID > 0, userID.IsInvited, userID.Ban.Shadow)
 }
 
 func AddViewAuthorQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
@@ -174,6 +175,7 @@ func CanViewEntry(tx *AutoTx, userID *models.UserID, entryID int64) bool {
 		From("entries").
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
 		Join("users AS authors", "entries.author_id = authors.id").
+		Join("users AS entry_users", "entries.user_id = entry_users.id").
 		Join("user_privacy", "authors.privacy = user_privacy.id").
 		Where("entries.id = ?", entryID)
 

@@ -40,7 +40,7 @@ func newThemesLoader(srv *utils.MindwellServer) func(themes.GetThemesParams, *mo
 			body := &themes.GetThemesOKBody{}
 
 			if params.Query != nil {
-				body.Themes = searchUsers(srv, tx, "creator_id IS NOT NULL", *params.Query)
+				body.Themes = searchUsers(srv, tx, "creator_id IS NOT NULL", *params.Query, userID.Ban.Shadow)
 				body.Query = *params.Query
 			} else {
 				body.Themes = loadTopThemes(srv, tx, *params.Top)

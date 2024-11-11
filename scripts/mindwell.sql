@@ -149,6 +149,7 @@ CREATE TABLE "mindwell"."users" (
     "complain_ban" Date DEFAULT CURRENT_DATE NOT NULL,
     "user_ban" Date DEFAULT CURRENT_DATE NOT NULL,
     "adm_ban" Boolean DEFAULT TRUE NOT NULL,
+    "shadow_ban" Boolean DEFAULT FALSE NOT NULL,
     "telegram" Integer,
     "authority" Integer DEFAULT 0 NOT NULL,
     "creator_id" Integer,

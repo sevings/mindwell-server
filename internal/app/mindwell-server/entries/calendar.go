@@ -45,7 +45,9 @@ func myCalendarQuery(userID *models.UserID, cal *models.Calendar) *sqlf.Stmt {
 func tlogCalendarQuery(userID *models.UserID, tlog string, cal *models.Calendar) *sqlf.Stmt {
 	q := baseCalendarQuery(cal).
 		Join("users AS authors", "entries.author_id = authors.id").
+		Join("users AS entry_users", "entries.user_id = entry_users.id").
 		Where("lower(authors.name) = lower(?)", tlog).
+		Where(`(entries.user_id = entries.author_id OR NOT entry_users.shadow_ban OR ?)`, userID.Ban.Shadow).
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id")
 	AddRelationToTlogQuery(q, userID, tlog)
 	return utils.AddEntryOpenQuery(q, userID, false)
@@ -217,6 +219,8 @@ func loadAdjacent(tx *utils.AutoTx, userID *models.UserID, entryID int64) models
 	if authorID != userID.ID {
 		q.Join("entry_privacy", "entries.visible_for = entry_privacy.id")
 		q.Join("users AS authors", "entries.author_id = authors.id")
+		q.Join("users AS entry_users", "entries.user_id = entry_users.id")
+		q.Where(`(entries.user_id = entries.author_id OR NOT entry_users.shadow_ban OR ?)`, userID.Ban.Shadow)
 		q = addRelationToQuery(q, userID, authorID)
 		q = utils.AddEntryOpenQuery(q, userID, false)
 	}

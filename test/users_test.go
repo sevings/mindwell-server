@@ -28,42 +28,50 @@ func TestGetMe(t *testing.T) {
 	}
 
 	for i, user := range profiles {
-		me := get(i)
+		myProfile := get(i)
 
-		req.Equal(user.ID, me.ID)
-		req.Equal(user.Name, me.Name)
+		req.Equal(user.ID, myProfile.ID)
+		req.Equal(user.Name, myProfile.Name)
 
-		req.Zero(me.Ban.Invite)
-		req.Zero(me.Ban.Vote)
-		req.Zero(me.Ban.Comment)
-		req.Zero(me.Ban.Live)
+		req.Zero(myProfile.Ban.Invite)
+		req.Zero(myProfile.Ban.Vote)
+		req.Zero(myProfile.Ban.Comment)
+		req.Zero(myProfile.Ban.Live)
 	}
 
 	banInvite(db, userIDs[0])
-	me := get(0)
-	req.NotZero(me.Ban.Invite)
-	req.Zero(me.Ban.Vote)
+	myProfile := get(0)
+	req.NotZero(myProfile.Ban.Invite)
+	req.Zero(myProfile.Ban.Vote)
 	removeUserRestrictions(db, userIDs)
 
 	banVote(db, userIDs[0])
-	me = get(0)
-	req.Zero(me.Ban.Invite)
-	req.NotZero(me.Ban.Vote)
+	myProfile = get(0)
+	req.Zero(myProfile.Ban.Invite)
+	req.NotZero(myProfile.Ban.Vote)
 	removeUserRestrictions(db, userIDs)
 
 	banComment(db, userIDs[0])
-	me = get(0)
-	req.Zero(me.Ban.Invite)
-	req.Zero(me.Ban.Vote)
-	req.NotZero(me.Ban.Comment)
+	myProfile = get(0)
+	req.Zero(myProfile.Ban.Invite)
+	req.Zero(myProfile.Ban.Vote)
+	req.NotZero(myProfile.Ban.Comment)
 	removeUserRestrictions(db, userIDs)
 
 	banLive(db, userIDs[0])
-	me = get(0)
-	req.Zero(me.Ban.Invite)
-	req.Zero(me.Ban.Vote)
-	req.Zero(me.Ban.Comment)
-	req.NotZero(me.Ban.Live)
+	myProfile = get(0)
+	req.Zero(myProfile.Ban.Invite)
+	req.Zero(myProfile.Ban.Vote)
+	req.Zero(myProfile.Ban.Comment)
+	req.NotZero(myProfile.Ban.Live)
+	removeUserRestrictions(db, userIDs)
+
+	banShadow(db, userIDs[0])
+	myProfile = get(0)
+	req.Zero(myProfile.Ban.Invite)
+	req.Zero(myProfile.Ban.Vote)
+	req.Zero(myProfile.Ban.Comment)
+	req.Zero(myProfile.Ban.Live)
 	removeUserRestrictions(db, userIDs)
 }
 
@@ -271,6 +279,37 @@ func TestIsOpenForMe(t *testing.T) {
 	checkUnfollow(t, userIDs[0], userIDs[1])
 	checkUnfollow(t, userIDs[1], userIDs[0])
 	checkUnfollow(t, userIDs[2], userIDs[0])
+
+	banShadow(db, userIDs[0])
+	banShadow(db, userIDs[1])
+	setUserPrivacy(t, userIDs[1], "invited")
+	setUserPrivacy(t, userIDs[2], "invited")
+
+	check(userIDs[0], userIDs[0].Name, true)
+	check(userIDs[1], userIDs[0].Name, true)
+	check(userIDs[2], userIDs[0].Name, true)
+	check(userIDs[3], userIDs[0].Name, true)
+	check(noAuthUser, userIDs[0].Name, true)
+
+	check(userIDs[0], userIDs[0].Name, true)
+	check(userIDs[0], userIDs[1].Name, true)
+	check(userIDs[0], userIDs[2].Name, false)
+	check(userIDs[0], userIDs[3].Name, true)
+
+	setUserPrivacy(t, userIDs[2], "registered")
+	check(userIDs[0], userIDs[2].Name, true)
+
+	setUserPrivacy(t, userIDs[2], "followers")
+	check(userIDs[0], userIDs[2].Name, false)
+
+	checkFollow(t, userIDs[0], userIDs[3], profiles[3], models.RelationshipRelationFollowed, true)
+	setUserPrivacy(t, userIDs[3], "followers")
+	check(userIDs[0], userIDs[3].Name, true)
+
+	setUserPrivacy(t, userIDs[2], "all")
+	setUserPrivacy(t, userIDs[3], "all")
+	checkUnfollow(t, userIDs[0], userIDs[3])
+	removeUserRestrictions(db, userIDs)
 }
 
 func TestIsChatAllowed(t *testing.T) {
@@ -347,4 +386,33 @@ func TestIsChatAllowed(t *testing.T) {
 	checkUnfollow(t, userIDs[3], userIDs[0])
 	checkUnfollow(t, userIDs[0], userIDs[2])
 	checkUnfollow(t, userIDs[0], userIDs[3])
+
+	banShadow(db, userIDs[0])
+	banShadow(db, userIDs[1])
+	check(userIDs[0], userIDs[0], true)
+	check(userIDs[1], userIDs[0], true)
+	check(userIDs[2], userIDs[0], true)
+	check(userIDs[0], userIDs[2], false)
+
+	setUserChatPrivacy(t, userIDs[1], "followers", "all")
+	check(userIDs[0], userIDs[1], false)
+	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationFollowed, true)
+	check(userIDs[0], userIDs[1], true)
+
+	setUserChatPrivacy(t, userIDs[2], "followers", "all")
+	check(userIDs[0], userIDs[2], false)
+	checkFollow(t, userIDs[0], userIDs[2], profiles[2], models.RelationshipRelationFollowed, true)
+	check(userIDs[0], userIDs[2], false)
+
+	setUserChatPrivacy(t, userIDs[2], "friends", "all")
+	check(userIDs[0], userIDs[2], false)
+	checkFollow(t, userIDs[2], userIDs[0], profiles[0], models.RelationshipRelationFollowed, true)
+	check(userIDs[0], userIDs[2], true)
+
+	setUserChatPrivacy(t, userIDs[1], "invited", "all")
+	setUserChatPrivacy(t, userIDs[2], "invited", "all")
+
+	checkUnfollow(t, userIDs[0], userIDs[1])
+	checkUnfollow(t, userIDs[0], userIDs[2])
+	checkUnfollow(t, userIDs[2], userIDs[0])
 }

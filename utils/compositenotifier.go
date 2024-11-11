@@ -144,22 +144,28 @@ func (ntf *CompositeNotifier) entryTitle(tx *AutoTx, entryID int64) string {
 func (ntf *CompositeNotifier) SendNewComment(tx *AutoTx, cmt *models.Comment) {
 	title := ntf.entryTitle(tx, cmt.EntryID)
 
-	fromQ := sqlf.Select("gender.type").
+	fromQ := sqlf.Select("gender.type, shadow_ban").
 		From("users").
 		Join("gender", "users.gender = gender.id").
 		Where("users.id = ?", cmt.Author.ID)
 
-	fromGender := tx.QueryStmt(fromQ).ScanString()
+	var fromGender string
+	var fromShadowBan bool
+	tx.QueryStmt(fromQ).Scan(&fromGender, &fromShadowBan)
 
 	cmtIDQ := sqlf.Select("user_id").From("comments").Where("id = ?", cmt.ID)
 	cmtUserID := tx.QueryStmt(cmtIDQ).ScanInt64()
+
+	entryIDQ := sqlf.Select("user_id").From("entries").Where("id = ?", cmt.EntryID)
+	entryUserID := tx.QueryStmt(entryIDQ).ScanInt64()
 
 	toQ := sqlf.Select("users.id, users.name, show_name").
 		Select("email, verified AND email_comments, telegram, telegram_comments").
 		From("users").
 		Join("watching", "watching.user_id = users.id").
 		Where("watching.entry_id = ?", cmt.EntryID).
-		Where("users.id <> ?", cmtUserID)
+		Where("users.id <> ?", cmtUserID).
+		Where("(? OR shadow_ban)", !fromShadowBan || cmtUserID == entryUserID)
 
 	tx.QueryStmt(toQ)
 
@@ -264,24 +270,29 @@ func (ntf *CompositeNotifier) SendInvited(tx *AutoTx, from, to string) {
 
 func (ntf *CompositeNotifier) SendNewFollower(tx *AutoTx, toPrivate bool, from, to string) {
 	const toQ = `
-		SELECT show_name, email, verified AND email_followers, telegram, telegram_followers
+		SELECT show_name, email, verified AND email_followers, telegram, telegram_followers, shadow_ban
 		FROM users 
 		WHERE lower(name) = lower($1)
 	`
 
-	var sendEmail, sendTg bool
+	var sendEmail, sendTg, toShadowBan bool
 	var toShowName, email string
 	var tg sql.NullInt64
-	tx.Query(toQ, to).Scan(&toShowName, &email, &sendEmail, &tg, &sendTg)
+	tx.Query(toQ, to).Scan(&toShowName, &email, &sendEmail, &tg, &sendTg, &toShadowBan)
 
 	const fromQ = `
-		SELECT users.id, show_name, gender.type 
+		SELECT users.id, show_name, gender.type, shadow_ban
 		FROM users, gender 
 		WHERE lower(users.name) = lower($1) AND users.gender = gender.id`
 
 	var fromID int64
 	var fromShowName, fromGender string
-	tx.Query(fromQ, from).Scan(&fromID, &fromShowName, &fromGender)
+	var fromShadowBan bool
+	tx.Query(fromQ, from).Scan(&fromID, &fromShowName, &fromGender, &fromShadowBan)
+
+	if fromShadowBan && !toShadowBan {
+		return
+	}
 
 	if sendEmail {
 		ntf.Mail.SendNewFollower(email, from, fromShowName, fromGender, toPrivate, toShowName)

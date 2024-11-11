@@ -1,0 +1,2 @@
+ALTER TABLE users
+ADD COLUMN "shadow_ban" Boolean NOT NULL DEFAULT FALSE;

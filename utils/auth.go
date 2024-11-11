@@ -19,7 +19,7 @@ const userIDQuery = `
 				invite_ban > CURRENT_DATE, vote_ban > CURRENT_DATE, 
 				comment_ban > CURRENT_DATE, live_ban > CURRENT_DATE,
 				complain_ban > CURRENT_DATE,
-				user_ban > CURRENT_DATE,
+				user_ban > CURRENT_DATE, shadow_ban,
 				authority.type
 			FROM users
 			JOIN authority ON users.authority = authority.id `
@@ -44,13 +44,13 @@ func scanUserID(tx *AutoTx) (*models.UserID, error) {
 		&user.Ban.Invite, &user.Ban.Vote,
 		&user.Ban.Comment, &user.Ban.Live,
 		&user.Ban.Complain,
-		&user.Ban.Account,
+		&user.Ban.Account, &user.Ban.Shadow,
 		&user.Authority)
 	if tx.Error() != nil {
 		return nil, errUnauthorized
 	}
 
-	user.Ban.Invite = user.Ban.Invite || !user.IsInvited || !user.Verified
+	user.Ban.Invite = user.Ban.Invite || user.Ban.Shadow || !user.IsInvited || !user.Verified
 	user.Ban.Vote = user.Ban.Vote || !user.IsInvited || user.NegKarma || !user.Verified
 	user.Ban.Comment = user.Ban.Comment || !user.IsInvited || !user.Verified
 	user.Ban.Live = user.Ban.Live || !user.Verified

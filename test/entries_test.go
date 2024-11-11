@@ -807,6 +807,54 @@ func TestLoadLive(t *testing.T) {
 
 	checkUnfollow(t, userIDs[0], userIDs[2])
 
+	banShadow(db, userIDs[0])
+
+	feed = checkLoadLive(t, userIDs[0], 10, "entries", "", "", 2)
+	compareEntries(t, e0, feed.Entries[0], userIDs[0])
+	compareEntries(t, e2, feed.Entries[1], userIDs[0])
+
+	feed = checkLoadLive(t, userIDs[1], 10, "entries", "", "", 2)
+	compareEntries(t, e0, feed.Entries[0], userIDs[1])
+	compareEntries(t, e1, feed.Entries[1], userIDs[1])
+
+	banShadow(db, userIDs[1])
+
+	feed = checkLoadLive(t, userIDs[0], 10, "entries", "", "", 3)
+	compareEntries(t, e0, feed.Entries[0], userIDs[0])
+	compareEntries(t, e1, feed.Entries[1], userIDs[0])
+	compareEntries(t, e2, feed.Entries[2], userIDs[0])
+
+	feed = checkLoadLive(t, userIDs[1], 10, "entries", "", "", 3)
+	compareEntries(t, e0, feed.Entries[0], userIDs[1])
+	compareEntries(t, e1, feed.Entries[1], userIDs[1])
+	compareEntries(t, e2, feed.Entries[2], userIDs[1])
+
+	feed = checkLoadLive(t, userIDs[2], 10, "entries", "", "", 1)
+	compareEntries(t, e0, feed.Entries[0], userIDs[2])
+
+	removeUserRestrictions(db, userIDs)
+
+	banShadow(db, userIDs[0])
+
+	checkFollow(t, userIDs[2], userIDs[0], profiles[0], models.RelationshipRelationFollowed, true)
+
+	feed = checkLoadLive(t, userIDs[2], 10, "entries", "", "", 3)
+	compareEntries(t, e0, feed.Entries[0], userIDs[2])
+	compareEntries(t, e1, feed.Entries[1], userIDs[2])
+	compareEntries(t, e2, feed.Entries[2], userIDs[2])
+
+	checkUnfollow(t, userIDs[2], userIDs[0])
+
+	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationFollowed, true)
+
+	feed = checkLoadLive(t, userIDs[0], 10, "entries", "", "", 2)
+	compareEntries(t, e0, feed.Entries[0], userIDs[0])
+	compareEntries(t, e2, feed.Entries[1], userIDs[0])
+
+	checkUnfollow(t, userIDs[0], userIDs[1])
+
+	removeUserRestrictions(db, userIDs)
+
 	theme := createTestTheme(t, userIDs[1])
 	e4 := createThemeEntry(t, userIDs[1], theme.Name, models.EntryPrivacyAll, true, true, true, false)
 
@@ -970,8 +1018,25 @@ func TestLoadTlog(t *testing.T) {
 	checkLoadTlog(t, userIDs[0], userIDs[3], true, 3, "", "", 2)
 	checkLoadTlog(t, userIDs[0], noAuthUser, false, 10, "", "", 2)
 
-	utils.ClearDatabase(db)
-	userIDs, profiles = registerTestUsers(db)
+	setUserPrivacy(t, userIDs[0], "all")
+	checkUnfollow(t, userIDs[0], userIDs[1])
+	checkUnfollow(t, userIDs[1], userIDs[0])
+
+	banShadow(db, userIDs[1])
+	checkLoadTlog(t, userIDs[0], userIDs[1], true, 3, "", "", 2)
+	banShadow(db, userIDs[0])
+	checkLoadTlog(t, userIDs[0], userIDs[1], true, 3, "", "", 3)
+	removeUserRestrictions(db, userIDs)
+
+	banShadow(db, userIDs[0])
+	checkLoadTlog(t, userIDs[0], userIDs[1], true, 3, "", "", 3)
+	removeUserRestrictions(db, userIDs)
+
+	checkDeleteEntry(t, e0.ID, userIDs[0], true)
+	checkDeleteEntry(t, e1.ID, userIDs[0], true)
+	checkDeleteEntry(t, e2.ID, userIDs[0], true)
+	checkDeleteEntry(t, e3.ID, userIDs[0], true)
+
 	esm.Clear()
 }
 
@@ -1049,6 +1114,31 @@ func TestLoadThemeTlog(t *testing.T) {
 
 	feed = checkLoadTheme(noAuthUser, true, 1)
 	compareThemeEntries(t, e3, feed.Entries[0], noAuthUser, userIDs[0])
+
+	banShadow(db, userIDs[0])
+
+	feed = checkLoadTheme(userIDs[0], true, 3)
+	compareThemeEntries(t, e0, feed.Entries[0], userIDs[0], userIDs[0])
+	compareThemeEntries(t, e2, feed.Entries[1], userIDs[0], userIDs[0])
+	compareThemeEntries(t, e3, feed.Entries[2], userIDs[0], userIDs[0])
+
+	banShadow(db, userIDs[1])
+
+	feed = checkLoadTheme(userIDs[0], true, 4)
+	compareThemeEntries(t, e0, feed.Entries[0], userIDs[0], userIDs[0])
+	compareThemeEntries(t, e1, feed.Entries[1], userIDs[0], userIDs[0])
+	compareThemeEntries(t, e2, feed.Entries[2], userIDs[0], userIDs[0])
+	compareThemeEntries(t, e3, feed.Entries[3], userIDs[0], userIDs[0])
+
+	feed = checkLoadTheme(userIDs[1], true, 4)
+	compareThemeEntries(t, e0, feed.Entries[0], userIDs[1], userIDs[0])
+	compareThemeEntries(t, e1, feed.Entries[1], userIDs[1], userIDs[0])
+	compareThemeEntries(t, e2, feed.Entries[2], userIDs[1], userIDs[0])
+	compareThemeEntries(t, e3, feed.Entries[3], userIDs[1], userIDs[0])
+
+	checkLoadTheme(userIDs[2], true, 0)
+
+	removeUserRestrictions(db, userIDs)
 
 	checkDeleteEntry(t, e0.ID, userIDs[1], true)
 	checkDeleteEntry(t, e1.ID, userIDs[1], true)
@@ -1133,6 +1223,10 @@ func TestLoadMyTlog(t *testing.T) {
 	req.False(feed.HasBefore)
 	req.False(feed.HasAfter)
 
+	banShadow(db, userIDs[0])
+	checkLoadMyTlog(t, userIDs[0], 10, "", "", 4)
+	removeUserRestrictions(db, userIDs)
+
 	checkDeleteEntry(t, e0.ID, userIDs[0], true)
 	checkDeleteEntry(t, e1.ID, userIDs[0], true)
 	checkDeleteEntry(t, e2.ID, userIDs[0], true)
@@ -1170,8 +1264,6 @@ func checkLoadFriendsFeedSearch(t *testing.T, user *models.UserID, limit int64, 
 }
 
 func TestLoadFriendsFeed(t *testing.T) {
-	utils.ClearDatabase(db)
-	userIDs, profiles = registerTestUsers(db)
 	esm.Clear()
 
 	checkFollow(t, userIDs[0], userIDs[1], profiles[1], models.RelationshipRelationFollowed, true)
@@ -1218,6 +1310,11 @@ func TestLoadFriendsFeed(t *testing.T) {
 	compareEntries(t, es2, feed.Entries[1], userIDs[0])
 	compareEntries(t, ea3, feed.Entries[2], userIDs[0])
 
+	banShadow(db, userIDs[1])
+	checkLoadFriendsFeed(t, userIDs[0], 10, "", "", 4)
+	checkLoadFriendsFeed(t, userIDs[1], 10, "", "", 2)
+	removeUserRestrictions(db, userIDs)
+
 	checkUnfollow(t, userIDs[0], userIDs[1])
 
 	checkFollow(t, userIDs[3], userIDs[1], profiles[1], models.RelationshipRelationFollowed, true)
@@ -1237,6 +1334,8 @@ func TestLoadFriendsFeed(t *testing.T) {
 	checkDeleteEntry(t, ea1.ID, userIDs[1], true)
 	checkDeleteEntry(t, ea2.ID, userIDs[0], true)
 	checkDeleteEntry(t, ea3.ID, userIDs[0], true)
+
+	esm.Clear()
 }
 
 func checkLoadFavoritesAll(t *testing.T, user, tlog *models.UserID, limit int64, before, after, query string, size int) *models.Feed {
@@ -1825,14 +1924,32 @@ func TestCanViewEntry(t *testing.T) {
 	check(noAuthUser, e1.ID, true)
 	check(noAuthUser, e2.ID, false)
 
+	checkUnfollow(t, userIDs[1], userIDs[0])
+	checkUnfollow(t, userIDs[0], userIDs[1])
+
+	banShadow(db, userIDs[0])
+
+	check(userIDs[0], e1.ID, true)
+	check(userIDs[0], e2.ID, true)
+	check(userIDs[0], e3.ID, true)
+	check(userIDs[0], e4.ID, true)
+	check(userIDs[0], e5.ID, true)
+
+	check(userIDs[1], e1.ID, true)
+	check(userIDs[1], e2.ID, false)
+	check(userIDs[1], e3.ID, true)
+	check(userIDs[1], e4.ID, true)
+	check(userIDs[1], e5.ID, false)
+
+	removeUserRestrictions(db, userIDs)
+
 	checkDeleteEntry(t, e1.ID, userIDs[0], true)
 	checkDeleteEntry(t, e2.ID, userIDs[0], true)
 	checkDeleteEntry(t, e3.ID, userIDs[0], true)
 	checkDeleteEntry(t, e4.ID, userIDs[0], true)
 	checkDeleteEntry(t, e5.ID, userIDs[0], true)
 
-	checkUnfollow(t, userIDs[1], userIDs[0])
-	checkUnfollow(t, userIDs[0], userIDs[1])
+	esm.Clear()
 }
 
 func TestCanViewThemeEntry(t *testing.T) {
@@ -2194,6 +2311,106 @@ func TestLoadTlogCalendar(t *testing.T) {
 	checkDeleteEntry(t, e3, userIDs[0], true)
 }
 
+func TestLoadThemeCalendar(t *testing.T) {
+	theme := createTestTheme(t, userIDs[0])
+	toTheme := &models.AuthProfile{Profile: *theme}
+	checkFollow(t, userIDs[1], nil, toTheme, models.RelationshipRelationFollowed, true)
+
+	post := func(privacy string) int64 {
+		e := createThemeEntry(t, userIDs[1], theme.Name, privacy, true, true, true, false)
+		return e.ID
+	}
+
+	e1 := post(models.EntryPrivacyAll)
+	time.Sleep(10 * time.Millisecond)
+	e2 := post(models.EntryPrivacyRegistered)
+	time.Sleep(1 * time.Second)
+	e3 := post(models.EntryPrivacyInvited)
+
+	req := require.New(t)
+
+	load := func(userID *models.UserID, start, end int64, count int) []*models.CalendarEntry {
+		var limit int64 = 1000
+		params := themes.GetThemesNameCalendarParams{
+			Name:  toTheme.Name,
+			Start: &start,
+			End:   &end,
+			Limit: &limit,
+		}
+
+		get := api.ThemesGetThemesNameCalendarHandler.Handle
+		resp := get(params, userID)
+		body, ok := resp.(*themes.GetThemesNameCalendarOK)
+		if count > 0 {
+			require.True(t, ok)
+		}
+		if !ok {
+			return nil
+		}
+
+		cal := body.Payload
+
+		createdAt := int64(toTheme.CreatedAt)
+		if start > 0 && start < createdAt {
+			req.Equal(createdAt, cal.Start)
+		} else {
+			req.Equal(start, cal.Start)
+		}
+
+		if end > createdAt {
+			req.Equal(end, cal.End)
+		}
+
+		req.Equal(count, len(cal.Entries))
+
+		return cal.Entries
+	}
+
+	noAuthUser := utils.NoAuthUser()
+
+	now := time.Now().Unix()
+	load(userIDs[0], 0, now-10, 0)
+	load(userIDs[0], now+10, now-10, 0)
+
+	cal := load(userIDs[0], 0, 0, 3)
+	req.Equal(e3, cal[0].ID)
+	req.Equal(e2, cal[1].ID)
+	req.Equal(e1, cal[2].ID)
+
+	last := int64(cal[0].CreatedAt)
+	cal = load(userIDs[0], 0, last, 2)
+	req.Equal(e2, cal[0].ID)
+	req.Equal(e1, cal[1].ID)
+
+	cal = load(userIDs[0], last, 0, 1)
+	req.Equal(e3, cal[0].ID)
+
+	cal = load(noAuthUser, 0, 0, 1)
+	req.Equal(e1, cal[0].ID)
+
+	setThemePrivacy(t, userIDs[0], theme, "registered")
+
+	cal = load(noAuthUser, 0, 0, 0)
+	req.Nil(cal)
+
+	setThemePrivacy(t, userIDs[0], theme, "all")
+
+	banShadow(db, userIDs[0])
+	banShadow(db, userIDs[1])
+
+	load(userIDs[0], 0, 0, 3)
+	load(userIDs[1], 0, 0, 3)
+	load(userIDs[2], 0, 0, 0)
+
+	removeUserRestrictions(db, userIDs)
+
+	checkDeleteEntry(t, e1, userIDs[0], true)
+	checkDeleteEntry(t, e2, userIDs[0], true)
+	checkDeleteEntry(t, e3, userIDs[0], true)
+
+	deleteTheme(t, theme)
+}
+
 func TestLoadAdjacentEntries(t *testing.T) {
 	post := func(title, content, privacy string, wc int64) int64 {
 		commentable := true
@@ -2290,7 +2507,131 @@ func TestLoadAdjacentEntries(t *testing.T) {
 
 	setUserPrivacy(t, userIDs[0], "all")
 
+	banShadow(db, userIDs[0])
+	banShadow(db, userIDs[1])
+
+	adj = load(userIDs[0], e1)
+	req.Nil(adj.Older)
+	req.Equal(e2, adj.Newer.ID)
+
+	adj = load(userIDs[1], e1)
+	req.Nil(adj.Older)
+	req.Equal(e3, adj.Newer.ID)
+
+	adj = load(userIDs[2], e1)
+	req.Nil(adj.Older)
+	req.Equal(e3, adj.Newer.ID)
+
+	removeUserRestrictions(db, userIDs)
+
 	checkDeleteEntry(t, e1, userIDs[0], true)
 	checkDeleteEntry(t, e2, userIDs[0], true)
 	checkDeleteEntry(t, e3, userIDs[0], true)
+}
+
+func TestLoadAdjacentThemeEntries(t *testing.T) {
+	theme := createTestTheme(t, userIDs[1])
+	toTheme := &models.AuthProfile{Profile: *theme}
+	checkFollow(t, userIDs[0], nil, toTheme, models.RelationshipRelationFollowed, true)
+	checkFollow(t, userIDs[2], nil, toTheme, models.RelationshipRelationFollowed, true)
+
+	post := func(uid int, privacy string) int64 {
+		e := createThemeEntry(t, userIDs[uid], theme.Name, privacy, true, true, true, false)
+		return e.ID
+	}
+
+	e1 := post(0, models.EntryPrivacyAll)
+	time.Sleep(10 * time.Millisecond)
+	e2 := post(0, models.EntryPrivacyRegistered)
+	time.Sleep(10 * time.Millisecond)
+	e3 := post(0, models.EntryPrivacyInvited)
+	time.Sleep(10 * time.Millisecond)
+	e4 := post(2, models.EntryPrivacyRegistered)
+
+	req := require.New(t)
+
+	load := func(userID *models.UserID, entryID int64) *models.AdjacentEntries {
+		params := entries.GetEntriesIDAdjacentParams{
+			ID: entryID,
+		}
+
+		get := api.EntriesGetEntriesIDAdjacentHandler.Handle
+		resp := get(params, userID)
+		body, ok := resp.(*entries.GetEntriesIDAdjacentOK)
+		if !ok {
+			return nil
+		}
+
+		adj := body.Payload
+		req.Equal(entryID, adj.ID)
+
+		return adj
+	}
+
+	adj := load(userIDs[0], e3+100)
+	req.Nil(adj)
+
+	adj = load(userIDs[0], e1)
+	req.Nil(adj.Older)
+	req.Equal(e2, adj.Newer.ID)
+
+	adj = load(userIDs[0], e2)
+	req.Equal(e1, adj.Older.ID)
+	req.Equal(e3, adj.Newer.ID)
+
+	adj = load(userIDs[0], e4)
+	req.Equal(e3, adj.Older.ID)
+	req.Nil(adj.Newer)
+
+	adj = load(userIDs[3], e1)
+	req.Nil(adj.Older)
+	req.Equal(e2, adj.Newer.ID)
+
+	adj = load(userIDs[3], e2)
+	req.Equal(e1, adj.Older.ID)
+	req.Equal(e4, adj.Newer.ID)
+
+	adj = load(userIDs[3], e3)
+	req.Nil(adj)
+
+	noAuthUser := utils.NoAuthUser()
+
+	adj = load(noAuthUser, e1)
+	req.Nil(adj.Older)
+	req.Nil(adj.Newer)
+
+	adj = load(noAuthUser, e2)
+	req.Nil(adj)
+
+	banShadow(db, userIDs[0])
+	banShadow(db, userIDs[1])
+
+	adj = load(userIDs[0], e2)
+	req.Equal(e1, adj.Older.ID)
+	req.Equal(e3, adj.Newer.ID)
+
+	adj = load(userIDs[0], e3)
+	req.Equal(e2, adj.Older.ID)
+	req.Equal(e4, adj.Newer.ID)
+
+	adj = load(userIDs[1], e2)
+	req.Equal(e1, adj.Older.ID)
+	req.Equal(e3, adj.Newer.ID)
+
+	adj = load(userIDs[2], e2)
+	req.Nil(adj.Older)
+	req.Equal(e4, adj.Newer.ID)
+
+	adj = load(userIDs[2], e3)
+	req.Nil(adj.Older)
+	req.Equal(e4, adj.Newer.ID)
+
+	removeUserRestrictions(db, userIDs)
+
+	checkDeleteEntry(t, e1, userIDs[0], true)
+	checkDeleteEntry(t, e2, userIDs[0], true)
+	checkDeleteEntry(t, e3, userIDs[0], true)
+	checkDeleteEntry(t, e4, userIDs[2], true)
+
+	deleteTheme(t, theme)
 }

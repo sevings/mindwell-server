@@ -36,8 +36,10 @@ func myFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 func tlogFeedQuery(userID *models.UserID, limit int64, tlog string) *sqlf.Stmt {
 	q := baseFeedQuery(userID, limit).
 		Join("users AS authors", "entries.author_id = authors.id").
+		Join("users AS entry_users", "entries.user_id = entry_users.id").
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
-		Where("lower(authors.name) = lower(?)", tlog)
+		Where("lower(authors.name) = lower(?)", tlog).
+		Where(`(entries.user_id = entries.author_id OR NOT entry_users.shadow_ban OR ?)`, userID.Ban.Shadow)
 
 	entries.AddRelationToTlogQuery(q, userID, tlog)
 	return utils.AddEntryOpenQuery(q, userID, false)

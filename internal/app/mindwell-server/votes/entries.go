@@ -97,15 +97,17 @@ func loadEntryRating(tx *utils.AutoTx, entryID int64) *models.Rating {
 	return rating
 }
 
-func voteForEntry(tx *utils.AutoTx, userID, entryID int64, positive bool) *models.Rating {
+func voteForEntry(tx *utils.AutoTx, userID *models.UserID, entryID int64, positive bool) *models.Rating {
 	const q = `
 		INSERT INTO entry_votes (user_id, entry_id, vote)
-		VALUES ($1, $2, (
+		VALUES ($1, $2, CASE
+		    WHEN $4 THEN 0.001 * $3
+		    ELSE (
 			SELECT GREATEST(0.001, weight) * $3
 			FROM entries, vote_weights
 			WHERE vote_weights.user_id = $1 AND entries.id = $2
 				AND entries.category = vote_weights.category
-		))
+		) END)
 		ON CONFLICT ON CONSTRAINT unique_entry_vote
 		DO UPDATE SET vote = EXCLUDED.vote`
 
@@ -115,7 +117,7 @@ func voteForEntry(tx *utils.AutoTx, userID, entryID int64, positive bool) *model
 	} else {
 		vote = -1
 	}
-	tx.Exec(q, userID, entryID, vote)
+	tx.Exec(q, userID.ID, entryID, vote, userID.Ban.Shadow)
 
 	rating := loadEntryRating(tx, entryID)
 
@@ -138,7 +140,7 @@ func newEntryVoter(srv *utils.MindwellServer) func(votes.PutEntriesIDVoteParams,
 				return votes.NewPutEntriesIDVoteForbidden().WithPayload(err)
 			}
 
-			status := voteForEntry(tx, userID.ID, params.ID, *params.Positive)
+			status := voteForEntry(tx, userID, params.ID, *params.Positive)
 			return votes.NewPutEntriesIDVoteOK().WithPayload(status)
 		})
 	}

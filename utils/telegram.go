@@ -353,8 +353,8 @@ func (bot *TelegramBot) help(upd *tgbotapi.Update) string {
 		text += `
 
 Команды администрирования:
-<code>/ban {live | vote | comment | invite | adm} {N} {login или ссылка}</code> — запретить пользователю выбранные действия на N дней, в случае adm — навсегда.
-<code>/ban user {N} {login или ссылка}</code> — заблокировать пользователя на N дней.
+<code>/ban {live | vote | comment | invite | adm | shadow} [N] {login или ссылка}</code> — запретить пользователю выбранные действия на N дней, в случае adm — навсегда.
+<code>/ban user [N] {login или ссылка}</code> — заблокировать пользователя на N дней.
 <code>/unban {login или ссылка}</code> — разблокировать пользователя.
 <code>/info {email, login или ссылка}</code> — информация о пользователе.
 <code>/alts {login или ссылка}</code> — искать альтернативные аккаунты пользователя.
@@ -484,6 +484,8 @@ func (bot *TelegramBot) ban(upd *tgbotapi.Update) string {
 			q.Set("adm_ban", true)
 		case "user":
 			q.SetExpr("user_ban", banUntil)
+		case "shadow":
+			q.Set("shadow_ban", true)
 		default:
 			q.Close()
 			return "Неизвестный аргумент: " + ban + "."
