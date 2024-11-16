@@ -230,6 +230,8 @@ func (bot *TelegramBot) command(upd tgbotapi.Update) {
 		reply = bot.info(&upd)
 	case "alts":
 		reply = bot.alts(&upd)
+	case "confirm":
+		reply = bot.confirmAlt(&upd)
 	case "votes":
 		reply = bot.votes(&upd)
 	case "cross":
@@ -358,6 +360,9 @@ func (bot *TelegramBot) help(upd *tgbotapi.Update) string {
 <code>/unban {login или ссылка}</code> — разблокировать пользователя.
 <code>/info {email, login или ссылка}</code> — информация о пользователе.
 <code>/alts {login или ссылка}</code> — искать альтернативные аккаунты пользователя.
+<code>/alts {login или ссылка} {login или ссылка}</code> — проверить альтернативные аккаунты пользователя.
+<code>/confirm {login или ссылка} {login или ссылка}</code> — подтвердить альтернативный аккаунт пользователя.
+<code>/confirm {login или ссылка} [-]</code> — подтвердить основной аккаунт пользователя.
 <code>/cross {login или ссылка} {login или ссылка}</code> — искать пересечения голосов пользователей.
 <code>/votes {id или ссылка}</code> — посмотреть голоса за запись.
 <code>/create app {dev_name} {public | private} {code | password} {redirect_uri} {name} {show_name} {platform} {info}</code> - создать приложение.
@@ -790,6 +795,22 @@ func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string, limit int)
 		return strings.Join(alts, ", ")
 	}
 
+	confAlt := "Suspected"
+	var alt sql.NullString
+	var conf bool
+	confQuery := sqlf.Select("alt_of, confirmed_alt").
+		From("users").
+		Where("lower(name) = lower(?)", user)
+	atx.QueryStmt(confQuery).Scan(&alt, &conf)
+	if conf {
+		confAlt = "Confirmed"
+	}
+	if alt.Valid {
+		confAlt = fmt.Sprintf("<b>%s</b>: %s", confAlt, bot.userNameLink(alt.String, alt.String))
+	} else {
+		confAlt = fmt.Sprintf("<b>%s</b>:", confAlt)
+	}
+
 	q := sqlf.Select("ul.name, COUNT(*) AS cnt").
 		From("user_log AS ul").
 		Where("ul.name <> lower(?)", user).
@@ -816,11 +837,6 @@ func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string, limit int)
 		Where("(CASE WHEN ul.at > ol.at THEN ul.at - ol.at ELSE ol.at - ul.at END) < interval '1 hour'")
 	appAlts := getAlts(appQuery)
 
-	uidQuery := q.Clone().
-		Join("user_log AS ol", "ul.uid = ol.uid").
-		Where("ol.uid <> 0")
-	uidAlts := getAlts(uidQuery)
-
 	uid2Query := q.Clone().
 		Join("user_log AS ol", "ul.uid2 = ol.uid2").
 		Where("ol.uid2 <> 0")
@@ -837,10 +853,10 @@ func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string, limit int)
 	emailAlts := getAlts(emailQuery)
 
 	text := "Possible accounts of " + bot.userNameLink(user, user)
+	text += "\n" + confAlt
 	text += "\n<b>By IP</b>: " + ipAlts
 	text += "\n<b>By device</b>: " + devAlts
 	text += "\n<b>By app</b>: " + appAlts
-	text += "\n<b>By UID</b>: " + uidAlts
 	text += "\n<b>By UID2</b>: " + uid2Alts
 	text += "\n<b>By email</b>: " + emailAlts
 
@@ -959,6 +975,71 @@ func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB, emailA, emailB s
 	text += "\n<b>" + userB + "'s email</b>: " + emailB
 
 	return text
+}
+
+func (bot *TelegramBot) confirmAlt(upd *tgbotapi.Update) string {
+	if !bot.isAdmin(upd) {
+		return unrecognisedText
+	}
+
+	arg := upd.Message.CommandArguments()
+	args := strings.Split(arg, " ")
+
+	var users []string
+	for _, login := range args {
+		login = extractLogin(login)
+		if login != "" {
+			users = append(users, login)
+		}
+	}
+
+	if len(users) == 0 {
+		return "Укажи логин."
+	}
+
+	if len(users) > 2 {
+		return "Укажи не более двух аккаунтов."
+	}
+
+	atx := NewAutoTx(bot.srv.DB)
+	defer atx.Finish()
+
+	var msg string
+	if len(users) == 2 && users[1] != "-" {
+		const idQ = "SELECT id FROM users WHERE lower(name) = lower($1)"
+		id0 := atx.QueryInt64(idQ, users[0])
+		if id0 == 0 {
+			return fmt.Sprintf("Пользователь %s не найден.", users[0])
+		}
+		id1 := atx.QueryInt64(idQ, users[1])
+		if id1 == 0 {
+			return fmt.Sprintf("Пользователь %s не найден.", users[1])
+		}
+		if id0 < id1 {
+			users[0], users[1] = users[1], users[0]
+		}
+
+		updQ := sqlf.Update("users").
+			SetExpr("alt_of", "lower(?)", users[1]).
+			Set("confirmed_alt", true).
+			Where("lower(name) = lower(?)", users[0])
+		atx.ExecStmt(updQ)
+
+		msg = fmt.Sprintf("%s — подтвержденный аккаунт пользователя %s.", users[0], users[1])
+	} else {
+		updQ := sqlf.Update("users").
+			Set("alt_of", nil).
+			Set("confirmed_alt", true).
+			Where("lower(name) = lower(?)", users[0])
+		atx.ExecStmt(updQ)
+
+		msg = fmt.Sprintf("%s — подтвержденный основной аккаунт.", users[0])
+	}
+	if atx.Error() != nil || atx.RowsAffected() == 0 {
+		return fmt.Sprintf("Пользователь %s не найден.", users[0])
+	}
+
+	return msg
 }
 
 func (bot *TelegramBot) votes(upd *tgbotapi.Update) string {
@@ -1780,4 +1861,12 @@ func (bot *TelegramBot) SendWishComplain(from, against *models.User, wish string
 		"Текст пожелания:\n\n«" + tgHtmlEsc.Replace(wish) + "»\n\n"
 
 	bot.sendMessage(bot.group, text)
+}
+
+func (bot *TelegramBot) SendPossibleAlts(atx *AutoTx, user string) {
+	emailQ := sqlf.Select("email").From("users").Where("lower(name) = lower(?)", user)
+	email := atx.QueryStmt(emailQ).ScanString()
+
+	msg := bot.possibleAlts(atx, user, email, 10)
+	bot.sendMessage(bot.group, msg)
 }

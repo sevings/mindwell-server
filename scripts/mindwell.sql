@@ -153,6 +153,8 @@ CREATE TABLE "mindwell"."users" (
     "telegram" Integer,
     "authority" Integer DEFAULT 0 NOT NULL,
     "creator_id" Integer,
+    "alt_of" Text,
+    "confirmed_alt" Boolean DEFAULT FALSE NOT NULL,
 	CONSTRAINT "unique_user_id" PRIMARY KEY( "id" ),
     CONSTRAINT "enum_user_gender" FOREIGN KEY("gender") REFERENCES "mindwell"."gender"("id"),
     CONSTRAINT "enum_user_privacy" FOREIGN KEY("privacy") REFERENCES "mindwell"."user_privacy"("id"),

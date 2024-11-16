@@ -1,2 +1,5 @@
 ALTER TABLE users
-ADD COLUMN "shadow_ban" Boolean NOT NULL DEFAULT FALSE;
+ADD COLUMN "alt_of" Text;
+
+ALTER TABLE users
+ADD COLUMN "confirmed_alt" Boolean DEFAULT FALSE NOT NULL;

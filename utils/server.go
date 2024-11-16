@@ -2,6 +2,7 @@ package utils
 
 import (
 	"database/sql"
+	"github.com/leporo/sqlf"
 	"go.uber.org/zap"
 	"log"
 	"strconv"
@@ -100,10 +101,13 @@ func NewMindwellServer(api *operations.MindwellAPI, configPath string) *Mindwell
 
 	srv.Ntf = NewCompositeNotifier(srv)
 
-	if _, err := scheduler.Every().Day().At("03:10").Run(func() { srv.recalcKarma() }); err != nil {
+	if _, err := scheduler.Every().Day().At("03:10").Run(srv.recalcKarma); err != nil {
 		srv.LogSystem().Error(err.Error())
 	}
-	if _, err := scheduler.Every().Day().At("03:15").Run(func() { srv.giveInvites() }); err != nil {
+	if _, err := scheduler.Every().Day().At("03:15").Run(srv.giveInvites); err != nil {
+		srv.LogSystem().Error(err.Error())
+	}
+	if _, err := scheduler.Every(8).Hours().Run(srv.searchAlts); err != nil {
 		srv.LogSystem().Error(err.Error())
 	}
 
@@ -326,5 +330,82 @@ func (srv *MindwellServer) giveInvites() {
 	srv.LogSystem().Info("Given invites",
 		zap.Int64("duration", time.Since(start).Microseconds()),
 		zap.Int("invites", len(ids)),
+	)
+}
+
+func (srv *MindwellServer) searchAlts() {
+	start := time.Now()
+
+	tx := NewAutoTx(srv.DB)
+	defer tx.Finish()
+
+	namesQ := sqlf.Select("name").
+		From("users").
+		Where("now() - last_seen_at < interval '8 hours'").
+		Where("alt_of IS NULL").
+		Where("NOT confirmed_alt")
+
+	var found []string
+	names := tx.QueryStmt(namesQ).ScanStrings()
+	for _, name := range names {
+		altQ := sqlf.Select("ul.name, COUNT(*) AS cnt").
+			From("user_log AS ul").
+			Join("user_log AS ol", "ul.uid2 = ol.uid2").
+			Where("ul.name <> lower(?)", name).
+			Where("ol.name = lower(?)", name).
+			Where("ol.uid2 <> 0").
+			GroupBy("ul.name").
+			OrderBy("cnt DESC").
+			Limit(1)
+
+		var alt string
+		var cnt int64
+		tx.QueryStmt(altQ).Scan(&alt, &cnt)
+		if cnt == 0 {
+			oldQ := sqlf.Select("TRUE").
+				From("users").
+				Where("lower(name) = lower(?)", name).
+				Where("age(created_at) > interval '1 year'").
+				Where("karma > 1")
+
+			isOld := tx.QueryStmt(oldQ).ScanBool()
+			if isOld {
+				updQ := sqlf.Update("users").
+					Set("confirmed_alt", true).
+					Where("lower(name) = lower(?)", name)
+
+				tx.ExecStmt(updQ)
+				if tx.Error() != nil {
+					srv.LogSystem().Error(tx.Error().Error())
+				}
+			}
+		} else {
+			const idQ = "SELECT id FROM users WHERE lower(name) = lower($1)"
+			id1 := tx.QueryInt64(idQ, alt)
+			id2 := tx.QueryInt64(idQ, name)
+			if id1 > id2 {
+				continue
+			}
+
+			found = append(found, name)
+
+			updQ := sqlf.Update("users").
+				Set("alt_of", alt).
+				Where("lower(name) = lower(?)", name)
+
+			tx.ExecStmt(updQ)
+			if tx.Error() != nil {
+				srv.LogSystem().Error(tx.Error().Error())
+			}
+		}
+	}
+
+	for _, user := range found {
+		srv.Ntf.Tg.SendPossibleAlts(tx, user)
+	}
+
+	srv.LogSystem().Info("Searched alts",
+		zap.Int64("duration", time.Since(start).Microseconds()),
+		zap.Int("alts", len(found)),
 	)
 }
