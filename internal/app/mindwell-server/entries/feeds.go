@@ -262,7 +262,9 @@ func watchingQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 func addFavoritesQuery(q *sqlf.Stmt, userID *models.UserID, tlog string) *sqlf.Stmt {
 	utils.AddViewEntryQuery(q, userID)
 	return q.Join("favorites", "entries.id = favorites.entry_id").
-		Where("favorites.user_id = (SELECT id FROM users WHERE lower(name) = lower(?))", tlog)
+		Where("favorites.user_id = (SELECT id FROM users WHERE lower(name) = lower(?))", tlog).
+		Where("(favorites.user_id = ? OR ? OR NOT entry_users.shadow_ban OR relations_from_me.type = 'followed')",
+			userID.ID, userID.Ban.Shadow)
 }
 
 func favoritesQuery(userID *models.UserID, limit int64, tlog string) *sqlf.Stmt {

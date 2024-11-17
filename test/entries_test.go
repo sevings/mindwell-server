@@ -1439,6 +1439,29 @@ func TestLoadFavorites(t *testing.T) {
 	checkFollow(t, userIDs[0], userIDs[2], profiles[2], models.RelationshipRelationIgnored, true)
 	checkLoadFavorites(t, userIDs[2], userIDs[1], 10, "", "", 1)
 	checkUnfollow(t, userIDs[0], userIDs[2])
+
+	banShadow(db, userIDs[0])
+
+	checkLoadFavorites(t, userIDs[0], userIDs[0], 10, "", "", 4)
+	checkLoadFavorites(t, userIDs[1], userIDs[0], 10, "", "", 1)
+	checkLoadFavorites(t, userIDs[0], userIDs[1], 10, "", "", 3)
+	checkLoadFavorites(t, userIDs[1], userIDs[1], 10, "", "", 3)
+	checkLoadFavorites(t, userIDs[2], userIDs[1], 10, "", "", 1)
+
+	checkFollow(t, userIDs[1], userIDs[0], profiles[0], models.RelationshipRelationFollowed, true)
+	checkLoadFavorites(t, userIDs[1], userIDs[0], 10, "", "", 2)
+	checkUnfollow(t, userIDs[1], userIDs[0])
+
+	banShadow(db, userIDs[1])
+	checkLoadFavorites(t, userIDs[1], userIDs[0], 10, "", "", 2)
+
+	removeUserRestrictions(db, userIDs)
+
+	checkDeleteEntry(t, tlog.Entries[0].ID, userIDs[0], true)
+	checkDeleteEntry(t, tlog.Entries[1].ID, userIDs[0], true)
+	checkDeleteEntry(t, tlog.Entries[2].ID, userIDs[0], true)
+	checkDeleteEntry(t, tlog.Entries[3].ID, userIDs[0], true)
+	checkDeleteEntry(t, e4.ID, userIDs[1], true)
 }
 
 func compareEntriesFull(t *testing.T, exp, act *models.Entry) {
@@ -1518,10 +1541,6 @@ func compareThemeEntries(t *testing.T, exp, act *models.Entry, user, creator *mo
 }
 
 func TestLoadLiveComments(t *testing.T) {
-	utils.ClearDatabase(db)
-	userIDs, profiles = registerTestUsers(db)
-	esm.Clear()
-
 	es := make([]*models.Entry, 6)
 
 	es[0] = postEntry(userIDs[0], models.EntryPrivacyRegistered, true) // 2
