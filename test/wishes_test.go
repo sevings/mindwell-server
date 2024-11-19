@@ -7,6 +7,7 @@ import (
 	"github.com/sevings/mindwell-server/restapi/operations/wishes"
 	"github.com/stretchr/testify/require"
 	"testing"
+	"time"
 )
 
 func checkLoadWish(t *testing.T, user *models.UserID, wishID int64, success bool) *models.Wish {
@@ -84,12 +85,28 @@ func TestWishes(t *testing.T) {
 UPDATE users
 SET karma = 1,
     created_at = NOW() - interval '4 days',
+    last_seen_at = NOW() - interval '4 days',
     verified = TRUE
 WHERE id IN ($1, $2, $3)`,
 		userIDs[0].ID, userIDs[1].ID, userIDs[2].ID)
 	req.Nil(err)
 
-	wishesImpl.CreateWishes(srv)
+	time.Sleep(10 * time.Millisecond)
+
+	for i := 0; i < 4; i++ {
+		_, found := wishesImpl.LastCreatedWish(db, userIDs[i])
+		req.False(found)
+	}
+
+	_, err = db.Exec(
+		`
+UPDATE users
+SET last_seen_at = NOW() - interval '1 second'
+WHERE id IN ($1, $2, $3)`,
+		userIDs[0].ID, userIDs[1].ID, userIDs[2].ID)
+	req.Nil(err)
+
+	time.Sleep(100 * time.Millisecond)
 
 	id0, f0 := wishesImpl.LastCreatedWish(db, userIDs[0])
 	req.True(f0)
@@ -160,7 +177,13 @@ WHERE id IN ($1, $2, $3)`,
 
 	checkSendWish(t, userIDs[2], id2, true)
 
-	wishesImpl.CreateWishes(srv)
+	_, err = db.Exec(
+		`
+UPDATE users
+SET last_seen_at = NOW()
+WHERE id IN ($1, $2, $3)`,
+		userIDs[0].ID, userIDs[1].ID, userIDs[2].ID)
+	req.Nil(err)
 
 	for i := 0; i < 4; i++ {
 		_, found := wishesImpl.LastCreatedWish(db, userIDs[i])

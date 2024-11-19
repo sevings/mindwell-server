@@ -51,6 +51,7 @@ const (
 
 type MindwellServer struct {
 	DB    *sql.DB
+	PS    *PubSub
 	API   *operations.MindwellAPI
 	Ntf   *CompositeNotifier
 	Imgs  *cache.Cache
@@ -98,6 +99,9 @@ func NewMindwellServer(api *operations.MindwellAPI, configPath string) *Mindwell
 			"invalid_invite": {ID: "invalid_invite", Other: "Invite is invalid."},
 		},
 	}
+
+	srv.PS = NewPubSub(ConnectionString(config), srv.LogSystem())
+	srv.PS.Start()
 
 	srv.Ntf = NewCompositeNotifier(srv)
 

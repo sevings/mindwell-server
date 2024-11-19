@@ -1,14 +1,12 @@
 package wishes
 
 import (
-	"cmp"
-	"github.com/carlescere/scheduler"
+	"encoding/json"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/wishes"
 	"github.com/sevings/mindwell-server/utils"
 	"go.uber.org/zap"
-	"slices"
 	"strings"
 )
 
@@ -21,38 +19,22 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.WishesDeleteWishesIDHandler = wishes.DeleteWishesIDHandlerFunc(newWishDecliner(srv))
 	srv.API.WishesPostWishesIDThankHandler = wishes.PostWishesIDThankHandlerFunc(newWishThanker(srv))
 
-	wishesEnabled = srv.ConfigBool("wishes.enabled")
+	wishesEnabled = srv.ConfigBool("adm.wish_enabled")
 	if wishesEnabled {
-		period := srv.ConfigInt("wishes.period")
-		job := func() { CreateWishes(srv) }
-		_, err := scheduler.Every(period).Minutes().NotImmediately().Run(job)
-		if err != nil {
-			srv.LogSystem().Error(err.Error())
-		}
+		srv.PS.Subscribe("online_users", createWishFromUserData(srv))
 	}
 }
 
-func CreateWishes(srv *utils.MindwellServer) {
-	tx := utils.NewAutoTx(srv.DB)
-	defer tx.Finish()
-
-	logger := srv.Log("wishes")
-
-	users := utils.LoadOnlineUsers(tx)
-	slices.SortFunc(users, func(a, b *models.User) int {
-		return -cmp.Compare(a.ID, b.ID)
-	})
-
-	for _, user := range users {
-		wishID, created := createWish(tx, user.ID)
-		if created {
-			logger.Info("created", zap.String("from", user.Name))
-			srv.Ntf.SendWishCreated(tx, wishID, user.Name)
+func createWishFromUserData(srv *utils.MindwellServer) func(userData []byte) {
+	return func(userData []byte) {
+		var user models.User
+		err := json.Unmarshal(userData, &user)
+		if err != nil {
+			srv.Log("wishes").Error(err.Error())
+			return
 		}
-	}
 
-	if tx.HasQueryError() {
-		logger.Error(tx.Error().Error())
+		createWishFromUser(srv, user.ID, user.Name)
 	}
 }
 
@@ -103,16 +85,16 @@ func newWishDecliner(srv *utils.MindwellServer) func(wishes.DeleteWishesIDParams
 	}
 }
 
-func createWishFromUser(srv *utils.MindwellServer, userID *models.UserID) {
+func createWishFromUser(srv *utils.MindwellServer, id int64, name string) {
 	tx := utils.NewAutoTx(srv.DB)
 	defer tx.Finish()
 
 	logger := srv.Log("wishes")
 
-	wishID, created := createWish(tx, userID.ID)
+	wishID, created := createWish(tx, id)
 	if created {
-		srv.Ntf.SendWishCreated(tx, wishID, userID.Name)
-		logger.Info("created", zap.String("from", userID.Name))
+		srv.Ntf.SendWishCreated(tx, wishID, name)
+		logger.Info("created", zap.String("from", name))
 	}
 
 	if tx.HasQueryError() {
@@ -130,7 +112,7 @@ func newWishThanker(srv *utils.MindwellServer) func(wishes.PostWishesIDThankPara
 			}
 
 			if wishesEnabled {
-				go createWishFromUser(srv, userID)
+				go createWishFromUser(srv, userID.ID, userID.Name)
 			}
 
 			return wishes.NewPostWishesIDThankNoContent()

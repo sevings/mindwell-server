@@ -55,7 +55,4 @@ admin_group = ""
 [adm]
 reg_finished = true
 adm_finished = true
-
-[wishes]
-enabled = true
-period = 217
+wish_enabled = true
