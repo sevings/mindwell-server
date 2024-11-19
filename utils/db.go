@@ -3,11 +3,12 @@ package utils
 import (
 	"database/sql"
 	"errors"
+	"log"
+	"runtime/debug"
+
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/leporo/sqlf"
 	goconf "github.com/zpatrick/go-config"
-	"log"
-	"runtime/debug"
 )
 
 func init() {
@@ -74,13 +75,7 @@ func ClearDatabase(db *sql.DB) {
 	tx.Commit()
 }
 
-// OpenDatabase returns db opened from config.
-func OpenDatabase(config *goconf.Config) *sql.DB {
-	driver, err := config.StringOr("database.driver", "postgres")
-	if err != nil {
-		log.Print(err)
-	}
-
+func ConnectionString(config *goconf.Config) string {
 	host, err := config.String("database.host")
 	if err != nil {
 		log.Print(err)
@@ -106,7 +101,19 @@ func OpenDatabase(config *goconf.Config) *sql.DB {
 		log.Print(err)
 	}
 
-	db, err := sql.Open(driver, "user="+user+" password="+pass+" dbname="+name+" host="+host+" port="+port)
+	connStr := "user=" + user + " password=" + pass + " dbname=" + name + " host=" + host + " port=" + port
+	return connStr
+}
+
+// OpenDatabase returns db opened from config.
+func OpenDatabase(config *goconf.Config) *sql.DB {
+	driver, err := config.StringOr("database.driver", "postgres")
+	if err != nil {
+		log.Print(err)
+	}
+
+	connStr := ConnectionString(config)
+	db, err := sql.Open(driver, connStr)
 	if err != nil {
 		log.Fatal(err)
 	}
