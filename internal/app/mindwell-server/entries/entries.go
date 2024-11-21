@@ -757,6 +757,17 @@ func deleteEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID, userID in
 	}
 
 	var entryUserID, themeCreatorID = comments.LoadEntryAuthor(tx, entryID)
+	if entryUserID != userID && themeCreatorID == userID {
+		hideQuery := sqlf.Update("entries").
+			SetExpr("author_id", "user_id").
+			SetExpr("visible_for", "(SELECT id FROM entry_privacy WHERE type = 'me')").
+			Set("is_anonymous", false).
+			Where("id = ?", entryID)
+		tx.ExecStmt(hideQuery)
+
+		return true
+	}
+
 	if entryUserID != userID && themeCreatorID != userID {
 		return false
 	}

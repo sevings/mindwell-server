@@ -441,8 +441,27 @@ func TestPostToTheme(t *testing.T) {
 	checkDeleteEntry(t, id, userIDs[0], true)
 	checkDeleteEntry(t, id2, userIDs[1], true)
 
+	e := loadEntry(userIDs[0], id)
+	require.Nil(t, e)
+
+	e = loadEntry(userIDs[1], id2)
+	require.Nil(t, e)
+
+	shared = false
 	id2 = checkPostThemeEntry(t, params, &profiles[1].Profile, theme, userIDs[1], true, 3)
 	checkDeleteEntry(t, id2, userIDs[0], true)
+
+	e = loadEntry(userIDs[0], id2)
+	require.Nil(t, e)
+	e = loadEntry(userIDs[1], id2)
+	require.NotNil(t, e)
+	require.Equal(t, userIDs[1].ID, e.Author.ID)
+	require.Equal(t, models.EntryPrivacyMe, e.Privacy)
+
+	checkDeleteEntry(t, id2, userIDs[1], true)
+
+	e = loadEntry(userIDs[1], id2)
+	require.Nil(t, e)
 
 	following := &models.UserID{Name: theme.Name}
 	checkUnfollow(t, userIDs[1], following)

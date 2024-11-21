@@ -212,7 +212,7 @@ func TestThemeComments(t *testing.T) {
 
 	checkDeleteEntry(t, e1, userIDs[0], true)
 	checkDeleteEntry(t, e2, userIDs[0], true)
-	checkDeleteEntry(t, e3, userIDs[0], true)
+	checkDeleteEntry(t, e3, userIDs[1], true)
 
 	deleteTheme(t, theme)
 }
