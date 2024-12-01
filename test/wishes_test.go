@@ -85,7 +85,7 @@ func TestWishes(t *testing.T) {
 UPDATE users
 SET karma = 1,
     created_at = NOW() - interval '4 days',
-    last_seen_at = NOW() - interval '4 days',
+    last_seen_at = NOW() - interval '1 hour',
     verified = TRUE
 WHERE id IN ($1, $2, $3)`,
 		userIDs[0].ID, userIDs[1].ID, userIDs[2].ID)
@@ -98,15 +98,16 @@ WHERE id IN ($1, $2, $3)`,
 		req.False(found)
 	}
 
-	_, err = db.Exec(
-		`
+	for i := 2; i >= 0; i-- {
+		_, err = db.Exec(
+			`
 UPDATE users
 SET last_seen_at = NOW() - interval '1 second'
-WHERE id IN ($1, $2, $3)`,
-		userIDs[0].ID, userIDs[1].ID, userIDs[2].ID)
-	req.Nil(err)
-
-	time.Sleep(100 * time.Millisecond)
+WHERE id = $1`,
+			userIDs[i].ID)
+		req.Nil(err)
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	id0, f0 := wishesImpl.LastCreatedWish(db, userIDs[0])
 	req.True(f0)
