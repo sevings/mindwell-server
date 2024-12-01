@@ -189,7 +189,8 @@ func TestAppToken(t *testing.T) {
 	load(false)
 	params.ClientID--
 
-	params.ClientSecret = nil
+	empty := ""
+	params.ClientSecret = &empty
 	load(false)
 
 	params.ClientSecret = &app.platform
