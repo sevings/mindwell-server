@@ -30,6 +30,12 @@ func ClearDatabase(db *sql.DB) {
 		log.Fatal("cannot begin tx: ", err)
 	}
 
+	_, err = tx.Exec("UPDATE users SET pinned_entry = NULL")
+	if err != nil {
+		tx.Rollback()
+		log.Fatal("cannot clear pinned entries: " + err.Error())
+	}
+
 	dropTable(tx, "vote_weights")
 	dropTable(tx, "entries_privacy")
 	dropTable(tx, "entry_tags")

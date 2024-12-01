@@ -223,6 +223,11 @@ func checkDeleteEntry(t *testing.T, entryID int64, userID *models.UserID, succes
 	resp := del(entries.DeleteEntriesIDParams{ID: entryID}, userID)
 	_, ok := resp.(*entries.DeleteEntriesIDOK)
 	require.Equal(t, success, ok)
+
+	if ok {
+		e := loadEntry(userID, entryID)
+		require.Nil(t, e)
+	}
 }
 
 func TestPostMyTlog(t *testing.T) {
@@ -932,6 +937,52 @@ func checkLoadTlogSearch(t *testing.T, tlog, user *models.UserID, success bool, 
 	return checkLoadTlogAll(t, tlog, user, success, limit, "", "", "", "new", query, size)
 }
 
+func checkPinnedEntry(t *testing.T, user *models.UserID, entryID int64, success, isPinned bool) {
+	params := entries.GetEntriesIDPinParams{ID: entryID}
+	get := api.EntriesGetEntriesIDPinHandler.Handle
+	resp := get(params, user)
+	data, ok := resp.(*entries.GetEntriesIDPinOK)
+	require.Equal(t, success, ok)
+	if !success {
+		return
+	}
+
+	require.Equal(t, entryID, data.Payload.ID)
+	require.Equal(t, isPinned, data.Payload.IsPinned)
+}
+
+func checkPinEntry(t *testing.T, user *models.UserID, entryID int64, success bool) {
+	params := entries.PutEntriesIDPinParams{ID: entryID}
+	pin := api.EntriesPutEntriesIDPinHandler.Handle
+	resp := pin(params, user)
+	data, ok := resp.(*entries.PutEntriesIDPinOK)
+	require.Equal(t, success, ok)
+	if !success {
+		return
+	}
+
+	require.Equal(t, entryID, data.Payload.ID)
+	require.Equal(t, true, data.Payload.IsPinned)
+
+	checkPinnedEntry(t, user, entryID, true, true)
+}
+
+func checkUnpinEntry(t *testing.T, user *models.UserID, entryID int64, success bool) {
+	params := entries.DeleteEntriesIDPinParams{ID: entryID}
+	unpin := api.EntriesDeleteEntriesIDPinHandler.Handle
+	resp := unpin(params, user)
+	data, ok := resp.(*entries.DeleteEntriesIDPinOK)
+	require.Equal(t, success, ok)
+	if !success {
+		return
+	}
+
+	require.Equal(t, entryID, data.Payload.ID)
+	require.Equal(t, false, data.Payload.IsPinned)
+
+	checkPinnedEntry(t, user, entryID, true, false)
+}
+
 func TestLoadTlog(t *testing.T) {
 	noAuthUser := utils.NoAuthUser()
 
@@ -1051,6 +1102,45 @@ func TestLoadTlog(t *testing.T) {
 	checkLoadTlog(t, userIDs[0], userIDs[1], true, 3, "", "", 3)
 	removeUserRestrictions(db, userIDs)
 
+	checkPinnedEntry(t, userIDs[1], e3.ID, true, false)
+	checkPinnedEntry(t, userIDs[1], e1.ID, false, true)
+
+	checkPinEntry(t, userIDs[1], e3.ID, false)
+	checkPinEntry(t, userIDs[0], e1.ID, true)
+	checkPinEntry(t, userIDs[0], e1.ID, true)
+
+	feed = checkLoadTlog(t, userIDs[0], userIDs[1], true, 10, "", "", 3)
+	req.False(feed.Entries[0].IsPinned)
+	req.Equal(e0.ID, feed.Entries[0].ID)
+	req.Equal(e2.ID, feed.Entries[1].ID)
+	req.Equal(e3.ID, feed.Entries[2].ID)
+
+	feed = checkLoadTlog(t, userIDs[0], userIDs[0], true, 10, "", "", 4)
+	req.True(feed.Entries[0].IsPinned)
+	req.Equal(e1.ID, feed.Entries[0].ID)
+	req.Equal(e0.ID, feed.Entries[1].ID)
+	req.Equal(e2.ID, feed.Entries[2].ID)
+	req.Equal(e3.ID, feed.Entries[3].ID)
+
+	checkPinEntry(t, userIDs[0], e3.ID, true)
+
+	feed = checkLoadTlog(t, userIDs[0], userIDs[1], true, 10, "", "", 3)
+	req.True(feed.Entries[0].IsPinned)
+	req.Equal(e3.ID, feed.Entries[0].ID)
+	req.Equal(e0.ID, feed.Entries[1].ID)
+	req.Equal(e2.ID, feed.Entries[2].ID)
+
+	feed = checkLoadTlog(t, userIDs[0], userIDs[0], true, 10, "", "", 4)
+	req.True(feed.Entries[0].IsPinned)
+	req.False(feed.Entries[2].IsPinned)
+	req.Equal(e3.ID, feed.Entries[0].ID)
+	req.Equal(e0.ID, feed.Entries[1].ID)
+	req.Equal(e1.ID, feed.Entries[2].ID)
+	req.Equal(e2.ID, feed.Entries[3].ID)
+
+	checkUnpinEntry(t, userIDs[1], e3.ID, false)
+	checkUnpinEntry(t, userIDs[0], e0.ID, true)
+
 	checkDeleteEntry(t, e0.ID, userIDs[0], true)
 	checkDeleteEntry(t, e1.ID, userIDs[0], true)
 	checkDeleteEntry(t, e2.ID, userIDs[0], true)
@@ -1158,6 +1248,40 @@ func TestLoadThemeTlog(t *testing.T) {
 	checkLoadTheme(userIDs[2], true, 0)
 
 	removeUserRestrictions(db, userIDs)
+
+	checkPinnedEntry(t, userIDs[1], e3.ID, true, false)
+	checkPinnedEntry(t, userIDs[3], e1.ID, false, true)
+
+	checkPinEntry(t, userIDs[1], e3.ID, false)
+	checkPinEntry(t, userIDs[0], e1.ID, true)
+	checkPinEntry(t, userIDs[0], e1.ID, true)
+
+	feed = checkLoadTheme(userIDs[3], true, 3)
+	compareThemeEntries(t, e0, feed.Entries[0], userIDs[3], userIDs[0])
+	compareThemeEntries(t, e2, feed.Entries[1], userIDs[3], userIDs[0])
+	compareThemeEntries(t, e3, feed.Entries[2], userIDs[3], userIDs[0])
+
+	feed = checkLoadTheme(userIDs[0], true, 4)
+	compareThemeEntries(t, e1, feed.Entries[0], userIDs[0], userIDs[0])
+	compareThemeEntries(t, e0, feed.Entries[1], userIDs[0], userIDs[0])
+	compareThemeEntries(t, e2, feed.Entries[2], userIDs[0], userIDs[0])
+	compareThemeEntries(t, e3, feed.Entries[3], userIDs[0], userIDs[0])
+
+	checkPinEntry(t, userIDs[0], e3.ID, true)
+
+	feed = checkLoadTheme(userIDs[3], true, 3)
+	compareThemeEntries(t, e3, feed.Entries[0], userIDs[3], userIDs[0])
+	compareThemeEntries(t, e0, feed.Entries[1], userIDs[3], userIDs[0])
+	compareThemeEntries(t, e2, feed.Entries[2], userIDs[3], userIDs[0])
+
+	feed = checkLoadTheme(userIDs[0], true, 4)
+	compareThemeEntries(t, e3, feed.Entries[0], userIDs[0], userIDs[0])
+	compareThemeEntries(t, e0, feed.Entries[1], userIDs[0], userIDs[0])
+	compareThemeEntries(t, e1, feed.Entries[2], userIDs[0], userIDs[0])
+	compareThemeEntries(t, e2, feed.Entries[3], userIDs[0], userIDs[0])
+
+	checkUnpinEntry(t, userIDs[1], e3.ID, false)
+	checkUnpinEntry(t, userIDs[0], e0.ID, true)
 
 	checkDeleteEntry(t, e0.ID, userIDs[1], true)
 	checkDeleteEntry(t, e1.ID, userIDs[1], true)
@@ -1510,6 +1634,7 @@ func compareEntriesFull(t *testing.T, exp, act *models.Entry) {
 
 	req.Equal(exp.Rights.Edit, act.Rights.Edit)
 	req.Equal(exp.Rights.Delete, act.Rights.Delete)
+	req.Equal(exp.Rights.Pin, act.Rights.Pin)
 	req.Equal(exp.Rights.Comment, act.Rights.Comment)
 	req.Equal(exp.Rights.Vote, act.Rights.Vote)
 	req.Equal(exp.Rights.Complain, act.Rights.Complain)
@@ -1533,6 +1658,7 @@ func compareEntries(t *testing.T, exp, act *models.Entry, user *models.UserID) {
 
 	exp.Rights.Edit = act.Author.ID == user.ID
 	exp.Rights.Delete = act.Author.ID == user.ID
+	exp.Rights.Pin = act.Author.ID == user.ID
 	exp.Rights.Comment = act.Author.ID == user.ID || !user.Ban.Comment
 	exp.Rights.Vote = act.Author.ID != user.ID && !user.Ban.Vote && act.Rating.IsVotable
 	exp.Rights.Complain = act.Author.ID != user.ID && user.ID > 0
@@ -1549,6 +1675,7 @@ func compareThemeEntries(t *testing.T, exp, act *models.Entry, user, creator *mo
 
 	exp.Rights.Edit = act.User.ID == user.ID
 	exp.Rights.Delete = act.User.ID == user.ID || user.ID == creator.ID
+	exp.Rights.Pin = user.ID == creator.ID
 	exp.Rights.Comment = act.User.ID == user.ID || !user.Ban.Comment
 	exp.Rights.Vote = act.User.ID != user.ID && !user.Ban.Vote && act.Rating.IsVotable
 	exp.Rights.Complain = act.User.ID != user.ID && user.ID > 0

@@ -153,6 +153,7 @@ CREATE TABLE "mindwell"."users" (
     "telegram" Integer,
     "authority" Integer DEFAULT 0 NOT NULL,
     "creator_id" Integer,
+    "pinned_entry" Integer,
     "alt_of" Text,
     "confirmed_alt" Boolean DEFAULT FALSE NOT NULL,
 	CONSTRAINT "unique_user_id" PRIMARY KEY( "id" ),
@@ -1394,6 +1395,11 @@ CREATE TRIGGER cnt_tlog_entries_del
     FOR EACH ROW
     WHEN (OLD.visible_for IN (0, 4, 5))
     EXECUTE PROCEDURE mindwell.dec_tlog_entries();
+
+
+
+ALTER TABLE users
+ADD CONSTRAINT "user_pinned_entry" FOREIGN KEY("pinned_entry") REFERENCES "mindwell"."entries"("id");
 
 
 

@@ -21,6 +21,7 @@ func baseFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 		Select("entries.title, edit_content").
 		Select("word_count, entry_privacy.type as privacy").
 		Select("is_commentable, is_votable, in_live, is_anonymous, is_shared").
+		Select("COALESCE(authors.pinned_entry, 0) = entries.id as is_pinned").
 		Select("entries.comments_count, entries.favorites_count").
 		Select("entries.author_id, authors.name as author_name, authors.show_name as author_show_name").
 		Select("is_online(authors.last_seen_at) AND authors.creator_id IS NULL as author_is_online").
@@ -61,6 +62,7 @@ func addSubQuery(q *sqlf.Stmt) *sqlf.Stmt {
 		Select("title, edit_content").
 		Select("word_count, privacy").
 		Select("is_commentable, is_votable, in_live, is_anonymous, is_shared").
+		Select("is_pinned").
 		Select("comments_count, favorites_count").
 		Select("author_id, author_name, author_show_name").
 		Select("author_is_online").
@@ -282,6 +284,10 @@ func scrollQuery() *sqlf.Stmt {
 		Limit(1)
 }
 
+func addNotPinned(query *sqlf.Stmt) *sqlf.Stmt {
+	return query.Where("entries.id <> COALESCE(authors.pinned_entry, 0)")
+}
+
 func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, reverse bool) *models.Feed {
 	feed := models.Feed{}
 
@@ -300,6 +306,7 @@ func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID
 			&entry.WordCount, &entry.Privacy,
 			&entry.IsCommentable, &rating.IsVotable, &entry.InLive,
 			&entry.IsAnonymous, &entry.IsShared,
+			&entry.IsPinned,
 			&entry.CommentCount, &entry.FavoriteCount,
 			&author.ID, &author.Name, &author.ShowName,
 			&author.IsOnline,
@@ -477,6 +484,32 @@ func newBestLoader(srv *utils.MindwellServer) func(entries.GetEntriesBestParams,
 	}
 }
 
+func loadPinnedEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, tlog string, feed *models.Feed) *models.Feed {
+	var query *sqlf.Stmt
+	if tlog == userID.Name {
+		query = myTlogQuery(userID, 1, "")
+	} else {
+		query = tlogQuery(userID, 1, tlog, "")
+	}
+	query.Where("entries.id = COALESCE(authors.pinned_entry, 0)")
+	tx.QueryStmt(query)
+	pinned := loadFeed(srv, tx, userID, false)
+	if len(pinned.Entries) == 0 {
+		return feed
+	}
+
+	if len(feed.Entries) == 0 {
+		feed.Entries = pinned.Entries
+	} else {
+		es := make([]*models.Entry, len(feed.Entries)+1)
+		es[0] = pinned.Entries[0]
+		copy(es[1:], feed.Entries)
+		feed.Entries = es
+	}
+
+	return feed
+}
+
 func loadTlogFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, tlog, beforeS, afterS, tag, sort, search string, limit int64) *models.Feed {
 	if userID.Name == tlog {
 		return loadMyTlogFeed(srv, tx, userID, beforeS, afterS, tag, sort, search, limit)
@@ -486,6 +519,7 @@ func loadTlogFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 	after := utils.ParseFloat(afterS)
 
 	query := tlogQuery(userID, limit, tlog, tag)
+	addNotPinned(query)
 	reverse := false
 
 	if search == "" {
@@ -521,6 +555,7 @@ func loadTlogFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 
 	scrollQ := scrollQuery()
 	addTlogQuery(scrollQ, userID, tlog, tag)
+	addNotPinned(scrollQ)
 	defer scrollQ.Close()
 
 	if len(feed.Entries) == 0 {
@@ -570,6 +605,10 @@ func loadTlogFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 		tx.Scan(&feed.HasAfter)
 	}
 
+	if sort == "new" && beforeS == "" && afterS == "" && tag == "" {
+		feed = loadPinnedEntry(srv, tx, userID, tlog, feed)
+	}
+
 	return feed
 }
 
@@ -608,6 +647,7 @@ func loadMyTlogFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.
 	after := utils.ParseFloat(afterS)
 
 	query := myTlogQuery(userID, limit, tag)
+	addNotPinned(query)
 	reverse := false
 
 	if search == "" {
@@ -642,8 +682,10 @@ func loadMyTlogFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.
 	}
 
 	scrollQ := sqlf.From("entries").
+		Join("users AS authors", "entries.author_id = authors.id").
 		Where("entries.author_id = ?", userID.ID).
 		Limit(1)
+	addNotPinned(scrollQ)
 	addTagQuery(scrollQ, tag)
 	defer scrollQ.Close()
 
@@ -651,7 +693,7 @@ func loadMyTlogFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.
 		scrollQ.Select("extract(epoch from entries.created_at)")
 
 		if before > 0 {
-			afterQuery := scrollQ.Clone().Where("created_at >= to_timestamp(?)", before).
+			afterQuery := scrollQ.Clone().Where("entries.created_at >= to_timestamp(?)", before).
 				OrderBy("entries.created_at ASC")
 
 			tx.QueryStmt(afterQuery)
@@ -661,7 +703,7 @@ func loadMyTlogFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.
 		}
 
 		if after > 0 {
-			beforeQuery := scrollQ.Clone().Where("created_at <= to_timestamp(?)", after).
+			beforeQuery := scrollQ.Clone().Where("entries.created_at <= to_timestamp(?)", after).
 				OrderBy("entries.created_at DESC")
 
 			tx.QueryStmt(beforeQuery)
@@ -680,14 +722,18 @@ func loadMyTlogFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.
 		}
 
 		feed.NextBefore = utils.FormatFloat(oldest)
-		beforeQuery := scrollQ.Clone().Where("created_at < to_timestamp(?)", oldest)
+		beforeQuery := scrollQ.Clone().Where("entries.created_at < to_timestamp(?)", oldest)
 		tx.QueryStmt(beforeQuery)
 		tx.Scan(&feed.HasBefore)
 
 		feed.NextAfter = utils.FormatFloat(newest)
-		afterQuery := scrollQ.Clone().Where("created_at > to_timestamp(?)", newest)
+		afterQuery := scrollQ.Clone().Where("entries.created_at > to_timestamp(?)", newest)
 		tx.QueryStmt(afterQuery)
 		tx.Scan(&feed.HasAfter)
+	}
+
+	if sort == "new" && beforeS == "" && afterS == "" && tag == "" {
+		feed = loadPinnedEntry(srv, tx, userID, userID.Name, feed)
 	}
 
 	return feed

@@ -55,6 +55,10 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.MeGetMeCalendarHandler = me.GetMeCalendarHandlerFunc(newMyCalendarLoader(srv))
 	srv.API.UsersGetUsersNameCalendarHandler = usersAPI.GetUsersNameCalendarHandlerFunc(newTlogCalendarLoader(srv))
 	srv.API.ThemesGetThemesNameCalendarHandler = themes.GetThemesNameCalendarHandlerFunc(newThemeCalendarLoader(srv))
+
+	srv.API.EntriesGetEntriesIDPinHandler = entries.GetEntriesIDPinHandlerFunc(newEntryPinStatusLoader(srv))
+	srv.API.EntriesPutEntriesIDPinHandler = entries.PutEntriesIDPinHandlerFunc(newEntryPinner(srv))
+	srv.API.EntriesDeleteEntriesIDPinHandler = entries.DeleteEntriesIDPinHandlerFunc(newEntryUnpinner(srv))
 }
 
 var wordRe *regexp.Regexp
@@ -684,6 +688,7 @@ func entryVoteStatus(vote sql.NullFloat64) int64 {
 }
 
 func setEntryRights(entry *models.Entry, userID *models.UserID, themeCreatorID int64) {
+	isTheme := entry.Author.IsTheme
 	authorID := entry.Author.ID
 	if entry.User != nil {
 		authorID = entry.User.ID
@@ -691,7 +696,8 @@ func setEntryRights(entry *models.Entry, userID *models.UserID, themeCreatorID i
 
 	entry.Rights = &models.EntryRights{
 		Edit:     authorID == userID.ID,
-		Delete:   authorID == userID.ID || (entry.Author.IsTheme && themeCreatorID == userID.ID),
+		Delete:   authorID == userID.ID || (isTheme && themeCreatorID == userID.ID),
+		Pin:      (!isTheme && authorID == userID.ID) || (isTheme && themeCreatorID == userID.ID),
 		Comment:  authorID == userID.ID || (!userID.Ban.Comment && entry.IsCommentable),
 		Vote:     authorID != userID.ID && !userID.Ban.Vote && entry.Rating.IsVotable,
 		Complain: authorID != userID.ID && !userID.Ban.Complain,
@@ -751,12 +757,26 @@ func newEntryLoader(srv *utils.MindwellServer) func(entries.GetEntriesIDParams, 
 	}
 }
 
+func unpinEntry(tx *utils.AutoTx, entryID int64) {
+	q := sqlf.Update("users").
+		Set("pinned_entry", nil).
+		Where("id = (SELECT author_id FROM entries WHERE id = ?)", entryID).
+		Where("pinned_entry = ?", entryID)
+	tx.ExecStmt(q)
+}
+
 func deleteEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID, userID int64) bool {
 	if userID == 0 {
 		return false
 	}
 
 	var entryUserID, themeCreatorID = comments.LoadEntryAuthor(tx, entryID)
+	if entryUserID != userID && themeCreatorID != userID {
+		return false
+	}
+
+	unpinEntry(tx, entryID)
+
 	if entryUserID != userID && themeCreatorID == userID {
 		hideQuery := sqlf.Update("entries").
 			SetExpr("author_id", "user_id").
@@ -766,10 +786,6 @@ func deleteEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID, userID in
 		tx.ExecStmt(hideQuery)
 
 		return true
-	}
-
-	if entryUserID != userID && themeCreatorID != userID {
-		return false
 	}
 
 	const commentsQuery = "SELECT id FROM comments WHERE entry_id = $1"
@@ -879,6 +895,81 @@ func newRandomEntryLoader(srv *utils.MindwellServer) func(entries.GetEntriesRand
 			}
 
 			return entries.NewGetEntriesRandomOK().WithPayload(entry)
+		})
+	}
+}
+
+func canPinInTlog(tx *utils.AutoTx, userID *models.UserID, entryID int64) (int64, bool) {
+	var authorID int64
+	var creatorID sql.NullInt64
+
+	q := sqlf.Select("author_id, creator_id").
+		From("entries").
+		Join("users", "entries.author_id = users.id").
+		Where("entries.id = ?", entryID)
+	tx.QueryStmt(q).Scan(&authorID, &creatorID)
+
+	return authorID, authorID == userID.ID || creatorID.Int64 == userID.ID
+}
+
+func newEntryPinStatusLoader(srv *utils.MindwellServer) func(entries.GetEntriesIDPinParams, *models.UserID) middleware.Responder {
+	return func(params entries.GetEntriesIDPinParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			if !utils.CanViewEntry(tx, userID, params.ID) {
+				err := srv.StandardError("no_entry")
+				return entries.NewGetEntriesIDPinNotFound().WithPayload(err)
+			}
+
+			q := sqlf.Select("TRUE").
+				From("users").
+				Join("entries", "entries.author_id = users.id").
+				Where("entries.id = ?", params.ID).
+				Where("COALESCE(users.pinned_entry, 0) = ?", params.ID)
+			isPinned := tx.QueryStmt(q).ScanBool()
+
+			data := &models.PinStatus{ID: params.ID, IsPinned: isPinned}
+			return entries.NewGetEntriesIDPinOK().WithPayload(data)
+		})
+	}
+}
+
+func newEntryPinner(srv *utils.MindwellServer) func(entries.PutEntriesIDPinParams, *models.UserID) middleware.Responder {
+	return func(params entries.PutEntriesIDPinParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			authorID, canPin := canPinInTlog(tx, userID, params.ID)
+			if !canPin {
+				return entries.NewPutEntriesIDPinForbidden() //.WithPayload(err)
+			}
+
+			pinQ := sqlf.Update("users").
+				Set("pinned_entry", params.ID).
+				Where("id = ?", authorID)
+			tx.ExecStmt(pinQ)
+			if tx.Error() != nil || tx.RowsAffected() != 1 {
+				return entries.NewPutEntriesIDForbidden() //.WithPayload(err)
+			}
+
+			data := &models.PinStatus{ID: params.ID, IsPinned: true}
+			return entries.NewPutEntriesIDPinOK().WithPayload(data)
+		})
+	}
+}
+
+func newEntryUnpinner(srv *utils.MindwellServer) func(entries.DeleteEntriesIDPinParams, *models.UserID) middleware.Responder {
+	return func(params entries.DeleteEntriesIDPinParams, userID *models.UserID) middleware.Responder {
+		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+			_, canPin := canPinInTlog(tx, userID, params.ID)
+			if !canPin {
+				return entries.NewDeleteEntriesIDPinForbidden() //.WithPayload(err)
+			}
+
+			unpinEntry(tx, params.ID)
+			if tx.Error() != nil {
+				return entries.NewDeleteEntriesIDForbidden() //.WithPayload(err)
+			}
+
+			data := &models.PinStatus{ID: params.ID, IsPinned: false}
+			return entries.NewDeleteEntriesIDPinOK().WithPayload(data)
 		})
 	}
 }
