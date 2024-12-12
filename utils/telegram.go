@@ -3,15 +3,15 @@ package utils
 import (
 	"database/sql"
 	"fmt"
-	"github.com/leporo/sqlf"
-	"github.com/mileusna/useragent"
-	"go.uber.org/zap"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/leporo/sqlf"
+	"go.uber.org/zap"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/patrickmn/go-cache"
 	"github.com/sevings/mindwell-server/models"
 )
@@ -604,7 +604,7 @@ func (bot *TelegramBot) createTheme(args []string) string {
 	rank := tx.QueryInt64(rankQ)
 
 	const q = `
-		INSERT INTO users 
+		INSERT INTO users
 		(name, show_name, email, password_hash, creator_id, rank)
 		values($1, $1, $1, '', (SELECT id FROM users WHERE lower(name) = lower($2)), $3)`
 
@@ -632,7 +632,7 @@ func (bot *TelegramBot) info(upd *tgbotapi.Update) string {
 	defer atx.Finish()
 
 	const q = `
-SELECT users.id, users.name, users.show_name, created_at, 
+SELECT users.id, users.name, users.show_name, created_at,
 	email, verified, telegram, rank, karma,
 	invited.name, invited.show_name,
 	entries_count, followers_count, followings_count, comments_count, invited_count,
@@ -664,21 +664,9 @@ WHERE lower(users.email) = lower($1) OR lower(users.name) = lower($1)`
 		return "Пользователь с логином или адресом почты " + arg + " не найден."
 	}
 
-	ipQuery := sqlf.Select("COUNT(*) AS cnt, MIN(ul.at), MAX(ul.at), ul.ip").
-		From("user_log AS ul").
-		Where("ul.name = lower(?)", name).
-		GroupBy("ul.ip").
-		OrderBy("cnt DESC").
-		Limit(10)
-	ips := bot.getUserInfoCounts(atx, ipQuery, bot.formatIP)
-
-	appQuery := sqlf.Select("COUNT(*) AS cnt, MIN(ul.at), MAX(ul.at), ul.user_agent").
-		From("user_log AS ul").
-		Where("ul.name = lower(?)", name).
-		GroupBy("ul.user_agent").
-		OrderBy("cnt DESC").
-		Limit(10)
-	apps := bot.getUserInfoCounts(atx, appQuery, bot.formatIP)
+	altQ := NewUserAltQuery(atx, 10, bot.url, bot.ipAPI)
+	ips := altQ.GetUserIPs(name).String()
+	apps := altQ.GetUserApps(name).String()
 
 	today := time.Now()
 
@@ -776,201 +764,41 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 }
 
 func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string, limit int) string {
-	getAlts := func(q *sqlf.Stmt) string {
-		atx.QueryStmt(q)
+	q := NewUserAltQuery(atx, limit, bot.url, bot.ipAPI)
 
-		var alts []string
-		for {
-			var cnt int64
-			var alt string
-			ok := atx.Scan(&alt, &cnt)
-			if !ok {
-				break
-			}
-
-			alt = fmt.Sprintf(`%s (%d)`, bot.userNameLink(alt, alt), cnt)
-			alts = append(alts, alt)
-		}
-
-		return strings.Join(alts, ", ")
-	}
-
+	alt, conf := q.GetSuspectedAlt(user)
 	confAlt := "Suspected"
-	var alt sql.NullString
-	var conf bool
-	confQuery := sqlf.Select("alt_of, confirmed_alt").
-		From("users").
-		Where("lower(name) = lower(?)", user)
-	atx.QueryStmt(confQuery).Scan(&alt, &conf)
 	if conf {
 		confAlt = "Confirmed"
 	}
-	if alt.Valid {
-		confAlt = fmt.Sprintf("<b>%s</b>: %s", confAlt, bot.userNameLink(alt.String, alt.String))
+	if alt != "" {
+		confAlt = fmt.Sprintf("<b>%s</b>: %s", confAlt, bot.userNameLink(alt, alt))
 	} else {
 		confAlt = fmt.Sprintf("<b>%s</b>:", confAlt)
 	}
 
-	q := sqlf.Select("ul.name, COUNT(*) AS cnt").
-		From("user_log AS ul").
-		Where("ul.name <> lower(?)", user).
-		Where("ol.name = lower(?)", user).
-		Where("ul.first <> ol.first").
-		GroupBy("ul.name").
-		OrderBy("cnt DESC").
-		Limit(limit)
-
-	ipQuery := q.Clone().
-		Join("user_log AS ol", "ul.ip = ol.ip").
-		Where("(CASE WHEN ul.at > ol.at THEN ul.at - ol.at ELSE ol.at - ul.at END) < interval '1 hour'")
-	ipAlts := getAlts(ipQuery)
-
-	devQuery := q.Clone().
-		Join("user_log AS ol", "ul.device = ol.device").
-		Where("ol.device <> 0").
-		Where("(CASE WHEN ul.at > ol.at THEN ul.at - ol.at ELSE ol.at - ul.at END) < interval '1 hour'")
-	devAlts := getAlts(devQuery)
-
-	appQuery := q.Clone().
-		Join("user_log AS ol", "ul.app = ol.app AND ul.device = ol.device").
-		Where("ol.app <> 0 AND ol.device <> 0").
-		Where("(CASE WHEN ul.at > ol.at THEN ul.at - ol.at ELSE ol.at - ul.at END) < interval '1 hour'")
-	appAlts := getAlts(appQuery)
-
-	uid2Query := q.Clone().
-		Join("user_log AS ol", "ul.uid2 = ol.uid2").
-		Where("ol.uid2 <> 0")
-	uid2Alts := getAlts(uid2Query)
-
-	emailSubQuery := sqlf.Select("id, name").
-		Select("to_search_string(?) <<-> to_search_string(email) AS dist", email).
-		From("users").OrderBy("dist ASC, id DESC").Limit(limit + 1)
-	emailQuery := sqlf.Select("name").
-		Select("100 - round(dist * 100)").
-		From("").SubQuery("(", ") AS u", emailSubQuery).
-		Where("lower(name) <> lower(?)", user).
-		Where("dist < 0.5")
-	emailAlts := getAlts(emailQuery)
-
 	text := "Possible accounts of " + bot.userNameLink(user, user)
 	text += "\n" + confAlt
-	text += "\n<b>By IP</b>: " + ipAlts
-	text += "\n<b>By device</b>: " + devAlts
-	text += "\n<b>By app</b>: " + appAlts
-	text += "\n<b>By UID2</b>: " + uid2Alts
-	text += "\n<b>By email</b>: " + emailAlts
+	text += "\n<b>By IP</b>: " + q.GetIPAlts(user).String()
+	text += "\n<b>By device</b>: " + q.GetDeviceAlts(user).String()
+	text += "\n<b>By app</b>: " + q.GetAppAlts(user).String()
+	text += "\n<b>By UID2</b>: " + q.GetUID2Alts(user).String()
+	text += "\n<b>By email</b>: " + q.GetEmailAlts(user, email).String()
 
 	return text
 }
 
-func (bot *TelegramBot) formatIP(ip string) string {
-	return fmt.Sprintf(bot.ipAPI, ip, ip)
-}
-
-func (bot *TelegramBot) formatApp(ua string) string {
-	uaData := useragent.Parse(ua)
-	if uaData.IsUnknown() {
-		return ua
-	}
-
-	ua = fmt.Sprintf("%s %s on %s", uaData.Name, uaData.Version, uaData.OS)
-	if uaData.OSVersion != "" {
-		ua += " "
-		ua += uaData.OSVersion
-	}
-	if uaData.Device != "" {
-		ua += ", "
-		ua += uaData.Device
-	}
-
-	return ua
-}
-
-func (bot *TelegramBot) getUserInfoCounts(atx *AutoTx, q *sqlf.Stmt, format func(string) string) string {
-	atx.QueryStmt(q)
-
-	var result []string
-	for {
-		var cnt int64
-		var from, to time.Time
-		var data string
-		ok := atx.Scan(&cnt, &from, &to, &data)
-		if !ok {
-			break
-		}
-
-		data = fmt.Sprintf(format(data)+" (%d, %s — %s)", cnt,
-			from.Format("02.01.2006"), to.Format("02.01.2006"))
-		result = append(result, data)
-	}
-
-	return strings.Join(result, "\n")
-}
-
 func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB, emailA, emailB string, limit int) string {
-	commonQuery := func() *sqlf.Stmt {
-		return sqlf.Select("COUNT(*) AS cnt, MIN(ul.at), MAX(ul.at)").
-			From("user_log AS ul").
-			Where("ul.name = lower(?)", userA).
-			Where("ol.name = lower(?)", userB).
-			Where("ul.first <> ol.first").
-			OrderBy("cnt DESC").
-			Limit(limit)
-	}
-
-	commonIpsQ := commonQuery().
-		Join("user_log AS ol", "ul.ip = ol.ip").
-		Where("(CASE WHEN ul.at > ol.at THEN ul.at - ol.at ELSE ol.at - ul.at END) < interval '1 hour'").
-		Select("ul.ip").
-		GroupBy("ul.ip")
-	commonIps := bot.getUserInfoCounts(atx, commonIpsQ, bot.formatIP)
-
-	commonAppsQ := commonQuery().
-		Join("user_log AS ol", "ul.app = ol.app AND ul.device = ol.device").
-		Where("(CASE WHEN ul.at > ol.at THEN ul.at - ol.at ELSE ol.at - ul.at END) < interval '1 hour'").
-		Select("ul.user_agent").
-		GroupBy("ul.user_agent")
-	commonApps := bot.getUserInfoCounts(atx, commonAppsQ, bot.formatApp)
-
-	diffQuery := func(a, b string) *sqlf.Stmt {
-		sub := sqlf.Select("*").From("user_log").Where("name = ?", b)
-		return sqlf.Select("COUNT(*) AS cnt, MIN(ol.at), MAX(ol.at)").
-			From("").SubQuery("(", ") AS ul", sub).
-			Where("ol.name = lower(?)", a).
-			OrderBy("cnt DESC").
-			Limit(limit)
-	}
-
-	diffIpsQ := func(a, b string) *sqlf.Stmt {
-		return diffQuery(a, b).
-			RightJoin("user_log AS ol", "ul.ip = ol.ip").
-			Where("ul.ip IS NULL").
-			Select("ol.ip").
-			GroupBy("ol.ip")
-	}
-
-	diffIpsA := bot.getUserInfoCounts(atx, diffIpsQ(userA, userB), bot.formatIP)
-	diffIpsB := bot.getUserInfoCounts(atx, diffIpsQ(userB, userA), bot.formatIP)
-
-	diffAppsQ := func(a, b string) *sqlf.Stmt {
-		return diffQuery(a, b).
-			RightJoin("user_log AS ol", "ul.app = ol.app AND ul.device = ol.device").
-			Where("ul.app IS NULL").
-			Select("ol.user_agent").
-			GroupBy("ol.user_agent")
-	}
-
-	diffAppsA := bot.getUserInfoCounts(atx, diffAppsQ(userA, userB), bot.formatApp)
-	diffAppsB := bot.getUserInfoCounts(atx, diffAppsQ(userB, userA), bot.formatApp)
+	q := NewUserAltQuery(atx, limit, bot.url, bot.ipAPI)
 
 	text := fmt.Sprintf(`Comparison of %s and %s`,
 		bot.userNameLink(userA, userA), bot.userNameLink(userB, userB))
-	text += "\n<b>Common IPs</b>:\n" + commonIps
-	text += "\n<b>Common apps</b>:\n" + commonApps
-	text += "\n<b>IPs used only by " + userA + "</b>:\n" + diffIpsA
-	text += "\n<b>IPs used only by " + userB + "</b>:\n" + diffIpsB
-	text += "\n<b>Apps used only by " + userA + "</b>:\n" + diffAppsA
-	text += "\n<b>Apps used only by " + userB + "</b>:\n" + diffAppsB
+	text += "\n<b>Common IPs</b>:\n" + q.GetCommonIPs(userA, userB).String()
+	text += "\n<b>Common apps</b>:\n" + q.GetCommonApps(userA, userB).String()
+	text += "\n<b>IPs used only by " + userA + "</b>:\n" + q.GetDiffIPs(userA, userB).String()
+	text += "\n<b>IPs used only by " + userB + "</b>:\n" + q.GetDiffIPs(userB, userA).String()
+	text += "\n<b>Apps used only by " + userA + "</b>:\n" + q.GetDiffApps(userA, userB).String()
+	text += "\n<b>Apps used only by " + userB + "</b>:\n" + q.GetDiffApps(userB, userA).String()
 	text += "\n<b>" + userA + "'s email</b>: " + emailA
 	text += "\n<b>" + userB + "'s email</b>: " + emailB
 
