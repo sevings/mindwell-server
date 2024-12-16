@@ -5,7 +5,6 @@ import (
 	crypto "crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"github.com/leporo/sqlf"
 	"log"
 	"math/rand"
 	"regexp"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/leporo/sqlf"
 
 	goconf "github.com/zpatrick/go-config"
 
@@ -73,7 +74,7 @@ func AddViewCommentQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
 				Join("relation", "relations.type = relation.id").
 				Where("relations.to_id = ?", userID.ID)).
 		LeftJoin("relations_to_me", "relations_to_me.from_id = comments.author_id").
-		Where("(relations_to_me.type IS NULL OR relations_to_me.type <> 'ignored' OR entries.author_id = ?)", userID.ID).
+		Where("(relations_to_me.type IS NULL OR relations_to_me.type <> 'ignored' OR entries.user_id = ?)", userID.ID).
 		With("relations_from_me",
 			sqlf.Select("relation.type, relations.to_id").
 				From("relations").

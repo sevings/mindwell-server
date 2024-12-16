@@ -1,12 +1,13 @@
 package test
 
 import (
+	"testing"
+
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/comments"
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func checkCanLoadComment(t *testing.T, commentID int64, userID *models.UserID) {
@@ -440,6 +441,12 @@ func TestEntryComments(t *testing.T) {
 	req.False(list.HasAfter)
 	req.False(list.HasBefore)
 
+	follow(userIDs[2], theme.Name, models.RelationshipRelationFollowed)
+	e8 := postThemeEntry(userIDs[2], theme.Name, models.EntryPrivacyAll, true).ID
+	postComment(userIDs[0], e8)
+	checkLoadEntryComments(t, userIDs[0], e8, 10, "", "", 1)
+	checkLoadEntryComments(t, userIDs[2], e8, 10, "", "", 1)
+
 	checkUnfollow(t, userIDs[1], userIDs[0])
 	checkUnfollow(t, userIDs[0], userIDs[2])
 
@@ -472,6 +479,7 @@ func TestEntryComments(t *testing.T) {
 	checkDeleteEntry(t, e5, userIDs[2], true)
 	checkDeleteEntry(t, e6, userIDs[2], true)
 	checkDeleteEntry(t, e7, userIDs[0], true)
+	checkDeleteEntry(t, e8, userIDs[2], true)
 
 	deleteTheme(t, theme)
 }
