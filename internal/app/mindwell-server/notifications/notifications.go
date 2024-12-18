@@ -134,6 +134,10 @@ func loadNotification(srv *utils.MindwellServer, tx *utils.AutoTx, userID *model
 		fallthrough
 	case models.NotificationTypeWishReceived:
 		notif.Wish, _ = wishes.LoadWish(tx, userID, not.subj)
+		break
+	case models.NotificationTypeEntryMoved:
+		notif.Entry = entries.LoadEntry(srv, tx, not.subj, userID)
+		break
 	case models.NotificationTypeInfo:
 		notif.Info = loadInfo(tx, not.subj)
 		break
@@ -212,7 +216,7 @@ func newNotificationsLoader(srv *utils.MindwellServer) func(notifications.GetNot
 			feed.NextBefore = utils.FormatFloat(nextBefore)
 
 			const beforeQuery = `SELECT EXISTS(
-				SELECT 1 
+				SELECT 1
 				FROM notifications
 				WHERE user_id = $1 AND created_at < to_timestamp($2))`
 
@@ -220,7 +224,7 @@ func newNotificationsLoader(srv *utils.MindwellServer) func(notifications.GetNot
 			tx.Scan(&feed.HasBefore)
 
 			const afterQuery = `SELECT EXISTS(
-				SELECT 1 
+				SELECT 1
 				FROM notifications
 				WHERE user_id = $1 AND created_at > to_timestamp($2))`
 

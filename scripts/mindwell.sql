@@ -137,9 +137,11 @@ CREATE TABLE "mindwell"."users" (
     "email_comments" Boolean NOT NULL DEFAULT FALSE,
     "email_followers" Boolean NOT NULL DEFAULT FALSE,
     "email_invites" Boolean NOT NULL DEFAULT FALSE,
+    "email_moved_entries" Boolean NOT NULL DEFAULT FALSE,
     "telegram_comments" Boolean NOT NULL DEFAULT TRUE,
     "telegram_followers" Boolean NOT NULL DEFAULT TRUE,
     "telegram_invites" Boolean NOT NULL DEFAULT TRUE,
+    "telegram_moved_entries" Boolean NOT NULL DEFAULT TRUE,
     "telegram_messages" Boolean NOT NULL DEFAULT TRUE,
     "send_wishes" Boolean NOT NULL DEFAULT TRUE,
     "invite_ban" Date DEFAULT CURRENT_DATE NOT NULL,
@@ -192,7 +194,7 @@ CREATE INDEX "index_user_rank" ON "mindwell"."users" USING btree( "rank" );
 -- -------------------------------------------------------------
 
 -- CREATE INDEX "index_user_search" ----------------------------
-CREATE INDEX "index_user_search" ON "mindwell"."users" USING GIST 
+CREATE INDEX "index_user_search" ON "mindwell"."users" USING GIST
     (to_search_string("name", "show_name", "country", "city") gist_trgm_ops);
 -- -------------------------------------------------------------
 
@@ -242,7 +244,7 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER alw_adm_upd
     BEFORE UPDATE ON mindwell.users
-    FOR EACH ROW 
+    FOR EACH ROW
     WHEN (OLD.invited_by IS NULL AND NEW.invited_by IS NOT NULL)
     EXECUTE PROCEDURE mindwell.allow_adm_upd();
 
@@ -276,7 +278,7 @@ CREATE TRIGGER ntf_online_users
     FOR EACH ROW
     EXECUTE FUNCTION mindwell.notify_online_users();
 
-    
+
 
 -- CREATE TABLE "adm" ------------------------------------------
 CREATE TABLE "mindwell"."adm" (
@@ -304,7 +306,7 @@ CREATE OR REPLACE FUNCTION mindwell.ban_adm() RETURNS VOID AS $$
     UPDATE mindwell.users
     SET adm_ban = true
     WHERE name IN (
-        SELECT gs.name 
+        SELECT gs.name
         FROM mindwell.adm AS gs
         JOIN mindwell.adm AS gf ON gf.grandfather = gs.name
         WHERE (NOT gf.sent AND NOT gf.received) OR (gs.sent AND NOT gs.received)
@@ -1122,7 +1124,7 @@ CREATE OR REPLACE FUNCTION give_invite(userName TEXT) RETURNS VOID AS $$
         userId = (SELECT id FROM users WHERE lower(name) = lower(userName));
 
         INSERT INTO invites(referrer_id, word1, word2, word3)
-            VALUES(userId, 
+            VALUES(userId,
                 ceil(random() * wordCount),
                 ceil(random() * wordCount),
                 ceil(random() * wordCount));
@@ -1130,19 +1132,19 @@ CREATE OR REPLACE FUNCTION give_invite(userName TEXT) RETURNS VOID AS $$
 $$ LANGUAGE plpgsql;
 
 CREATE VIEW mindwell.unwrapped_invites AS
-SELECT invites.id AS id, 
+SELECT invites.id AS id,
     users.id AS user_id,
-    lower(users.name) AS name, 
-    one.word AS word1, 
-    two.word AS word2, 
+    lower(users.name) AS name,
+    one.word AS word1,
+    two.word AS word2,
     three.word AS word3
 FROM mindwell.invites, mindwell.users,
     mindwell.invite_words AS one,
     mindwell.invite_words AS two,
     mindwell.invite_words AS three
 WHERE invites.referrer_id = users.id
-    AND invites.word1 = one.id 
-    AND invites.word2 = two.id 
+    AND invites.word1 = one.id
+    AND invites.word2 = two.id
     AND invites.word3 = three.id;
 
 
@@ -1196,7 +1198,7 @@ CREATE OR REPLACE FUNCTION mindwell.count_relations_ins() RETURNS TRIGGER AS $$
             SET ignored_count = ignored_count + 1
             WHERE id = NEW.from_id;
         END IF;
-        
+
         RETURN NULL;
     END;
 $$ LANGUAGE plpgsql;
@@ -1219,7 +1221,7 @@ CREATE OR REPLACE FUNCTION mindwell.count_relations_del() RETURNS TRIGGER AS $$
             SET ignored_count = ignored_count - 1
             WHERE id = OLD.from_id;
         END IF;
-    
+
         RETURN NULL;
     END;
 $$ LANGUAGE plpgsql;
@@ -1236,11 +1238,11 @@ CREATE OR REPLACE FUNCTION mindwell.del_relation_from_ignored() RETURNS TRIGGER 
 
         IF (NEW."type" = ignored) THEN
             DELETE FROM relations
-            WHERE relations.from_id = NEW.to_id 
+            WHERE relations.from_id = NEW.to_id
                 AND relations.to_id = NEW.from_id
                 AND relations."type" != ignored;
         END IF;
-        
+
         RETURN NULL;
     END;
 $$ LANGUAGE plpgsql;
@@ -1352,6 +1354,24 @@ CREATE INDEX "index_entry_search" ON "mindwell"."entries" USING rum
     (to_search_vector("title", "edit_content") rum_tsvector_ops);
 -- -------------------------------------------------------------
 
+CREATE OR REPLACE FUNCTION mindwell.notify_entries() RETURNS TRIGGER AS $$
+    BEGIN
+        IF OLD.author_id <> NEW.author_id THEN
+            PERFORM pg_notify('moved_entries', json_build_object(
+                'id', OLD.id,
+                'title', OLD.title,
+                'author', json_build_object(
+                    'id', OLD.author_id
+                ),
+                'user', json_build_object(
+                    'id', OLD.user_id
+                )
+            )::text);
+        END IF;
+        RETURN NEW;
+    END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION mindwell.inc_tlog_entries() RETURNS TRIGGER AS $$
     BEGIN
         UPDATE mindwell.users
@@ -1367,10 +1387,15 @@ CREATE OR REPLACE FUNCTION mindwell.dec_tlog_entries() RETURNS TRIGGER AS $$
         UPDATE mindwell.users
         SET entries_count = entries_count - 1
         WHERE id = OLD.author_id;
-        
+
         RETURN NULL;
     END;
 $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER ntf_entries
+    AFTER UPDATE ON mindwell.entries
+    FOR EACH ROW
+    EXECUTE FUNCTION mindwell.notify_entries();
 
 CREATE TRIGGER cnt_tlog_entries_ins
     AFTER INSERT ON mindwell.entries
@@ -1644,7 +1669,7 @@ CREATE OR REPLACE FUNCTION mindwell.entry_votes_ins() RETURNS TRIGGER AS $$
             rating = atan2(weight_sum + abs(NEW.vote), 2)
                 * (vote_sum + NEW.vote) / (weight_sum + abs(NEW.vote)) / pi() * 200
         WHERE id = NEW.entry_id;
-        
+
         WITH entry AS (
             SELECT user_id, category
             FROM mindwell.entries
@@ -1674,7 +1699,7 @@ CREATE OR REPLACE FUNCTION mindwell.entry_votes_upd() RETURNS TRIGGER AS $$
             rating = atan2(weight_sum - abs(OLD.vote) + abs(NEW.vote), 2)
                 * (vote_sum - OLD.vote + NEW.vote) / (weight_sum - abs(OLD.vote) + abs(NEW.vote)) / pi() * 200
         WHERE id = NEW.entry_id;
-        
+
         WITH entry AS (
             SELECT user_id, category
             FROM mindwell.entries
@@ -1705,7 +1730,7 @@ CREATE OR REPLACE FUNCTION mindwell.entry_votes_del() RETURNS TRIGGER AS $$
                     * (vote_sum - OLD.vote) / (weight_sum - abs(OLD.vote)) / pi() * 200
                 END
         WHERE id = OLD.entry_id;
-        
+
         WITH entry AS (
             SELECT user_id, category
             FROM mindwell.entries
@@ -1729,17 +1754,17 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER cnt_entry_votes_ins
     AFTER INSERT ON mindwell.entry_votes
-    FOR EACH ROW 
+    FOR EACH ROW
     EXECUTE PROCEDURE mindwell.entry_votes_ins();
 
 CREATE TRIGGER cnt_entry_votes_upd
     AFTER UPDATE ON mindwell.entry_votes
-    FOR EACH ROW 
+    FOR EACH ROW
     EXECUTE PROCEDURE mindwell.entry_votes_upd();
 
 CREATE TRIGGER cnt_entry_votes_del
     AFTER DELETE ON mindwell.entry_votes
-    FOR EACH ROW 
+    FOR EACH ROW
     EXECUTE PROCEDURE mindwell.entry_votes_del();
 
 
@@ -1835,11 +1860,11 @@ CREATE OR REPLACE FUNCTION mindwell.inc_comments() RETURNS TRIGGER AS $$
         UPDATE mindwell.users
         SET comments_count = comments_count + 1
         WHERE id = NEW.author_id;
-        
+
         UPDATE mindwell.entries
         SET comments_count = comments_count + 1
         WHERE id = NEW.entry_id;
-        
+
         INSERT INTO mindwell.watching
         VALUES(NEW.author_id, NEW.entry_id)
         ON CONFLICT ON CONSTRAINT unique_user_watching DO NOTHING;
@@ -1857,11 +1882,11 @@ CREATE OR REPLACE FUNCTION mindwell.dec_comments() RETURNS TRIGGER AS $$
         UPDATE mindwell.users
         SET comments_count = comments_count - 1
         WHERE id = OLD.author_id;
-        
+
         UPDATE mindwell.entries
         SET comments_count = comments_count - 1
         WHERE id = OLD.entry_id;
-        
+
         RETURN NULL;
     END;
 $$ LANGUAGE plpgsql;
@@ -1873,9 +1898,9 @@ CREATE TRIGGER cnt_comments_dec
 CREATE OR REPLACE FUNCTION mindwell.set_last_comment_ins() RETURNS TRIGGER AS $$
     BEGIN
         UPDATE mindwell.entries
-        SET last_comment = NEW.id 
+        SET last_comment = NEW.id
         WHERE id = NEW.entry_id;
-        
+
         RETURN NULL;
     END;
 $$ LANGUAGE plpgsql;
@@ -1893,7 +1918,7 @@ CREATE OR REPLACE FUNCTION mindwell.set_last_comment_del() RETURNS TRIGGER AS $$
             WHERE entry_id = OLD.entry_id AND id <> OLD.id
         )
         WHERE last_comment = OLD.id;
-        
+
         RETURN OLD;
     END;
 $$ LANGUAGE plpgsql;
@@ -1934,7 +1959,7 @@ CREATE OR REPLACE FUNCTION mindwell.comment_votes_ins() RETURNS TRIGGER AS $$
             rating = atan2(weight_sum + abs(NEW.vote), 2)
                 * (vote_sum + NEW.vote) / (weight_sum + abs(NEW.vote)) / pi() * 200
         WHERE id = NEW.comment_id;
-        
+
         WITH cmnt AS (
             SELECT user_id
             FROM mindwell.comments
@@ -1948,7 +1973,7 @@ CREATE OR REPLACE FUNCTION mindwell.comment_votes_ins() RETURNS TRIGGER AS $$
                 / (weight_sum + abs(NEW.vote)) / pi() * 2
         FROM cmnt
         WHERE vote_weights.user_id = cmnt.user_id
-            AND vote_weights.category = 
+            AND vote_weights.category =
                 (SELECT id FROM categories WHERE "type" = 'comment');
 
         RETURN NULL;
@@ -1965,7 +1990,7 @@ CREATE OR REPLACE FUNCTION mindwell.comment_votes_upd() RETURNS TRIGGER AS $$
             rating = atan2(weight_sum - abs(OLD.vote) + abs(NEW.vote), 2)
                 * (vote_sum - OLD.vote + NEW.vote) / (weight_sum - abs(OLD.vote) + abs(NEW.vote)) / pi() * 200
         WHERE id = NEW.comment_id;
-        
+
         WITH cmnt AS (
             SELECT user_id
             FROM mindwell.comments
@@ -1978,7 +2003,7 @@ CREATE OR REPLACE FUNCTION mindwell.comment_votes_upd() RETURNS TRIGGER AS $$
                 / (weight_sum - abs(OLD.vote) + abs(NEW.vote)) / pi() * 2
         FROM cmnt
         WHERE vote_weights.user_id = cmnt.user_id
-            AND vote_weights.category = 
+            AND vote_weights.category =
                 (SELECT id FROM categories WHERE "type" = 'comment');
 
         RETURN NULL;
@@ -1997,7 +2022,7 @@ CREATE OR REPLACE FUNCTION mindwell.comment_votes_del() RETURNS TRIGGER AS $$
                     * (vote_sum - OLD.vote) / (weight_sum - abs(OLD.vote)) / pi() * 200
                 END
         WHERE id = OLD.comment_id;
-        
+
         WITH cmnt AS (
             SELECT user_id
             FROM mindwell.comments
@@ -2013,7 +2038,7 @@ CREATE OR REPLACE FUNCTION mindwell.comment_votes_del() RETURNS TRIGGER AS $$
                 END
         FROM cmnt
         WHERE vote_weights.user_id = cmnt.user_id
-            AND vote_weights.category = 
+            AND vote_weights.category =
                 (SELECT id FROM categories WHERE "type" = 'comment');
 
         RETURN NULL;
@@ -2022,17 +2047,17 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER cnt_comment_votes_ins
     AFTER INSERT ON mindwell.comment_votes
-    FOR EACH ROW 
+    FOR EACH ROW
     EXECUTE PROCEDURE mindwell.comment_votes_ins();
 
 CREATE TRIGGER cnt_comment_votes_upd
     AFTER UPDATE ON mindwell.comment_votes
-    FOR EACH ROW 
+    FOR EACH ROW
     EXECUTE PROCEDURE mindwell.comment_votes_upd();
 
 CREATE TRIGGER cnt_comment_votes_del
     AFTER DELETE ON mindwell.comment_votes
-    FOR EACH ROW 
+    FOR EACH ROW
     EXECUTE PROCEDURE mindwell.comment_votes_del();
 
 
@@ -2060,7 +2085,7 @@ INSERT INTO "mindwell"."notification_type" VALUES(8, 'adm_received');
 INSERT INTO "mindwell"."notification_type" VALUES(9, 'info');
 INSERT INTO "mindwell"."notification_type" VALUES(10, 'wish_created');
 INSERT INTO "mindwell"."notification_type" VALUES(11, 'wish_received');
--- -------------------------------------------------------------
+INSERT INTO "mindwell"."notification_type" VALUES(12, 'entry_moved');-- -------------------------------------------------------------
 
 
 
@@ -2590,7 +2615,7 @@ CREATE OR REPLACE FUNCTION mindwell.delete_user(user_name TEXT) RETURNS VOID AS 
         DELETE FROM mindwell.favorites WHERE favorites.user_id = del_id;
         DELETE FROM mindwell.watching WHERE watching.user_id = del_id;
         DELETE FROM mindwell.entries_privacy WHERE entries_privacy.user_id = del_id;
-        
+
         DELETE FROM mindwell.entry_votes WHERE entry_votes.user_id = del_id;
         DELETE FROM mindwell.comment_votes WHERE comment_votes.user_id = del_id;
         DELETE FROM mindwell.vote_weights WHERE vote_weights.user_id = del_id;
@@ -2602,7 +2627,7 @@ CREATE OR REPLACE FUNCTION mindwell.delete_user(user_name TEXT) RETURNS VOID AS 
                 (SELECT user_id FROM comments WHERE comments.id = notifications.subject_id) = del_id
             WHEN 'invite' THEN
                 FALSE
-            ELSE 
+            ELSE
                 notifications.subject_id = del_id
             END;
 

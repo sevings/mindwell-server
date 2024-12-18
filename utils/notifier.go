@@ -39,6 +39,7 @@ const (
 	typeMessage      = "message"
 	typeWishReceived = "wish_received"
 	typeWishCreated  = "wish_created"
+	typeEntryMoved   = "entry_moved"
 )
 
 func NewNotifier(apiURL, apiKey string) *Notifier {
@@ -95,7 +96,7 @@ func notificationsChannel(userName string) string {
 func (ntf *Notifier) Notify(tx *AutoTx, subjectID int64, tpe, user string) {
 	const q = `
 		INSERT INTO notifications(user_id, subject_id, type)
-		VALUES((SELECT id from users WHERE lower(name) = lower($1)), 
+		VALUES((SELECT id from users WHERE lower(name) = lower($1)),
 			$2, (SELECT id FROM notification_type WHERE type = $3))
 		RETURNING id
 	`
@@ -120,7 +121,7 @@ func (ntf *Notifier) NotifyUpdate(tx *AutoTx, subjectID int64, tpe string) {
 	}
 
 	const q = `
-		SELECT notifications.id, name 
+		SELECT notifications.id, name
 		FROM notifications, users
 		WHERE subject_id = $1 AND type = (SELECT id FROM notification_type WHERE type = $2)
 			AND user_id = users.id
@@ -146,7 +147,7 @@ func (ntf *Notifier) NotifyUpdate(tx *AutoTx, subjectID int64, tpe string) {
 
 func (ntf *Notifier) NotifyRemove(tx *AutoTx, subjectID int64, tpe string) {
 	const q = `
-		DELETE FROM notifications 
+		DELETE FROM notifications
 		WHERE subject_id = $1 AND type = (SELECT id FROM notification_type WHERE type = $2)
 		RETURNING id, (SELECT name FROM users WHERE id = user_id)
 	`
@@ -196,9 +197,9 @@ func (ntf *Notifier) NotifyNewFollower(tx *AutoTx, fromID int64, to string, isPr
 
 func (ntf *Notifier) NotifyRemoveFollower(tx *AutoTx, fromID, toID int64, to string) {
 	const q = `
-		DELETE FROM notifications 
+		DELETE FROM notifications
 	    WHERE id = (SELECT MAX(id) FROM notifications
-			WHERE subject_id = $1 
+			WHERE subject_id = $1
 			  AND user_id = $2
 			  AND type IN (SELECT id FROM notification_type WHERE type = $3 OR type = $4)
 		)

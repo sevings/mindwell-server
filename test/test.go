@@ -2,12 +2,13 @@ package test
 
 import (
 	"database/sql"
-	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"log"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
 
 	"github.com/stretchr/testify/require"
 
@@ -77,6 +78,10 @@ func (esm *EmailSenderMock) SendCommentComplain(from, against, content, comment 
 
 func (esm *EmailSenderMock) SendEntryComplain(from, against, content, entry string, entryID int64) {
 	esm.Emails = append(esm.Emails, "support")
+}
+
+func (esm *EmailSenderMock) SendEntryMoved(address, toShowName, entryTitle string, entryID int64) {
+	esm.Emails = append(esm.Emails, address)
 }
 
 func (esm *EmailSenderMock) Stop() {
@@ -214,10 +219,10 @@ func registerTestUsers(db *sql.DB) ([]*models.UserID, []*models.AuthProfile) {
 }
 
 func removeUserRestrictions(db *sql.DB, userIDs []*models.UserID) {
-	_, err := db.Exec(`UPDATE users 
-	SET followers_count = 100, 
-		vote_ban = CURRENT_DATE, 
-		invite_ban = CURRENT_DATE, 
+	_, err := db.Exec(`UPDATE users
+	SET followers_count = 100,
+		vote_ban = CURRENT_DATE,
+		invite_ban = CURRENT_DATE,
 		comment_ban = CURRENT_DATE,
 		live_ban = CURRENT_DATE,
 		shadow_ban = FALSE

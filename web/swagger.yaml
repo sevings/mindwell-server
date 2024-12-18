@@ -193,7 +193,7 @@ definitions:
       name: 'Mindwell'
       showName: 'Майндвелл'
       isOnline: false
-  Friend: 
+  Friend:
     allOf:
       - $ref: '#/definitions/User'
       - type: object
@@ -402,7 +402,7 @@ definitions:
         $ref: '#/definitions/Rating'
       title:
         type: string
-      cutTitle: 
+      cutTitle:
         type: string
       content:
         type: string
@@ -661,10 +661,10 @@ definitions:
         type: integer
         format: int64
         minimum: 1
-      type: 
+      type:
         type: string
         enum: [comment, follower, request, accept, invite, welcome, invited,
-               adm_sent, adm_received, wish_created, wish_received, info]
+               adm_sent, adm_received, wish_created, wish_received, entry_moved, info]
       read:
         type: boolean
       createdAt:
@@ -674,7 +674,7 @@ definitions:
         $ref: '#/definitions/User'
       comment:
         $ref: '#/definitions/Comment'
-      entry: 
+      entry:
         $ref: '#/definitions/Entry'
       wish:
         $ref: '#/definitions/Wish'
@@ -705,7 +705,7 @@ definitions:
   ImageSize:
     type: object
     properties:
-      width: 
+      width:
         type: integer
       height:
         type: integer
@@ -727,7 +727,7 @@ definitions:
         type: boolean
       thumbnail:
         $ref: '#/definitions/ImageSize'
-      small: 
+      small:
         $ref: '#/definitions/ImageSize'
       medium:
         $ref: '#/definitions/ImageSize'
@@ -885,7 +885,7 @@ parameters:
     type: string
     minLength: 6
     maxLength: 100
-    required: true  
+    required: true
   limit:
     in: query
     name: limit
@@ -1096,6 +1096,8 @@ paths:
                 type: boolean
               invites:
                 type: boolean
+              movedEntries:
+                type: boolean
     put:
       security:
         - OAuth2Password: [ ]
@@ -1117,6 +1119,10 @@ paths:
         - in: formData
           type: boolean
           name: invites
+          default: false
+        - in: formData
+          type: boolean
+          name: movedEntries
           default: false
       responses:
         200:
@@ -1141,6 +1147,8 @@ paths:
               invites:
                 type: boolean
               messages:
+                type: boolean
+              movedEntries:
                 type: boolean
     put:
       security:
@@ -1167,6 +1175,10 @@ paths:
         - in: formData
           type: boolean
           name: messages
+          default: false
+        - in: formData
+          type: boolean
+          name: movedEntries
           default: false
       responses:
         200:
@@ -1254,7 +1266,7 @@ paths:
         400:
           description: email is the same
           schema:
-            $ref: '#/definitions/Error'         
+            $ref: '#/definitions/Error'
         403:
           description: password is invalid
           schema:
@@ -1331,7 +1343,7 @@ paths:
         - account
       responses:
         200:
-          description: centrifugo connection token 
+          description: centrifugo connection token
           schema:
             type: object
             properties:
@@ -1346,7 +1358,7 @@ paths:
         - account
       responses:
         200:
-          description: telegram login token 
+          description: telegram login token
           schema:
             type: object
             properties:

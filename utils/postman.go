@@ -2,9 +2,10 @@ package utils
 
 import (
 	"fmt"
-	"go.uber.org/zap"
 	"strconv"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/matcornic/hermes/v2"
 	"github.com/sevings/mindwell-server/models"
@@ -599,4 +600,32 @@ func (pm *Postman) SendSurvey(address, name, surveyUrl string) {
 
 	subj := name + ", нам важно твое мнение"
 	pm.send(email, address, subj, name)
+}
+
+func (pm *Postman) SendEntryMoved(address, toShowName, entryTitle string, entryID int64) {
+	var entry string
+	if len(entryTitle) > 0 {
+		entry = " «" + entryTitle + "»"
+	}
+
+	email := hermes.Email{
+		Body: hermes.Body{
+			Intros: []string{
+				"Твоя запись" + entry + " была удалена из темы. Теперь она доступна только тебе в твоём дневнике.",
+			},
+			Actions: []hermes.Action{
+				{
+					Instructions: "Посмотреть запись можно по ссылке:",
+					Button: hermes.Button{
+						Color: "#22BC66",
+						Text:  "Открыть запись",
+						Link:  pm.BaseUrl + "entries/" + strconv.FormatInt(entryID, 10),
+					},
+				},
+			},
+		},
+	}
+
+	subj := "Запись удалена из темы"
+	pm.send(email, address, subj, toShowName)
 }

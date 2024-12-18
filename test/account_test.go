@@ -132,7 +132,7 @@ func checkInvites(t *testing.T, userID *models.UserID, size int) {
 }
 
 func checkLogin(t *testing.T, user *models.AuthProfile, name, password string) {
-	const q = `SELECT TRUE FROM users 
+	const q = `SELECT TRUE FROM users
             WHERE (lower(name) = lower($1) OR lower(email) = lower($1)) AND password_hash = $2`
 	hash := srv.TokenHash().PasswordHash(password)
 
@@ -442,20 +442,22 @@ func getEmailSettings(t *testing.T, userID *models.UserID) *account.GetAccountSe
 	return body.Payload
 }
 
-func checkEmailSettings(t *testing.T, userID *models.UserID, comments, followers, invites bool) {
+func checkEmailSettings(t *testing.T, userID *models.UserID, comments, followers, invites, moved bool) {
 	settings := getEmailSettings(t, userID)
 	require.Equal(t, comments, settings.Comments)
 	require.Equal(t, followers, settings.Followers)
 	require.Equal(t, invites, settings.Invites)
+	require.Equal(t, moved, settings.MovedEntries)
 }
 
-func checkUpdateEmailSettings(t *testing.T, userID *models.UserID, comments, followers, invites bool) {
+func checkUpdateEmailSettings(t *testing.T, userID *models.UserID, comments, followers, invites, moved bool) {
 	load := api.AccountPutAccountSettingsEmailHandler.Handle
 
 	settings := account.PutAccountSettingsEmailParams{
 		Comments:  &comments,
 		Followers: &followers,
 		Invites:   &invites,
+		MovedEntries: &moved,
 	}
 
 	resp := load(settings, userID)
@@ -463,17 +465,17 @@ func checkUpdateEmailSettings(t *testing.T, userID *models.UserID, comments, fol
 
 	require.True(t, ok, "user %d", userID.ID)
 
-	checkEmailSettings(t, userID, comments, followers, invites)
+	checkEmailSettings(t, userID, comments, followers, invites, moved)
 }
 
 func TestEmailSettings(t *testing.T) {
-	checkEmailSettings(t, userIDs[0], false, false, false)
-	checkUpdateEmailSettings(t, userIDs[0], true, false, false)
-	checkUpdateEmailSettings(t, userIDs[0], false, false, true)
-	checkUpdateEmailSettings(t, userIDs[0], true, true, false)
+	checkEmailSettings(t, userIDs[0], false, false, false, false)
+	checkUpdateEmailSettings(t, userIDs[0], true, false, false, true)
+	checkUpdateEmailSettings(t, userIDs[0], false, false, true, true)
+	checkUpdateEmailSettings(t, userIDs[0], true, true, false, false)
 }
 
-func checkTelegramSettings(t *testing.T, userID *models.UserID, comments, followers, invites, messages bool) {
+func checkTelegramSettings(t *testing.T, userID *models.UserID, comments, followers, invites, messages, moved bool) {
 	load := api.AccountGetAccountSettingsTelegramHandler.Handle
 	resp := load(account.GetAccountSettingsTelegramParams{}, userID)
 	body, ok := resp.(*account.GetAccountSettingsTelegramOK)
@@ -484,9 +486,10 @@ func checkTelegramSettings(t *testing.T, userID *models.UserID, comments, follow
 	require.Equal(t, followers, settings.Followers)
 	require.Equal(t, invites, settings.Invites)
 	require.Equal(t, messages, settings.Messages)
+	require.Equal(t, moved, settings.MovedEntries)
 }
 
-func checkUpdateTelegramSettings(t *testing.T, userID *models.UserID, comments, followers, invites, messages bool) {
+func checkUpdateTelegramSettings(t *testing.T, userID *models.UserID, comments, followers, invites, messages, moved bool) {
 	load := api.AccountPutAccountSettingsTelegramHandler.Handle
 
 	settings := account.PutAccountSettingsTelegramParams{
@@ -494,6 +497,7 @@ func checkUpdateTelegramSettings(t *testing.T, userID *models.UserID, comments, 
 		Followers: &followers,
 		Invites:   &invites,
 		Messages:  &messages,
+		MovedEntries: &moved,
 	}
 
 	resp := load(settings, userID)
@@ -501,14 +505,14 @@ func checkUpdateTelegramSettings(t *testing.T, userID *models.UserID, comments, 
 
 	require.True(t, ok, "user %d", userID.ID)
 
-	checkTelegramSettings(t, userID, comments, followers, invites, messages)
+	checkTelegramSettings(t, userID, comments, followers, invites, messages, moved)
 }
 
 func TestTelegramSettings(t *testing.T) {
-	checkTelegramSettings(t, userIDs[0], true, true, true, true)
-	checkUpdateTelegramSettings(t, userIDs[0], true, false, false, false)
-	checkUpdateTelegramSettings(t, userIDs[0], false, false, true, true)
-	checkUpdateTelegramSettings(t, userIDs[0], true, true, false, false)
+	checkTelegramSettings(t, userIDs[0], true, true, true, true, true)
+	checkUpdateTelegramSettings(t, userIDs[0], true, false, false, false, false)
+	checkUpdateTelegramSettings(t, userIDs[0], false, false, true, true, false)
+	checkUpdateTelegramSettings(t, userIDs[0], true, true, false, false, true)
 }
 
 func checkOnsiteSettings(t *testing.T, userID *models.UserID, wishes bool) {

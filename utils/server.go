@@ -2,12 +2,13 @@ package utils
 
 import (
 	"database/sql"
-	"github.com/leporo/sqlf"
-	"go.uber.org/zap"
 	"log"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/leporo/sqlf"
+	"go.uber.org/zap"
 
 	"github.com/BurntSushi/toml"
 	"github.com/carlescere/scheduler"
@@ -34,6 +35,7 @@ type MailSender interface {
 	SendAdmReceived(address, toShowName string)
 	SendCommentComplain(from, against, content, comment string, commentID, entryID int64)
 	SendEntryComplain(from, against, content, entry string, entryID int64)
+	SendEntryMoved(address, toShowName, entryTitle string, entryID int64)
 	Stop()
 }
 

@@ -1698,3 +1698,22 @@ func (bot *TelegramBot) SendPossibleAlts(atx *AutoTx, user string) {
 	msg := bot.possibleAlts(atx, user, email, 10)
 	bot.sendMessage(bot.group, msg)
 }
+
+func (bot *TelegramBot) SendEntryMoved(chat int64, entryTitle string, entryID int64) {
+	if bot.api == nil {
+		return
+	}
+
+	link := bot.url + "entries/" + strconv.FormatInt(entryID, 10)
+	text := ""
+
+	if len(entryTitle) == 0 {
+		text = `<a href="` + link + `">запись</a>`
+	} else {
+		text = `запись <a href="` + link + `">«` + entryTitle + `»</a>`
+	}
+
+	text = "Твоя " + text + " была удалена из темы. Теперь она доступна только тебе в твоём дневнике."
+
+	bot.sendMessage(chat, text)
+}

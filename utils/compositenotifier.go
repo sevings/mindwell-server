@@ -2,6 +2,8 @@ package utils
 
 import (
 	"database/sql"
+	"encoding/json"
+
 	"github.com/leporo/sqlf"
 	"github.com/sevings/mindwell-server/models"
 	"gitlab.com/golang-commonmark/markdown"
@@ -19,12 +21,16 @@ func NewCompositeNotifier(srv *MindwellServer) *CompositeNotifier {
 	ntfURL := srv.ConfigString("centrifugo.api_url")
 	ntfKey := srv.ConfigString("centrifugo.api_key")
 
-	return &CompositeNotifier{
+	ntf := &CompositeNotifier{
 		srv: srv,
 		md:  markdown.New(markdown.Typographer(false), markdown.Breaks(true), markdown.Tables(false)),
 		Ntf: NewNotifier(ntfURL, ntfKey),
 		Tg:  NewTelegramBot(srv),
 	}
+
+	srv.PS.Subscribe("moved_entries", ntf.notifyMovedEntry)
+
+	return ntf
 }
 
 func (ntf *CompositeNotifier) Stop() {
@@ -239,7 +245,7 @@ func (ntf *CompositeNotifier) SendRead(name string, id int64) {
 func (ntf *CompositeNotifier) SendInvited(tx *AutoTx, from, to string) {
 	const toQ = `
 		SELECT show_name, email, verified, telegram
-		FROM users 
+		FROM users
 		WHERE lower(name) = lower($1)
 	`
 
@@ -249,8 +255,8 @@ func (ntf *CompositeNotifier) SendInvited(tx *AutoTx, from, to string) {
 	tx.Query(toQ, to).Scan(&toShowName, &email, &sendEmail, &tg)
 
 	const fromQ = `
-		SELECT users.id, show_name, gender.type 
-		FROM users, gender 
+		SELECT users.id, show_name, gender.type
+		FROM users, gender
 		WHERE lower(users.name) = lower($1) AND users.gender = gender.id`
 
 	var fromID int64
@@ -271,7 +277,7 @@ func (ntf *CompositeNotifier) SendInvited(tx *AutoTx, from, to string) {
 func (ntf *CompositeNotifier) SendNewFollower(tx *AutoTx, toPrivate bool, from, to string) {
 	const toQ = `
 		SELECT show_name, email, verified AND email_followers, telegram, telegram_followers, shadow_ban
-		FROM users 
+		FROM users
 		WHERE lower(name) = lower($1)
 	`
 
@@ -282,7 +288,7 @@ func (ntf *CompositeNotifier) SendNewFollower(tx *AutoTx, toPrivate bool, from, 
 
 	const fromQ = `
 		SELECT users.id, show_name, gender.type, shadow_ban
-		FROM users, gender 
+		FROM users, gender
 		WHERE lower(users.name) = lower($1) AND users.gender = gender.id`
 
 	var fromID int64
@@ -308,7 +314,7 @@ func (ntf *CompositeNotifier) SendNewFollower(tx *AutoTx, toPrivate bool, from, 
 func (ntf *CompositeNotifier) SendRemoveFollower(tx *AutoTx, fromID int64, toName string) {
 	const toQ = `
 		SELECT id, telegram, telegram_followers
-		FROM users 
+		FROM users
 		WHERE lower(name) = lower($1)
 	`
 
@@ -330,7 +336,7 @@ func (ntf *CompositeNotifier) SendRemoveFollower(tx *AutoTx, fromID int64, toNam
 func (ntf *CompositeNotifier) SendNewAccept(tx *AutoTx, from, to string) {
 	const toQ = `
 		SELECT show_name, email, verified AND email_followers, telegram, telegram_followers
-		FROM users 
+		FROM users
 		WHERE lower(name) = lower($1)
 	`
 
@@ -340,8 +346,8 @@ func (ntf *CompositeNotifier) SendNewAccept(tx *AutoTx, from, to string) {
 	tx.Query(toQ, to).Scan(&toShowName, &email, &sendEmail, &tg, &sendTg)
 
 	const fromQ = `
-		SELECT users.id, show_name, gender.type 
-		FROM users, gender 
+		SELECT users.id, show_name, gender.type
+		FROM users, gender
 		WHERE lower(users.name) = lower($1) AND users.gender = gender.id`
 
 	var fromID int64
@@ -361,8 +367,8 @@ func (ntf *CompositeNotifier) SendNewAccept(tx *AutoTx, from, to string) {
 
 func (ntf *CompositeNotifier) SendNewCommentComplain(tx *AutoTx, commentID, fromID int64, content string) {
 	const q = `
-		SELECT entry_id, edit_content, author_id 
-		FROM comments 
+		SELECT entry_id, edit_content, author_id
+		FROM comments
 		WHERE comments.id = $1`
 
 	var entryID, authorID int64
@@ -378,7 +384,7 @@ func (ntf *CompositeNotifier) SendNewCommentComplain(tx *AutoTx, commentID, from
 func (ntf *CompositeNotifier) SendNewEntryComplain(tx *AutoTx, entryID, fromID int64, content string) {
 	const q = `
 		SELECT edit_content, author_id
-		FROM entries 
+		FROM entries
 		WHERE entries.id = $1`
 
 	var entry string
@@ -394,7 +400,7 @@ func (ntf *CompositeNotifier) SendNewEntryComplain(tx *AutoTx, entryID, fromID i
 func (ntf *CompositeNotifier) SendNewMessageComplain(tx *AutoTx, msgID, fromID int64, content string) {
 	const q = `
 		SELECT edit_content, author_id
-		FROM messages 
+		FROM messages
 		WHERE messages.id = $1`
 
 	var msg string
@@ -410,7 +416,7 @@ func (ntf *CompositeNotifier) SendNewMessageComplain(tx *AutoTx, msgID, fromID i
 func (ntf *CompositeNotifier) SendNewUserComplain(tx *AutoTx, against *models.User, fromID int64, content string) {
 	const q = `
 		SELECT title
-		FROM users 
+		FROM users
 		WHERE users.id = $1`
 
 	title := tx.QueryString(q, against.ID)
@@ -422,7 +428,7 @@ func (ntf *CompositeNotifier) SendNewUserComplain(tx *AutoTx, against *models.Us
 func (ntf *CompositeNotifier) SendNewThemeComplain(tx *AutoTx, against *models.User, fromID int64, content string) {
 	const q = `
 		SELECT title
-		FROM users 
+		FROM users
 		WHERE users.id = $1`
 
 	title := tx.QueryString(q, against.ID)
@@ -434,7 +440,7 @@ func (ntf *CompositeNotifier) SendNewThemeComplain(tx *AutoTx, against *models.U
 func (ntf *CompositeNotifier) SendNewWishComplain(tx *AutoTx, wishID, fromID int64) {
 	const q = `
 		SELECT content, from_id
-		FROM wishes 
+		FROM wishes
 		WHERE wishes.id = $1`
 
 	var wish string
@@ -448,8 +454,8 @@ func (ntf *CompositeNotifier) SendNewWishComplain(tx *AutoTx, wishID, fromID int
 }
 
 const retryQuery = `
-SELECT EXISTS(SELECT 1 
-	FROM notifications 
+SELECT EXISTS(SELECT 1
+	FROM notifications
 	JOIN notification_type ON notifications.type = notification_type.id
 	JOIN users on user_id = users.id
 	WHERE users.name = $1 AND notification_type.type = $2 AND age(notifications.created_at) < interval '6 month')
@@ -462,7 +468,7 @@ func (ntf *CompositeNotifier) SendAdmSent(tx *AutoTx, grandson string) {
 
 	const toQ = `
 		SELECT show_name, email, verified, telegram
-		FROM users 
+		FROM users
 		WHERE lower(name) = lower($1)
 	`
 
@@ -489,7 +495,7 @@ func (ntf *CompositeNotifier) SendAdmReceived(tx *AutoTx, grandfather string) {
 
 	const toQ = `
 		SELECT show_name, email, verified, telegram
-		FROM users 
+		FROM users
 		WHERE lower(name) = lower($1)
 	`
 
@@ -543,4 +549,40 @@ func (ntf *CompositeNotifier) NotifyMessageRemove(chatID, msgID int64, user stri
 
 func (ntf *CompositeNotifier) NotifyMessageRead(chatID, msgID int64, user string) {
 	ntf.Ntf.NotifyMessageRead(chatID, msgID, user)
+}
+
+func (ntf *CompositeNotifier) notifyMovedEntry(entryData []byte) {
+	var entry models.Entry
+	err := json.Unmarshal(entryData, &entry)
+	if err != nil {
+		ntf.srv.LogSystem().Error(err.Error())
+		return
+	}
+
+	tx := NewAutoTx(ntf.srv.DB)
+	defer tx.Finish()
+
+	const toQ = `
+		SELECT name, show_name,
+			email, verified AND email_moved_entries,
+			telegram, telegram_moved_entries
+		FROM users
+		WHERE id = $1
+	`
+
+	var sendEmail, sendTg bool
+	var toName, toShowName, email string
+	var tg sql.NullInt64
+	tx.Query(toQ, entry.User.ID).
+		Scan(&toName, &toShowName, &email, &sendEmail, &tg, &sendTg)
+
+	if sendEmail {
+		ntf.Mail.SendEntryMoved(email, toShowName, entry.Title, entry.ID)
+	}
+
+	if tg.Valid && sendTg {
+		ntf.Tg.SendEntryMoved(tg.Int64, entry.Title, entry.ID)
+	}
+
+	ntf.Ntf.Notify(tx, entry.ID, typeEntryMoved, toName)
 }

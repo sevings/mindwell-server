@@ -69,8 +69,8 @@ func checkEmailAllowed(srv *utils.MindwellServer, email string) *models.Error {
 
 func isEmailFree(tx *utils.AutoTx, email string) bool {
 	const q = `
-        select id 
-        from users 
+        select id
+        from users
 		where lower(email) = lower($1)`
 
 	var id int64
@@ -95,8 +95,8 @@ func newEmailChecker(srv *utils.MindwellServer) func(account.GetAccountEmailEmai
 
 func isNameFree(tx *utils.AutoTx, name string) bool {
 	const q = `
-        select id 
-        from users 
+        select id
+        from users
 		where lower(name) = lower($1)`
 
 	var id int64
@@ -167,12 +167,12 @@ func createUser(srv *utils.MindwellServer, tx *utils.AutoTx, params account.Post
 	rank := tx.QueryInt64(rankQ)
 
 	const q = `
-		INSERT INTO users 
+		INSERT INTO users
 		(name, show_name, email, password_hash,
-		gender, 
+		gender,
 		country, city, avatar, rank)
 		values($1, $1, $2, $3,
-			(select id from gender where type = $4), 
+			(select id from gender where type = $4),
 			$5, $6, $7, $8)
 		RETURNING id`
 
@@ -212,24 +212,24 @@ SELECT users.id, users.name, users.show_name,
 users.avatar,
 gender.type, users.is_daylog,
 user_privacy.type, user_chat_privacy.type,
-users.title, users.rank, 
+users.title, users.rank,
 extract(epoch from users.created_at), extract(epoch from users.last_seen_at), is_online(users.last_seen_at),
 user_age(users.birthday),
-users.entries_count, users.followings_count, users.followers_count, 
-users.ignored_count, users.invited_count, users.comments_count, 
+users.entries_count, users.followings_count, users.followers_count,
+users.ignored_count, users.invited_count, users.comments_count,
 users.favorites_count, users.tags_count, CURRENT_DATE - users.created_at::date,
 users.country, users.city,
 users.cover,
-users.css, users.background_color, users.text_color, 
-font_family.type, users.font_size, alignment.type, 
+users.css, users.background_color, users.text_color,
+font_family.type, users.font_size, alignment.type,
 users.email, users.verified, users.birthday,
 extract(epoch from users.invite_ban), extract(epoch from users.vote_ban),
 extract(epoch from users.comment_ban), extract(epoch from users.live_ban),
-invited_by.id, 
+invited_by.id,
 invited_by.name, invited_by.show_name,
-is_online(invited_by.last_seen_at), 
+is_online(invited_by.last_seen_at),
 invited_by.avatar
-FROM users 
+FROM users
 INNER JOIN gender ON gender.id = users.gender
 INNER JOIN user_privacy ON users.privacy = user_privacy.id
 INNER JOIN user_chat_privacy ON users.chat_privacy = user_chat_privacy.id
@@ -484,8 +484,8 @@ func loadInvites(tx *utils.AutoTx, userID *models.UserID) []string {
 			mindwell.invite_words AS two,
 			mindwell.invite_words AS three
 		WHERE invites.referrer_id = $1
-			AND invites.word1 = one.id 
-			AND invites.word2 = two.id 
+			AND invites.word1 = one.id
+			AND invites.word2 = two.id
 			AND invites.word3 = three.id
 		ORDER BY created_at ASC`
 
@@ -570,8 +570,8 @@ func newResetPasswordSender(srv *utils.MindwellServer) func(account.PostAccountR
 			params.Email = strings.TrimSpace(params.Email)
 
 			const q = `
-				SELECT show_name, gender.type 
-				FROM users, gender 
+				SELECT show_name, gender.type
+				FROM users, gender
 				WHERE lower(users.email) = lower($1) and verified and users.gender = gender.id`
 
 			var gender string
@@ -633,8 +633,8 @@ func newEmailSettingsLoader(srv *utils.MindwellServer) func(account.GetAccountSe
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			settings := account.GetAccountSettingsEmailOKBody{}
 
-			const q = "SELECT email_comments, email_followers, email_invites from users where id = $1"
-			tx.Query(q, userID.ID).Scan(&settings.Comments, &settings.Followers, &settings.Invites)
+			const q = "SELECT email_comments, email_followers, email_invites, email_moved_entries from users where id = $1"
+			tx.Query(q, userID.ID).Scan(&settings.Comments, &settings.Followers, &settings.Invites, &settings.MovedEntries)
 
 			return account.NewGetAccountSettingsEmailOK().WithPayload(&settings)
 		})
@@ -644,8 +644,12 @@ func newEmailSettingsLoader(srv *utils.MindwellServer) func(account.GetAccountSe
 func newEmailSettingsEditor(srv *utils.MindwellServer) func(account.PutAccountSettingsEmailParams, *models.UserID) middleware.Responder {
 	return func(params account.PutAccountSettingsEmailParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			const q = "UPDATE users SET email_comments = $2, email_followers = $3, email_invites = $4 where id = $1"
-			tx.Exec(q, userID.ID, *params.Comments, *params.Followers, *params.Invites)
+			const q = `
+			UPDATE users
+			SET email_comments = $2, email_followers = $3,
+				email_invites = $4, email_moved_entries = $5
+			WHERE id = $1`
+			tx.Exec(q, userID.ID, *params.Comments, *params.Followers, *params.Invites, *params.MovedEntries)
 
 			return account.NewPutAccountSettingsEmailOK()
 		})
@@ -656,13 +660,14 @@ func newTelegramSettingsLoader(srv *utils.MindwellServer) func(account.GetAccoun
 	return func(params account.GetAccountSettingsTelegramParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			const q = `
-				SELECT telegram_comments, telegram_followers, 
-					telegram_invites, telegram_messages 
-				FROM users 
+				SELECT telegram_comments, telegram_followers,
+					telegram_invites, telegram_messages,
+					telegram_moved_entries
+				FROM users
 				WHERE id = $1`
 
 			settings := account.GetAccountSettingsTelegramOKBody{}
-			tx.Query(q, userID.ID).Scan(&settings.Comments, &settings.Followers, &settings.Invites, &settings.Messages)
+			tx.Query(q, userID.ID).Scan(&settings.Comments, &settings.Followers, &settings.Invites, &settings.Messages, &settings.MovedEntries)
 
 			return account.NewGetAccountSettingsTelegramOK().WithPayload(&settings)
 		})
@@ -673,12 +678,13 @@ func newTelegramSettingsEditor(srv *utils.MindwellServer) func(account.PutAccoun
 	return func(params account.PutAccountSettingsTelegramParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			const q = `
-				UPDATE users 
-				SET telegram_comments = $2, telegram_followers = $3, 
-					telegram_invites = $4, telegram_messages = $5 
+				UPDATE users
+				SET telegram_comments = $2, telegram_followers = $3,
+					telegram_invites = $4, telegram_messages = $5,
+					telegram_moved_entries = $6
 				WHERE id = $1`
 
-			tx.Exec(q, userID.ID, *params.Comments, *params.Followers, *params.Invites, *params.Messages)
+			tx.Exec(q, userID.ID, *params.Comments, *params.Followers, *params.Invites, *params.Messages, *params.MovedEntries)
 
 			return account.NewPutAccountSettingsTelegramOK()
 		})
@@ -690,7 +696,7 @@ func newOnsiteSettingsLoader(srv *utils.MindwellServer) func(account.GetAccountS
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			const q = `
 				SELECT send_wishes
-				FROM users 
+				FROM users
 				WHERE id = $1`
 
 			settings := account.GetAccountSettingsOnsiteOKBody{}
@@ -705,7 +711,7 @@ func newOnsiteSettingsEditor(srv *utils.MindwellServer) func(account.PutAccountS
 	return func(params account.PutAccountSettingsOnsiteParams, userID *models.UserID) middleware.Responder {
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			const q = `
-				UPDATE users 
+				UPDATE users
 				SET send_wishes = $2
 				WHERE id = $1`
 
