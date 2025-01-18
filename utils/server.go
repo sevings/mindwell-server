@@ -36,6 +36,7 @@ type MailSender interface {
 	SendCommentComplain(from, against, content, comment string, commentID, entryID int64)
 	SendEntryComplain(from, against, content, entry string, entryID int64)
 	SendEntryMoved(address, toShowName, entryTitle string, entryID int64)
+	SendBadge(address, toName, toShowName, badgeTitle, badgeDesc string)
 	Stop()
 }
 

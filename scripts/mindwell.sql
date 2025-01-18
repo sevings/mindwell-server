@@ -123,6 +123,7 @@ CREATE TABLE "mindwell"."users" (
 	"invited_count" Integer DEFAULT 0 NOT NULL,
 	"favorites_count" Integer DEFAULT 0 NOT NULL,
 	"tags_count" Integer DEFAULT 0 NOT NULL,
+	"badges_count" Integer DEFAULT 0 NOT NULL,
 	"country" Text DEFAULT '' NOT NULL,
 	"city" Text DEFAULT '' NOT NULL,
 	"email" Text NOT NULL,
@@ -138,10 +139,12 @@ CREATE TABLE "mindwell"."users" (
     "email_followers" Boolean NOT NULL DEFAULT FALSE,
     "email_invites" Boolean NOT NULL DEFAULT FALSE,
     "email_moved_entries" Boolean NOT NULL DEFAULT FALSE,
+    "email_badges" Boolean NOT NULL DEFAULT FALSE,
     "telegram_comments" Boolean NOT NULL DEFAULT TRUE,
     "telegram_followers" Boolean NOT NULL DEFAULT TRUE,
     "telegram_invites" Boolean NOT NULL DEFAULT TRUE,
     "telegram_moved_entries" Boolean NOT NULL DEFAULT TRUE,
+    "telegram_badges" Boolean NOT NULL DEFAULT TRUE,
     "telegram_messages" Boolean NOT NULL DEFAULT TRUE,
     "send_wishes" Boolean NOT NULL DEFAULT TRUE,
     "invite_ban" Date DEFAULT CURRENT_DATE NOT NULL,
@@ -2085,7 +2088,9 @@ INSERT INTO "mindwell"."notification_type" VALUES(8, 'adm_received');
 INSERT INTO "mindwell"."notification_type" VALUES(9, 'info');
 INSERT INTO "mindwell"."notification_type" VALUES(10, 'wish_created');
 INSERT INTO "mindwell"."notification_type" VALUES(11, 'wish_received');
-INSERT INTO "mindwell"."notification_type" VALUES(12, 'entry_moved');-- -------------------------------------------------------------
+INSERT INTO "mindwell"."notification_type" VALUES(12, 'entry_moved');
+INSERT INTO "mindwell"."notification_type" VALUES(13, 'badge');
+-- -------------------------------------------------------------
 
 
 
@@ -2373,6 +2378,79 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER cnt_unread_del
     AFTER DELETE ON mindwell.messages
     FOR EACH ROW EXECUTE PROCEDURE mindwell.count_unread_del();
+
+
+
+CREATE TABLE "mindwell"."badges" (
+    "id" Serial NOT NULL,
+    "code" Text NOT NULL,
+    "level" Integer DEFAULT 1 NOT NULL,
+    "title" Text NOT NULL,
+    "description" Text NOT NULL,
+    "icon" Text NOT NULL,
+    "user_count" Integer DEFAULT 0 NOT NULL,
+    CONSTRAINT "unique_badge_id" PRIMARY KEY ( "id" ),
+    CONSTRAINT "unique_badge_code_level" UNIQUE ( "code", "level" )
+);
+
+CREATE TABLE "user_badges" (
+    "user_id" Integer NOT NULL,
+    "badge_id" Integer NOT NULL,
+    "given_at" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT "unique_user_badge_badge_id" FOREIGN KEY ("badge_id") REFERENCES mindwell.badges( "id" ),
+    CONSTRAINT "unique_user_badge_user_id" FOREIGN KEY ( "user_id" ) REFERENCES "mindwell"."users"("id"),
+    CONSTRAINT "unique_user_badge" UNIQUE ( "user_id", "badge_id" )
+);
+
+CREATE OR REPLACE FUNCTION mindwell.inc_badges() RETURNS TRIGGER AS $$
+    BEGIN
+        UPDATE mindwell.users
+        SET badges_count = badges_count + 1
+        WHERE id = NEW.user_id;
+
+        UPDATE mindwell.badges
+        SET user_count = user_count + 1
+        WHERE id = NEW.badge_id;
+
+        RETURN NULL;
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION mindwell.dec_badges() RETURNS TRIGGER AS $$
+    BEGIN
+        UPDATE mindwell.users
+        SET badges_count = badges_count - 1
+        WHERE id = OLD.user_id;
+
+        UPDATE mindwell.badges
+        SET user_count = user_count - 1
+        WHERE id = OLD.badge_id;
+
+        RETURN NULL;
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER cnt_badges_inc
+    AFTER INSERT ON mindwell.user_badges
+    FOR EACH ROW EXECUTE PROCEDURE mindwell.inc_badges();
+
+CREATE TRIGGER cnt_badges_dec
+    AFTER DELETE ON mindwell.user_badges
+    FOR EACH ROW EXECUTE PROCEDURE mindwell.dec_badges();
+
+CREATE OR REPLACE FUNCTION mindwell.notify_user_badges() RETURNS TRIGGER AS $$
+    BEGIN
+            PERFORM pg_notify('user_badges', json_build_object(
+                'user_id', NEW.user_id,
+                'badge_id', NEW.badge_id
+            )::text);
+        RETURN NEW;
+    END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER ntf_badges
+    AFTER INSERT ON mindwell.user_badges
+    FOR EACH ROW EXECUTE FUNCTION mindwell.notify_user_badges();
 
 
 

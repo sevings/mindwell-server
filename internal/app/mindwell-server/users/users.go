@@ -2,14 +2,15 @@ package users
 
 import (
 	"database/sql"
+	"math"
+	"strconv"
+
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"github.com/sevings/mindwell-server/utils"
-	"math"
-	"strconv"
 )
 
 // ConfigureAPI creates operations handlers
@@ -50,26 +51,27 @@ SELECT users.id, users.name, users.show_name,
 users.avatar,
 gender.type, users.is_daylog, users.creator_id IS NOT NULL,
 user_privacy.type, user_chat_privacy.type, chats.last_message IS NOT NULL,
-users.title, users.rank, 
+users.title, users.rank,
 extract(epoch from users.created_at), extract(epoch from users.last_seen_at), is_online(users.last_seen_at),
 user_age(users.birthday),
-users.entries_count, users.followings_count, users.followers_count, 
-users.ignored_count, users.invited_count, users.comments_count, 
+users.entries_count, users.followings_count, users.followers_count,
+users.ignored_count, users.invited_count, users.comments_count,
 users.favorites_count, users.tags_count, extract(days from now() - users.created_at),
+users.badges_count,
 users.country, users.city,
 users.cover,
-users.css, users.background_color, users.text_color, 
-font_family.type, users.font_size, alignment.type, 
-users.invited_by, 
+users.css, users.background_color, users.text_color,
+font_family.type, users.font_size, alignment.type,
+users.invited_by,
 invited_by.name, invited_by.show_name,
-is_online(invited_by.last_seen_at), 
-invited_by.avatar, 
-users.creator_id, 
+is_online(invited_by.last_seen_at),
+invited_by.avatar,
+users.creator_id,
 created_by.name, created_by.show_name,
-is_online(created_by.last_seen_at), 
+is_online(created_by.last_seen_at),
 created_by.avatar,
 authority.type
-FROM users 
+FROM users
 INNER JOIN gender ON gender.id = users.gender
 INNER JOIN user_privacy ON users.privacy = user_privacy.id
 INNER JOIN user_chat_privacy ON users.chat_privacy = user_chat_privacy.id
@@ -77,8 +79,8 @@ INNER JOIN font_family ON users.font_family = font_family.id
 INNER JOIN alignment ON users.text_alignment = alignment.id
 INNER JOIN authority ON users.authority = authority.id
 LEFT JOIN users AS invited_by ON users.invited_by = invited_by.id
-LEFT JOIN users AS created_by ON users.creator_id = created_by.id  
-LEFT JOIN chats ON (chats.creator_id = users.id AND chats.partner_id = $2) 
+LEFT JOIN users AS created_by ON users.creator_id = created_by.id
+LEFT JOIN chats ON (chats.creator_id = users.id AND chats.partner_id = $2)
                        OR (chats.creator_id = $2 AND chats.partner_id = users.id)
 `
 
@@ -115,6 +117,7 @@ func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 		&profile.Counts.Entries, &profile.Counts.Followings, &profile.Counts.Followers,
 		&profile.Counts.Ignored, &profile.Counts.Invited, &profile.Counts.Comments,
 		&profile.Counts.Favorites, &profile.Counts.Tags, &profile.Counts.Days,
+		&profile.Counts.Badges,
 		&profile.Country, &profile.City,
 		&cover,
 		&profile.Design.CSS, &backColor, &textColor,
@@ -282,9 +285,10 @@ const usersQuerySelect = `
 SELECT users.id, users.name, users.show_name, gender.type, users.creator_id IS NOT NULL,
 is_online(users.last_seen_at), extract(epoch from users.last_seen_at), users.title, users.rank,
 user_privacy.type, user_chat_privacy.type, users.avatar, users.cover,
-users.entries_count, users.followings_count, users.followers_count, 
-users.ignored_count, users.invited_count, users.comments_count, 
-users.favorites_count, users.tags_count, CURRENT_DATE - users.created_at::date
+users.entries_count, users.followings_count, users.followers_count,
+users.ignored_count, users.invited_count, users.comments_count,
+users.favorites_count, users.tags_count, CURRENT_DATE - users.created_at::date,
+users.badges_count
 `
 
 const usersQueryStart = usersQuerySelect + `, extract(epoch from relations.changed_at)
@@ -314,6 +318,7 @@ func loadUserList(srv *utils.MindwellServer, tx *utils.AutoTx, reverse bool) ([]
 			&user.Counts.Entries, &user.Counts.Followings, &user.Counts.Followers,
 			&user.Counts.Ignored, &user.Counts.Invited, &user.Counts.Comments,
 			&user.Counts.Favorites, &user.Counts.Tags, &user.Counts.Days,
+			&user.Counts.Badges,
 			&nextBefore)
 		if !ok {
 			break
@@ -383,7 +388,7 @@ func loadRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 	}
 
 	beforeQuery := `SELECT EXISTS(
-		SELECT 1 
+		SELECT 1
 		FROM users, relation, relations, gender, user_privacy, user_chat_privacy
 		WHERE ` + queryWhere + " AND relations.changed_at < to_timestamp($3))"
 
@@ -391,7 +396,7 @@ func loadRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 	list.HasBefore = tx.QueryBool(beforeQuery, name, related, nextBefore)
 
 	afterQuery := `SELECT EXISTS(
-		SELECT 1 
+		SELECT 1
 		FROM users, relation, relations, gender, user_privacy, user_chat_privacy
 		WHERE ` + queryWhere + " AND relations.changed_at > to_timestamp($3))"
 
@@ -459,7 +464,7 @@ func loadInvitedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 		}
 
 		beforeQuery := `SELECT EXISTS(
-		SELECT 1 
+		SELECT 1
 		FROM users, gender, user_privacy, user_chat_privacy
 		WHERE ` + queryWhere + " AND users.id < $2)"
 
@@ -467,7 +472,7 @@ func loadInvitedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 		list.HasBefore = tx.QueryBool(beforeQuery, name, nextBefore)
 
 		afterQuery := `SELECT EXISTS(
-		SELECT 1 
+		SELECT 1
 		FROM users, gender, user_privacy, user_chat_privacy
 		WHERE ` + queryWhere + " AND users.id > $2)"
 

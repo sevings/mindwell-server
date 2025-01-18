@@ -1,9 +1,12 @@
 package notifications
 
 import (
+	"time"
+
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/patrickmn/go-cache"
+	"github.com/sevings/mindwell-server/internal/app/mindwell-server/badges"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/comments"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/entries"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/users"
@@ -11,7 +14,6 @@ import (
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/notifications"
 	"github.com/sevings/mindwell-server/utils"
-	"time"
 )
 
 var infoCache *cache.Cache
@@ -125,6 +127,9 @@ func loadNotification(srv *utils.MindwellServer, tx *utils.AutoTx, userID *model
 		fallthrough
 	case models.NotificationTypeInvited:
 		notif.User = users.LoadUserByID(srv, tx, not.subj)
+		break
+	case models.NotificationTypeBadge:
+		notif.Badge = badges.LoadBadgeByID(tx, not.subj)
 		break
 	case models.NotificationTypeAdmReceived:
 		break

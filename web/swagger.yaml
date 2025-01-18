@@ -167,6 +167,29 @@ definitions:
         type: string
       x318:
         type: string
+  Badge:
+    type: object
+    properties:
+      code:
+        type: string
+      title:
+        type: string
+      description:
+        type: string
+      icon:
+        type: string
+      level:
+        type: integer
+      givenAt:
+        type: number
+        format: double
+  BadgeList:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          $ref: '#/definitions/Badge'
   User:
     type: object
     properties:
@@ -238,6 +261,8 @@ definitions:
               tags:
                 type: integer
               days:
+                type: integer
+              badges:
                 type: integer
   FriendList:
     type: object
@@ -663,7 +688,7 @@ definitions:
         minimum: 1
       type:
         type: string
-        enum: [comment, follower, request, accept, invite, welcome, invited,
+        enum: [comment, follower, request, accept, invite, welcome, invited, badge,
                adm_sent, adm_received, wish_created, wish_received, entry_moved, info]
       read:
         type: boolean
@@ -678,6 +703,8 @@ definitions:
         $ref: '#/definitions/Entry'
       wish:
         $ref: '#/definitions/Wish'
+      badge:
+        $ref: '#/definitions/Badge'
       info:
         type: object
         properties:
@@ -1098,6 +1125,8 @@ paths:
                 type: boolean
               movedEntries:
                 type: boolean
+              badges:
+                type: boolean
     put:
       security:
         - OAuth2Password: [ ]
@@ -1124,6 +1153,10 @@ paths:
           type: boolean
           name: movedEntries
           default: false
+        - in: formData
+          type: boolean
+          name: badges
+          default: false
       responses:
         200:
           description: email notification settings has been updated
@@ -1149,6 +1182,8 @@ paths:
               messages:
                 type: boolean
               movedEntries:
+                type: boolean
+              badges:
                 type: boolean
     put:
       security:
@@ -1179,6 +1214,10 @@ paths:
         - in: formData
           type: boolean
           name: movedEntries
+          default: false
+        - in: formData
+          type: boolean
+          name: badges
           default: false
       responses:
         200:
@@ -1860,6 +1899,26 @@ paths:
           description: user tags
           schema:
             $ref: '#/definitions/TagList'
+        404:
+          description: User not found
+          schema:
+            $ref: '#/definitions/Error'
+  /users/{name}/badges:
+    get:
+      parameters:
+        - $ref: '#/parameters/pathName'
+        - $ref: '#/parameters/bigLimit'
+      security:
+        - OAuth2App: [ ]
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "users:read" ]
+      tags:
+        - users
+      responses:
+        200:
+          description: user badges
+          schema:
+            $ref: '#/definitions/BadgeList'
         404:
           description: User not found
           schema:
@@ -2751,6 +2810,20 @@ paths:
           description: my tags
           schema:
             $ref: '#/definitions/TagList'
+  /me/badges:
+    get:
+      parameters:
+        - $ref: '#/parameters/bigLimit'
+      security:
+        - OAuth2Password: [ ]
+        - OAuth2Code: [ "users:read" ]
+      tags:
+        - me
+      responses:
+        200:
+          description: my badges
+          schema:
+            $ref: '#/definitions/BadgeList'
   /design:
     get:
       security:

@@ -182,8 +182,8 @@ func setUserChatPrivacy(t *testing.T, userID *models.UserID, chatPrivacy, privac
 
 func TestEditProfile(t *testing.T) {
 	user := *profiles[0]
-	user.AgeLowerBound = 30
-	user.AgeUpperBound = 35
+	user.AgeLowerBound = 35
+	user.AgeUpperBound = 40
 	user.Birthday = "1990-01-01T20:01:31.844+03:00"
 	user.City = "city edit"
 	user.Country = "country edit"

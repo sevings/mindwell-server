@@ -4,11 +4,12 @@ package restapi
 
 import (
 	"crypto/tls"
-	"go.uber.org/zap"
 	"log"
 	"math/rand"
 	"net/http"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/didip/tollbooth"
 	"github.com/didip/tollbooth/limiter"
@@ -16,6 +17,7 @@ import (
 	"github.com/go-openapi/runtime"
 	accountImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/account"
 	admImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/adm"
+	badgesImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/badges"
 	chatsImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/chats"
 	commentsImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/comments"
 	complainsImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/complains"
@@ -91,6 +93,7 @@ func configureAPI(api *operations.MindwellAPI) http.Handler {
 	commentsImpl.ConfigureAPI(srv)
 	designImpl.ConfigureAPI(srv)
 	relationsImpl.ConfigureAPI(srv)
+	badgesImpl.ConfigureAPI(srv)
 	notificationsImpl.ConfigureAPI(srv)
 	complainsImpl.ConfigureAPI(srv)
 	chatsImpl.ConfigureAPI(srv)

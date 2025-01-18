@@ -3,13 +3,14 @@ package account
 import (
 	"database/sql"
 	"fmt"
-	"github.com/sevings/mindwell-server/internal/app/mindwell-server/chats"
 	"image"
 	"log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/sevings/mindwell-server/internal/app/mindwell-server/chats"
 
 	"github.com/golang-jwt/jwt/v4"
 
@@ -633,8 +634,8 @@ func newEmailSettingsLoader(srv *utils.MindwellServer) func(account.GetAccountSe
 		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
 			settings := account.GetAccountSettingsEmailOKBody{}
 
-			const q = "SELECT email_comments, email_followers, email_invites, email_moved_entries from users where id = $1"
-			tx.Query(q, userID.ID).Scan(&settings.Comments, &settings.Followers, &settings.Invites, &settings.MovedEntries)
+			const q = "SELECT email_comments, email_followers, email_invites, email_moved_entries, email_badges from users where id = $1"
+			tx.Query(q, userID.ID).Scan(&settings.Comments, &settings.Followers, &settings.Invites, &settings.MovedEntries, &settings.Badges)
 
 			return account.NewGetAccountSettingsEmailOK().WithPayload(&settings)
 		})
@@ -647,9 +648,10 @@ func newEmailSettingsEditor(srv *utils.MindwellServer) func(account.PutAccountSe
 			const q = `
 			UPDATE users
 			SET email_comments = $2, email_followers = $3,
-				email_invites = $4, email_moved_entries = $5
+				email_invites = $4, email_moved_entries = $5,
+				email_badges = $6
 			WHERE id = $1`
-			tx.Exec(q, userID.ID, *params.Comments, *params.Followers, *params.Invites, *params.MovedEntries)
+			tx.Exec(q, userID.ID, *params.Comments, *params.Followers, *params.Invites, *params.MovedEntries, *params.Badges)
 
 			return account.NewPutAccountSettingsEmailOK()
 		})
@@ -662,12 +664,14 @@ func newTelegramSettingsLoader(srv *utils.MindwellServer) func(account.GetAccoun
 			const q = `
 				SELECT telegram_comments, telegram_followers,
 					telegram_invites, telegram_messages,
-					telegram_moved_entries
+					telegram_moved_entries, telegram_badges
 				FROM users
 				WHERE id = $1`
 
 			settings := account.GetAccountSettingsTelegramOKBody{}
-			tx.Query(q, userID.ID).Scan(&settings.Comments, &settings.Followers, &settings.Invites, &settings.Messages, &settings.MovedEntries)
+			tx.Query(q, userID.ID).Scan(&settings.Comments, &settings.Followers,
+				&settings.Invites, &settings.Messages,
+				&settings.MovedEntries, &settings.Badges)
 
 			return account.NewGetAccountSettingsTelegramOK().WithPayload(&settings)
 		})
@@ -681,10 +685,12 @@ func newTelegramSettingsEditor(srv *utils.MindwellServer) func(account.PutAccoun
 				UPDATE users
 				SET telegram_comments = $2, telegram_followers = $3,
 					telegram_invites = $4, telegram_messages = $5,
-					telegram_moved_entries = $6
+					telegram_moved_entries = $6, telegram_badges = $7
 				WHERE id = $1`
 
-			tx.Exec(q, userID.ID, *params.Comments, *params.Followers, *params.Invites, *params.Messages, *params.MovedEntries)
+			tx.Exec(q, userID.ID, *params.Comments, *params.Followers,
+			 *params.Invites, *params.Messages,
+			 *params.MovedEntries, *params.Badges)
 
 			return account.NewPutAccountSettingsTelegramOK()
 		})

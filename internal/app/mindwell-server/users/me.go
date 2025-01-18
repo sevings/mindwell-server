@@ -2,8 +2,9 @@ package users
 
 import (
 	"database/sql"
-	"github.com/sevings/mindwell-server/utils"
 	"strings"
+
+	"github.com/sevings/mindwell-server/utils"
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sevings/mindwell-server/models"
@@ -16,24 +17,25 @@ func loadMyProfile(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 	users.avatar,
 	gender.type, users.is_daylog,
 	user_privacy.type, user_chat_privacy.type,
-	users.title, users.rank, 
+	users.title, users.rank,
 	extract(epoch from users.created_at), extract(epoch from users.last_seen_at), is_online(users.last_seen_at),
 	user_age(users.birthday),
-	users.entries_count, users.followings_count, users.followers_count, 
-	users.ignored_count, users.invited_count, users.comments_count, 
+	users.entries_count, users.followings_count, users.followers_count,
+	users.ignored_count, users.invited_count, users.comments_count,
 	users.favorites_count, users.tags_count, CURRENT_DATE - users.created_at::date,
+	users.badges_count,
 	users.country, users.city,
 	users.cover,
-	users.css, users.background_color, users.text_color, 
-	font_family.type, users.font_size, alignment.type, 
+	users.css, users.background_color, users.text_color,
+	font_family.type, users.font_size, alignment.type,
 	users.birthday, users.email, users.verified,
 	extract(epoch from users.invite_ban), extract(epoch from users.vote_ban),
 	extract(epoch from users.comment_ban), extract(epoch from users.live_ban),
-	users.invited_by, 
+	users.invited_by,
 	invited_by.name, invited_by.show_name,
-	is_online(invited_by.last_seen_at), 
+	is_online(invited_by.last_seen_at),
 	invited_by.avatar
-	FROM users 
+	FROM users
 	INNER JOIN gender ON gender.id = users.gender
 	INNER JOIN user_privacy ON users.privacy = user_privacy.id
 	INNER JOIN user_chat_privacy ON users.chat_privacy = user_chat_privacy.id
@@ -71,6 +73,7 @@ func loadMyProfile(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 		&profile.Counts.Entries, &profile.Counts.Followings, &profile.Counts.Followers,
 		&profile.Counts.Ignored, &profile.Counts.Invited, &profile.Counts.Comments,
 		&profile.Counts.Favorites, &profile.Counts.Tags, &profile.Counts.Days,
+		&profile.Counts.Badges,
 		&profile.Country, &profile.City,
 		&cover,
 		&profile.Design.CSS, &backColor, &textColor,
@@ -190,8 +193,8 @@ func editMyProfile(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 
 	const q = `
 update users set
-privacy = (select id from user_privacy where type = $2), 
-chat_privacy = (select id from user_chat_privacy where type = $3), 
+privacy = (select id from user_privacy where type = $2),
+chat_privacy = (select id from user_chat_privacy where type = $3),
 show_name = $4 where id = $1`
 	showName := strings.TrimSpace(params.ShowName)
 	tx.Exec(q, id, params.Privacy, params.ChatPrivacy, showName)

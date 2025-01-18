@@ -84,6 +84,10 @@ func (esm *EmailSenderMock) SendEntryMoved(address, toShowName, entryTitle strin
 	esm.Emails = append(esm.Emails, address)
 }
 
+func (esm *EmailSenderMock) SendBadge(address, toName, toShowName, badgeTitle, badgeDesc string) {
+	esm.Emails = append(esm.Emails, address)
+}
+
 func (esm *EmailSenderMock) Stop() {
 
 }

@@ -629,3 +629,27 @@ func (pm *Postman) SendEntryMoved(address, toShowName, entryTitle string, entryI
 	subj := "Запись удалена из темы"
 	pm.send(email, address, subj, toShowName)
 }
+
+func (pm *Postman) SendBadge(address, toName, toShowName, badgeTitle, badgeDesc string) {
+	email := hermes.Email{
+		Body: hermes.Body{
+			Intros: []string{
+				"Теперь у тебя есть значок «" + badgeTitle + "».",
+				badgeDesc,
+			},
+			Actions: []hermes.Action{
+				{
+					Instructions: "Посмотреть значки можно в своём профиле:",
+					Button: hermes.Button{
+						Color: "#22BC66",
+						Text:  "Открыть список значков",
+						Link:  pm.BaseUrl + "users/" + toName + "/badges",
+					},
+				},
+			},
+		},
+	}
+
+	subj := "Получен новый значок"
+	pm.send(email, address, subj, toShowName)
+}

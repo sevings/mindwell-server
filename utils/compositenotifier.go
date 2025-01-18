@@ -29,6 +29,7 @@ func NewCompositeNotifier(srv *MindwellServer) *CompositeNotifier {
 	}
 
 	srv.PS.Subscribe("moved_entries", ntf.notifyMovedEntry)
+	srv.PS.Subscribe("user_badges", ntf.notifyBadge)
 
 	return ntf
 }
@@ -585,4 +586,51 @@ func (ntf *CompositeNotifier) notifyMovedEntry(entryData []byte) {
 	}
 
 	ntf.Ntf.Notify(tx, entry.ID, typeEntryMoved, toName)
+}
+
+func (ntf *CompositeNotifier) notifyBadge(badgeData []byte) {
+	var badgeId struct {
+		BadgeID int64 `json:"badge_id"`
+		UserID  int64 `json:"user_id"`
+	}
+	err := json.Unmarshal(badgeData, &badgeId)
+	if err != nil {
+		ntf.srv.LogSystem().Error(err.Error())
+		return
+	}
+
+	tx := NewAutoTx(ntf.srv.DB)
+	defer tx.Finish()
+
+	var badgeTitle, badgeDesc string
+	const badgeQ = `
+		SELECT title, description
+		FROM badges
+		WHERE id = $1
+	`
+	tx.Query(badgeQ, badgeId.BadgeID).Scan(&badgeTitle, &badgeDesc)
+
+	const toQ = `
+		SELECT name, show_name,
+			email, verified AND email_badges,
+			telegram, telegram_badges
+		FROM users
+		WHERE id = $1
+	`
+
+	var sendEmail, sendTg bool
+	var toName, toShowName, email string
+	var tg sql.NullInt64
+	tx.Query(toQ, badgeId.UserID).
+		Scan(&toName, &toShowName, &email, &sendEmail, &tg, &sendTg)
+
+	if sendEmail {
+		ntf.Mail.SendBadge(email, toName, toShowName, badgeTitle, badgeDesc)
+	}
+
+	if tg.Valid && sendTg {
+		ntf.Tg.SendBadge(tg.Int64, toName, badgeTitle, badgeDesc)
+	}
+
+	ntf.Ntf.Notify(tx, badgeId.BadgeID, typeBadge, toName)
 }

@@ -240,6 +240,8 @@ func (bot *TelegramBot) command(upd tgbotapi.Update) {
 		reply = bot.stat(&upd)
 	case "notify":
 		reply = bot.notify(&upd)
+	case "badge":
+		reply = bot.giveBadge(&upd)
 	default:
 		reply = unrecognisedText
 	}
@@ -348,12 +350,13 @@ func (bot *TelegramBot) help(upd *tgbotapi.Update) string {
 Команды модерации:
 <code>/hide {id или ссылка}</code> — скрыть запись.
 <code>/unlive {id или ссылка}</code> — убрать запись из Прямого эфира.
-<code>/shut {id или ссылка}</code> — запретить комментирование записи.`
+<code>/shut {id или ссылка}</code> — запретить комментирование записи.
+<code>/badge {login или ссылка} {code} [level]</code> — выдать пользователю значок.
+`
 	}
 
 	if bot.isAdmin(upd) {
 		text += `
-
 Команды администрирования:
 <code>/ban {live | vote | comment | invite | adm | shadow} [N] {login или ссылка}</code> — запретить пользователю выбранные действия на N дней, в случае adm — навсегда.
 <code>/ban user [N] {login или ссылка}</code> — заблокировать пользователя на N дней.
@@ -1271,6 +1274,56 @@ WHERE notification_type.type = 'info'
 	return "Уведомления отправлены."
 }
 
+func (bot *TelegramBot) giveBadge(upd *tgbotapi.Update) string {
+	if !bot.isModerator(upd) {
+		return unrecognisedText
+	}
+
+	args := strings.Split(upd.Message.CommandArguments(), " ")
+	if len(args) < 2 {
+		return "Укажи необходимые аргументы."
+	}
+
+	link := args[0]
+	code := args[1]
+	if len(link) == 0 || len(code) == 0 {
+		return "Укажи необходимые аргументы."
+	}
+
+	level := 1
+	if len(args) > 2 {
+		if l, err := strconv.ParseInt(args[2], 10, 8); err == nil {
+			level = int(l)
+		}
+	}
+
+	login := extractLogin(link)
+	if login == "" {
+		return "Укажи логин или ссылку."
+	}
+
+	atx := NewAutoTx(bot.srv.DB)
+	defer atx.Finish()
+
+	userID := atx.QueryInt64("SELECT id FROM users WHERE lower(name) = lower($1)", login)
+	if userID == 0 {
+		return fmt.Sprintf("Пользователь %s не найден.", login)
+	}
+
+	badgeID := atx.QueryInt64("SELECT id FROM badges WHERE code = $1 AND level = $2", code, level)
+
+	badgeQuery := sqlf.InsertInto("user_badges").
+		Set("user_id", userID).
+		Set("badge_id", badgeID)
+	atx.ExecStmt(badgeQuery)
+	if atx.RowsAffected() != 1 {
+		return "Что-то пошло не так…"
+	}
+
+	link = bot.userNameLink(login, login)
+	return fmt.Sprintf("Пользователю %s выдан значок <b>%s</b> уровня %d.", link, code, level)
+}
+
 func idToString(id int64) string {
 	return strconv.FormatInt(id, 32)
 }
@@ -1714,6 +1767,17 @@ func (bot *TelegramBot) SendEntryMoved(chat int64, entryTitle string, entryID in
 	}
 
 	text = "Твоя " + text + " была удалена из темы. Теперь она доступна только тебе в твоём дневнике."
+
+	bot.sendMessage(chat, text)
+}
+
+func (bot *TelegramBot) SendBadge(chat int64, toName, badgeTitle, badgeDesc string) {
+	if bot.api == nil {
+		return
+	}
+
+	text := "Получен новый значок — «" + badgeTitle + "»!\n" + badgeDesc +
+		"\n\nПосмотреть значки можно в <a href='" + bot.url + "users/" + toName + "/badges'>своём профиле</a>."
 
 	bot.sendMessage(chat, text)
 }

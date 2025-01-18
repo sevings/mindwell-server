@@ -40,6 +40,7 @@ const (
 	typeWishReceived = "wish_received"
 	typeWishCreated  = "wish_created"
 	typeEntryMoved   = "entry_moved"
+	typeBadge        = "badge"
 )
 
 func NewNotifier(apiURL, apiKey string) *Notifier {
