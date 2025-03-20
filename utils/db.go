@@ -110,6 +110,7 @@ func ConnectionString(config *goconf.Config) string {
 	}
 
 	connStr := "user=" + user + " password=" + pass + " dbname=" + name + " host=" + host + " port=" + port
+	connStr += " sslmode=disable"
 	return connStr
 }
 
