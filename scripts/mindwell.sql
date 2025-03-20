@@ -2393,7 +2393,7 @@ CREATE TABLE "mindwell"."badges" (
     CONSTRAINT "unique_badge_code_level" UNIQUE ( "code", "level" )
 );
 
-CREATE TABLE "user_badges" (
+CREATE TABLE "mindwell"."user_badges" (
     "user_id" Integer NOT NULL,
     "badge_id" Integer NOT NULL,
     "given_at" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP NOT NULL,

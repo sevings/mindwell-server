@@ -25,7 +25,7 @@ VALUES('test4', 'Тест (4)', 'Это тестовый значок (4). Вы 
 INSERT INTO mindwell.badges(code, title, description, icon)
 VALUES('test5', 'Тест (5)', 'Это тестовый значок (5). Вы восхитительны!', 'test.webp');
 
-CREATE TABLE "user_badges" (
+CREATE TABLE "mindwell"."user_badges" (
     "user_id" Integer NOT NULL,
     "badge_id" Integer NOT NULL,
     "given_at" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
