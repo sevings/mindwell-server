@@ -1281,47 +1281,85 @@ func (bot *TelegramBot) giveBadge(upd *tgbotapi.Update) string {
 
 	args := strings.Split(upd.Message.CommandArguments(), " ")
 	if len(args) < 2 {
-		return "Укажи необходимые аргументы."
+		return "Укажи необходимые аргументы: [логины или ссылки] [код_значка] [уровень]"
 	}
 
-	link := args[0]
-	code := args[1]
-	if len(link) == 0 || len(code) == 0 {
-		return "Укажи необходимые аргументы."
-	}
-
+	codePos := len(args) - 1
 	level := 1
-	if len(args) > 2 {
-		if l, err := strconv.ParseInt(args[2], 10, 8); err == nil {
-			level = int(l)
-		}
+
+	if l, err := strconv.ParseInt(args[codePos], 10, 8); err == nil {
+		level = int(l)
+		codePos--
 	}
 
-	login := extractLogin(link)
-	if login == "" {
-		return "Укажи логин или ссылку."
+	if codePos < 1 {
+		return "Укажи необходимые аргументы: {логины или ссылки} {код_значка} [уровень]"
+	}
+
+	code := args[codePos]
+	if len(code) == 0 {
+		return "Укажи код значка."
+	}
+
+	userLinks := args[:codePos]
+	if len(userLinks) == 0 {
+		return "Укажи логины или ссылки пользователей."
 	}
 
 	atx := NewAutoTx(bot.srv.DB)
 	defer atx.Finish()
 
-	userID := atx.QueryInt64("SELECT id FROM users WHERE lower(name) = lower($1)", login)
-	if userID == 0 {
-		return fmt.Sprintf("Пользователь %s не найден.", login)
-	}
-
 	badgeID := atx.QueryInt64("SELECT id FROM badges WHERE code = $1 AND level = $2", code, level)
-
-	badgeQuery := sqlf.InsertInto("user_badges").
-		Set("user_id", userID).
-		Set("badge_id", badgeID)
-	atx.ExecStmt(badgeQuery)
-	if atx.RowsAffected() != 1 {
-		return "Что-то пошло не так…"
+	if badgeID == 0 {
+		return fmt.Sprintf("Значок с кодом %s уровня %d не найден.", code, level)
 	}
 
-	link = bot.userNameLink(login, login)
-	return fmt.Sprintf("Пользователю %s выдан значок <b>%s</b> уровня %d.", link, code, level)
+	var successLogins []string
+	var failedLogins []string
+
+	for _, link := range userLinks {
+		login := extractLogin(link)
+		if login == "" {
+			failedLogins = append(failedLogins, link)
+			continue
+		}
+
+		userID := atx.QueryInt64("SELECT id FROM users WHERE lower(name) = lower($1)", login)
+		if userID == 0 {
+			failedLogins = append(failedLogins, login)
+			continue
+		}
+
+		badgeQuery := sqlf.InsertInto("user_badges").
+			Set("user_id", userID).
+			Set("badge_id", badgeID)
+		atx.ExecStmt(badgeQuery)
+
+		if atx.RowsAffected() == 1 {
+			successLogins = append(successLogins, login)
+		} else {
+			failedLogins = append(failedLogins, login)
+		}
+	}
+
+	if len(successLogins) == 0 {
+		return "Не удалось выдать значки. Проверь правильность логинов и код значка."
+	}
+
+	result := fmt.Sprintf("Выдан значок <b>%s</b> уровня %d для пользователей:\n", code, level)
+
+	for i, login := range successLogins {
+		result += fmt.Sprintf("%d. %s\n", i+1, bot.userNameLink(login, login))
+	}
+
+	if len(failedLogins) > 0 {
+		result += "\nНе удалось выдать значок пользователям:\n"
+		for i, login := range failedLogins {
+			result += fmt.Sprintf("%d. %s\n", i+1, login)
+		}
+	}
+
+	return result
 }
 
 func idToString(id int64) string {
