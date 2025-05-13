@@ -1,5 +1,3 @@
--- noinspection SqlNoDataSourceInspectionForFile
-
 SET client_encoding = 'UTF8';
 
 CREATE SCHEMA "mindwell";
@@ -9,7 +7,7 @@ CREATE EXTENSION IF NOT EXISTS rum;     -- search entries
 
 ALTER DATABASE mindwell SET search_path TO mindwell, public;
 
--- CREATE TABLE "gender" ---------------------------------
+
 CREATE TABLE "mindwell"."gender" (
     "id" Integer UNIQUE NOT NULL,
     "type" Text NOT NULL );
@@ -17,11 +15,8 @@ CREATE TABLE "mindwell"."gender" (
 INSERT INTO "mindwell"."gender" VALUES(0, 'not set');
 INSERT INTO "mindwell"."gender" VALUES(1, 'male');
 INSERT INTO "mindwell"."gender" VALUES(2, 'female');
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "user_privacy" ---------------------------------
 CREATE TABLE "mindwell"."user_privacy" (
     "id" Integer UNIQUE NOT NULL,
     "type" Text NOT NULL );
@@ -30,11 +25,8 @@ INSERT INTO "mindwell"."user_privacy" VALUES(0, 'all');
 INSERT INTO "mindwell"."user_privacy" VALUES(1, 'followers');
 INSERT INTO "mindwell"."user_privacy" VALUES(2, 'invited');
 INSERT INTO "mindwell"."user_privacy" VALUES(3, 'registered');
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "user_chat_privacy" ---------------------------------
 CREATE TABLE "mindwell"."user_chat_privacy" (
                                            "id" Integer UNIQUE NOT NULL,
                                            "type" Text NOT NULL );
@@ -43,11 +35,8 @@ INSERT INTO "mindwell"."user_chat_privacy" VALUES(0, 'invited');
 INSERT INTO "mindwell"."user_chat_privacy" VALUES(1, 'followers');
 INSERT INTO "mindwell"."user_chat_privacy" VALUES(2, 'friends');
 INSERT INTO "mindwell"."user_chat_privacy" VALUES(3, 'me');
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "authority" ------------------------------------
 CREATE TABLE "mindwell"."authority" (
     "id" Integer UNIQUE NOT NULL,
     "type" Text NOT NULL );
@@ -55,21 +44,15 @@ CREATE TABLE "mindwell"."authority" (
 INSERT INTO "mindwell"."authority" VALUES(0, 'user');
 INSERT INTO "mindwell"."authority" VALUES(1, 'admin');
 INSERT INTO "mindwell"."authority" VALUES(2, 'moderator');
--- -------------------------------------------------------------
 
 
-
--- CREATE TYPE "font_family" -----------------------------------
 CREATE TABLE "mindwell"."font_family" (
     "id" Integer UNIQUE NOT NULL,
     "type" Text NOT NULL );
 
 INSERT INTO "mindwell"."font_family" VALUES(0, 'Arial');
--- -------------------------------------------------------------
 
 
-
--- CREATE TYPE "alignment" -------------------------------------
 CREATE TABLE "mindwell"."alignment" (
     "id" Integer UNIQUE NOT NULL,
     "type" Text NOT NULL );
@@ -78,7 +61,6 @@ INSERT INTO "mindwell"."alignment" VALUES(0, 'left');
 INSERT INTO "mindwell"."alignment" VALUES(1, 'right');
 INSERT INTO "mindwell"."alignment" VALUES(2, 'center');
 INSERT INTO "mindwell"."alignment" VALUES(3, 'justify');
--- -------------------------------------------------------------
 
 
 CREATE OR REPLACE FUNCTION to_search_string(name TEXT, show_name TEXT, country TEXT, city TEXT)
@@ -95,7 +77,7 @@ BEGIN
 END
 $$ LANGUAGE plpgsql IMMUTABLE;
 
--- CREATE TABLE "users" ----------------------------------------
+
 CREATE TABLE "mindwell"."users" (
 	"id" Serial NOT NULL,
 	"name" Text NOT NULL,
@@ -170,41 +152,25 @@ CREATE TABLE "mindwell"."users" (
     CONSTRAINT "enum_user_authority" FOREIGN KEY("authority") REFERENCES "mindwell"."authority"("id"),
     CONSTRAINT "theme_creator" FOREIGN KEY("creator_id") REFERENCES "mindwell"."users"("id") );
  ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_user_id" --------------------------------
+
 CREATE UNIQUE INDEX "index_user_id" ON "mindwell"."users" USING btree( "id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_user_name" ------------------------------
 CREATE UNIQUE INDEX "index_user_name" ON "mindwell"."users" USING btree( lower("name") );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_user_email" -----------------------------
 CREATE UNIQUE INDEX "index_user_email" ON "mindwell"."users" USING btree( lower("email") );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_telegram" -------------------------------
 CREATE UNIQUE INDEX "index_telegram" ON "mindwell"."users" USING btree( "telegram" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_invited_by" -----------------------------
 CREATE INDEX "index_invited_by" ON "mindwell"."users" USING btree( "invited_by" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_user_rank" ------------------------------
 CREATE INDEX "index_user_rank" ON "mindwell"."users" USING btree( "rank" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_user_search" ----------------------------
 CREATE INDEX "index_user_search" ON "mindwell"."users" USING GIST
     (to_search_string("name", "show_name", "country", "city") gist_trgm_ops);
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_user_search_email" ----------------------
 CREATE INDEX "index_user_search_email" ON "mindwell"."users" USING GIST
     (to_search_string("email") gist_trgm_ops);
--- -------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION mindwell.count_invited_upd() RETURNS TRIGGER AS $$
     BEGIN
@@ -282,8 +248,6 @@ CREATE TRIGGER ntf_online_users
     EXECUTE FUNCTION mindwell.notify_online_users();
 
 
-
--- CREATE TABLE "adm" ------------------------------------------
 CREATE TABLE "mindwell"."adm" (
 	"name" Text NOT NULL,
     "fullname" Text NOT NULL,
@@ -299,11 +263,8 @@ CREATE TABLE "mindwell"."adm" (
     "tracking" Text NOT NULL DEFAULT '',
     "grandfather_comment" Text NOT NULL DEFAULT '');
 ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_adm" ------------------------------------
 CREATE UNIQUE INDEX "index_adm" ON "mindwell"."adm" USING btree( lower("name") );
--- -------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION mindwell.ban_adm() RETURNS VOID AS $$
     UPDATE mindwell.users
@@ -317,13 +278,10 @@ CREATE OR REPLACE FUNCTION mindwell.ban_adm() RETURNS VOID AS $$
 $$ LANGUAGE SQL;
 
 
-
--- CREATE TABLE "wish_states" ----------------------------------
 CREATE TABLE "mindwell"."wish_states" (
     "id" Integer UNIQUE NOT NULL,
     "state" Text NOT NULL
 );
--- -------------------------------------------------------------
 
 INSERT INTO "mindwell"."wish_states"(id, state) VALUES (0, 'new');
 INSERT INTO "mindwell"."wish_states"(id, state) VALUES (1, 'sent');
@@ -331,7 +289,7 @@ INSERT INTO "mindwell"."wish_states"(id, state) VALUES (2, 'declined');
 INSERT INTO "mindwell"."wish_states"(id, state) VALUES (3, 'complained');
 INSERT INTO "mindwell"."wish_states"(id, state) VALUES (4, 'thanked');
 
--- CREATE TABLE "wishes" ---------------------------------------
+
 CREATE TABLE "mindwell"."wishes" (
     "id" Serial NOT NULL,
     "from_id" Integer NOT NULL,
@@ -344,754 +302,32 @@ CREATE TABLE "mindwell"."wishes" (
     CONSTRAINT "wish_receiver" FOREIGN KEY("to_id") REFERENCES "mindwell"."users"("id"),
     CONSTRAINT "enum_wish_state" FOREIGN KEY("state") REFERENCES "mindwell"."wish_states"("id")
 );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_wish_id" --------------------------------
 CREATE INDEX "index_wish_id" ON "mindwell"."wishes" USING btree( "id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_wish_from_id" ---------------------------
 CREATE INDEX "index_wish_from_id" ON "mindwell"."wishes" USING btree( "from_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_wish_to_id" -----------------------------
 CREATE INDEX "index_wish_to_id" ON "mindwell"."wishes" USING btree( "to_id" );
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "invite_words" ---------------------------------
 CREATE TABLE "mindwell"."invite_words" (
     "id" Serial NOT NULL,
     "word" Text NOT NULL,
 	CONSTRAINT "unique_word_id" PRIMARY KEY( "id" ),
 	CONSTRAINT "unique_word" UNIQUE( "word" ) );
 ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_invite_word_id" -------------------------
 CREATE UNIQUE INDEX "index_invite_word_id" ON "mindwell"."invite_words" USING btree( "id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_invite_word" ----------------------------
 CREATE UNIQUE INDEX "index_invite_word" ON "mindwell"."invite_words" USING btree( "word" );
--- -------------------------------------------------------------
 
 INSERT INTO mindwell.invite_words ("word") VALUES('acknown');
 INSERT INTO mindwell.invite_words ("word") VALUES('aery');
 INSERT INTO mindwell.invite_words ("word") VALUES('affectioned');
 INSERT INTO mindwell.invite_words ("word") VALUES('agnize');
 INSERT INTO mindwell.invite_words ("word") VALUES('ambition');
-INSERT INTO mindwell.invite_words ("word") VALUES('amerce');
-INSERT INTO mindwell.invite_words ("word") VALUES('anters');
-INSERT INTO mindwell.invite_words ("word") VALUES('argal');
-INSERT INTO mindwell.invite_words ("word") VALUES('arrant');
-INSERT INTO mindwell.invite_words ("word") VALUES('arras');
-INSERT INTO mindwell.invite_words ("word") VALUES('asquint');
-INSERT INTO mindwell.invite_words ("word") VALUES('atomies');
-INSERT INTO mindwell.invite_words ("word") VALUES('augurers');
-INSERT INTO mindwell.invite_words ("word") VALUES('bastinado');
-INSERT INTO mindwell.invite_words ("word") VALUES('batten');
-INSERT INTO mindwell.invite_words ("word") VALUES('bawbling');
-INSERT INTO mindwell.invite_words ("word") VALUES('bawcock');
-INSERT INTO mindwell.invite_words ("word") VALUES('bawd');
-INSERT INTO mindwell.invite_words ("word") VALUES('behoveful');
-INSERT INTO mindwell.invite_words ("word") VALUES('beldams');
-INSERT INTO mindwell.invite_words ("word") VALUES('belike');
-INSERT INTO mindwell.invite_words ("word") VALUES('berattle');
-INSERT INTO mindwell.invite_words ("word") VALUES('beshrew');
-INSERT INTO mindwell.invite_words ("word") VALUES('betid');
-INSERT INTO mindwell.invite_words ("word") VALUES('betimes');
-INSERT INTO mindwell.invite_words ("word") VALUES('betoken');
-INSERT INTO mindwell.invite_words ("word") VALUES('bewray');
-INSERT INTO mindwell.invite_words ("word") VALUES('biddy');
-INSERT INTO mindwell.invite_words ("word") VALUES('bilboes');
-INSERT INTO mindwell.invite_words ("word") VALUES('blasted');
-INSERT INTO mindwell.invite_words ("word") VALUES('blazon');
-INSERT INTO mindwell.invite_words ("word") VALUES('bodements');
-INSERT INTO mindwell.invite_words ("word") VALUES('bodkin');
-INSERT INTO mindwell.invite_words ("word") VALUES('bombard');
-INSERT INTO mindwell.invite_words ("word") VALUES('bootless');
-INSERT INTO mindwell.invite_words ("word") VALUES('bosky');
-INSERT INTO mindwell.invite_words ("word") VALUES('bowers');
-INSERT INTO mindwell.invite_words ("word") VALUES('brach');
-INSERT INTO mindwell.invite_words ("word") VALUES('brainsickly');
-INSERT INTO mindwell.invite_words ("word") VALUES('brock');
-INSERT INTO mindwell.invite_words ("word") VALUES('bruit');
-INSERT INTO mindwell.invite_words ("word") VALUES('buckler');
-INSERT INTO mindwell.invite_words ("word") VALUES('busky');
-INSERT INTO mindwell.invite_words ("word") VALUES('caitiff');
-INSERT INTO mindwell.invite_words ("word") VALUES('caliver');
-INSERT INTO mindwell.invite_words ("word") VALUES('callet');
-INSERT INTO mindwell.invite_words ("word") VALUES('cantons');
-INSERT INTO mindwell.invite_words ("word") VALUES('carded');
-INSERT INTO mindwell.invite_words ("word") VALUES('carrions');
-INSERT INTO mindwell.invite_words ("word") VALUES('cashiered');
-INSERT INTO mindwell.invite_words ("word") VALUES('casing');
-INSERT INTO mindwell.invite_words ("word") VALUES('catch');
-INSERT INTO mindwell.invite_words ("word") VALUES('caterwauling');
-INSERT INTO mindwell.invite_words ("word") VALUES('cautel');
-INSERT INTO mindwell.invite_words ("word") VALUES('cerecloth');
-INSERT INTO mindwell.invite_words ("word") VALUES('cerements');
-INSERT INTO mindwell.invite_words ("word") VALUES('certes');
-INSERT INTO mindwell.invite_words ("word") VALUES('champain');
-INSERT INTO mindwell.invite_words ("word") VALUES('chaps');
-INSERT INTO mindwell.invite_words ("word") VALUES('charactery');
-INSERT INTO mindwell.invite_words ("word") VALUES('chariest');
-INSERT INTO mindwell.invite_words ("word") VALUES('charmingly');
-INSERT INTO mindwell.invite_words ("word") VALUES('chinks');
-INSERT INTO mindwell.invite_words ("word") VALUES('chopt');
-INSERT INTO mindwell.invite_words ("word") VALUES('chough');
-INSERT INTO mindwell.invite_words ("word") VALUES('civet');
-INSERT INTO mindwell.invite_words ("word") VALUES('clepe');
-INSERT INTO mindwell.invite_words ("word") VALUES('climatures');
-INSERT INTO mindwell.invite_words ("word") VALUES('clodpole');
-INSERT INTO mindwell.invite_words ("word") VALUES('cobbler');
-INSERT INTO mindwell.invite_words ("word") VALUES('cockatrices');
-INSERT INTO mindwell.invite_words ("word") VALUES('collied');
-INSERT INTO mindwell.invite_words ("word") VALUES('collier');
-INSERT INTO mindwell.invite_words ("word") VALUES('colour');
-INSERT INTO mindwell.invite_words ("word") VALUES('compass');
-INSERT INTO mindwell.invite_words ("word") VALUES('comptible');
-INSERT INTO mindwell.invite_words ("word") VALUES('conceit');
-INSERT INTO mindwell.invite_words ("word") VALUES('condition');
-INSERT INTO mindwell.invite_words ("word") VALUES('continuate');
-INSERT INTO mindwell.invite_words ("word") VALUES('corky');
-INSERT INTO mindwell.invite_words ("word") VALUES('coronets');
-INSERT INTO mindwell.invite_words ("word") VALUES('corse');
-INSERT INTO mindwell.invite_words ("word") VALUES('coxcomb');
-INSERT INTO mindwell.invite_words ("word") VALUES('coystrill');
-INSERT INTO mindwell.invite_words ("word") VALUES('cozen');
-INSERT INTO mindwell.invite_words ("word") VALUES('cozier');
-INSERT INTO mindwell.invite_words ("word") VALUES('crisped');
-INSERT INTO mindwell.invite_words ("word") VALUES('crochets');
-INSERT INTO mindwell.invite_words ("word") VALUES('crossed');
-INSERT INTO mindwell.invite_words ("word") VALUES('crowner');
-INSERT INTO mindwell.invite_words ("word") VALUES('cubiculo');
-INSERT INTO mindwell.invite_words ("word") VALUES('cursy');
-INSERT INTO mindwell.invite_words ("word") VALUES('dallying');
-INSERT INTO mindwell.invite_words ("word") VALUES('dateless');
-INSERT INTO mindwell.invite_words ("word") VALUES('daws');
-INSERT INTO mindwell.invite_words ("word") VALUES('denotement');
-INSERT INTO mindwell.invite_words ("word") VALUES('dilate');
-INSERT INTO mindwell.invite_words ("word") VALUES('dissemble');
-INSERT INTO mindwell.invite_words ("word") VALUES('distaff');
-INSERT INTO mindwell.invite_words ("word") VALUES('distemperature');
-INSERT INTO mindwell.invite_words ("word") VALUES('doit');
-INSERT INTO mindwell.invite_words ("word") VALUES('doublet');
-INSERT INTO mindwell.invite_words ("word") VALUES('doves');
-INSERT INTO mindwell.invite_words ("word") VALUES('drabbing');
-INSERT INTO mindwell.invite_words ("word") VALUES('dram');
-INSERT INTO mindwell.invite_words ("word") VALUES('drossy');
-INSERT INTO mindwell.invite_words ("word") VALUES('dudgeon');
-INSERT INTO mindwell.invite_words ("word") VALUES('dunnest');
-INSERT INTO mindwell.invite_words ("word") VALUES('eanlings');
-INSERT INTO mindwell.invite_words ("word") VALUES('elflocks');
-INSERT INTO mindwell.invite_words ("word") VALUES('eliads');
-INSERT INTO mindwell.invite_words ("word") VALUES('encave');
-INSERT INTO mindwell.invite_words ("word") VALUES('enchafed');
-INSERT INTO mindwell.invite_words ("word") VALUES('endues');
-INSERT INTO mindwell.invite_words ("word") VALUES('engluts');
-INSERT INTO mindwell.invite_words ("word") VALUES('ensteeped');
-INSERT INTO mindwell.invite_words ("word") VALUES('envy');
-INSERT INTO mindwell.invite_words ("word") VALUES('enwheel');
-INSERT INTO mindwell.invite_words ("word") VALUES('erns');
-INSERT INTO mindwell.invite_words ("word") VALUES('extremities');
-INSERT INTO mindwell.invite_words ("word") VALUES('eyeless');
-INSERT INTO mindwell.invite_words ("word") VALUES('fable');
-INSERT INTO mindwell.invite_words ("word") VALUES('factious');
-INSERT INTO mindwell.invite_words ("word") VALUES('fadge');
-INSERT INTO mindwell.invite_words ("word") VALUES('fain');
-INSERT INTO mindwell.invite_words ("word") VALUES('fashion');
-INSERT INTO mindwell.invite_words ("word") VALUES('favour');
-INSERT INTO mindwell.invite_words ("word") VALUES('festinate');
-INSERT INTO mindwell.invite_words ("word") VALUES('fetches');
-INSERT INTO mindwell.invite_words ("word") VALUES('figures');
-INSERT INTO mindwell.invite_words ("word") VALUES('fleer');
-INSERT INTO mindwell.invite_words ("word") VALUES('fleering');
-INSERT INTO mindwell.invite_words ("word") VALUES('flote');
-INSERT INTO mindwell.invite_words ("word") VALUES('flowerets');
-INSERT INTO mindwell.invite_words ("word") VALUES('fobbed');
-INSERT INTO mindwell.invite_words ("word") VALUES('foison');
-INSERT INTO mindwell.invite_words ("word") VALUES('fopped');
-INSERT INTO mindwell.invite_words ("word") VALUES('fordid');
-INSERT INTO mindwell.invite_words ("word") VALUES('forks');
-INSERT INTO mindwell.invite_words ("word") VALUES('franklin');
-INSERT INTO mindwell.invite_words ("word") VALUES('frieze');
-INSERT INTO mindwell.invite_words ("word") VALUES('frippery');
-INSERT INTO mindwell.invite_words ("word") VALUES('fulsome');
-INSERT INTO mindwell.invite_words ("word") VALUES('fust');
-INSERT INTO mindwell.invite_words ("word") VALUES('fustian');
-INSERT INTO mindwell.invite_words ("word") VALUES('gage');
-INSERT INTO mindwell.invite_words ("word") VALUES('gaged');
-INSERT INTO mindwell.invite_words ("word") VALUES('gallow');
-INSERT INTO mindwell.invite_words ("word") VALUES('gamesome');
-INSERT INTO mindwell.invite_words ("word") VALUES('gaskins');
-INSERT INTO mindwell.invite_words ("word") VALUES('gasted');
-INSERT INTO mindwell.invite_words ("word") VALUES('gauntlet');
-INSERT INTO mindwell.invite_words ("word") VALUES('gentle');
-INSERT INTO mindwell.invite_words ("word") VALUES('glazed');
-INSERT INTO mindwell.invite_words ("word") VALUES('gleek');
-INSERT INTO mindwell.invite_words ("word") VALUES('goatish');
-INSERT INTO mindwell.invite_words ("word") VALUES('goodyears');
-INSERT INTO mindwell.invite_words ("word") VALUES('goose');
-INSERT INTO mindwell.invite_words ("word") VALUES('gouts');
-INSERT INTO mindwell.invite_words ("word") VALUES('gramercy');
-INSERT INTO mindwell.invite_words ("word") VALUES('grise');
-INSERT INTO mindwell.invite_words ("word") VALUES('grizzled');
-INSERT INTO mindwell.invite_words ("word") VALUES('groundings');
-INSERT INTO mindwell.invite_words ("word") VALUES('gudgeon');
-INSERT INTO mindwell.invite_words ("word") VALUES('gull');
-INSERT INTO mindwell.invite_words ("word") VALUES('guttered');
-INSERT INTO mindwell.invite_words ("word") VALUES('hams');
-INSERT INTO mindwell.invite_words ("word") VALUES('haply');
-INSERT INTO mindwell.invite_words ("word") VALUES('hardiment');
-INSERT INTO mindwell.invite_words ("word") VALUES('harpy');
-INSERT INTO mindwell.invite_words ("word") VALUES('hart');
-INSERT INTO mindwell.invite_words ("word") VALUES('heath');
-INSERT INTO mindwell.invite_words ("word") VALUES('hests');
-INSERT INTO mindwell.invite_words ("word") VALUES('hilding');
-INSERT INTO mindwell.invite_words ("word") VALUES('hinds');
-INSERT INTO mindwell.invite_words ("word") VALUES('holidam');
-INSERT INTO mindwell.invite_words ("word") VALUES('holp');
-INSERT INTO mindwell.invite_words ("word") VALUES('housewives');
-INSERT INTO mindwell.invite_words ("word") VALUES('humour');
-INSERT INTO mindwell.invite_words ("word") VALUES('hurlyburly');
-INSERT INTO mindwell.invite_words ("word") VALUES('husbandry');
-INSERT INTO mindwell.invite_words ("word") VALUES('ides');
-INSERT INTO mindwell.invite_words ("word") VALUES('import');
-INSERT INTO mindwell.invite_words ("word") VALUES('incarnadine');
-INSERT INTO mindwell.invite_words ("word") VALUES('indign');
-INSERT INTO mindwell.invite_words ("word") VALUES('ingraft');
-INSERT INTO mindwell.invite_words ("word") VALUES('ingrafted');
-INSERT INTO mindwell.invite_words ("word") VALUES('insuppressive');
-INSERT INTO mindwell.invite_words ("word") VALUES('intentively');
-INSERT INTO mindwell.invite_words ("word") VALUES('intermit');
-INSERT INTO mindwell.invite_words ("word") VALUES('jaunce');
-INSERT INTO mindwell.invite_words ("word") VALUES('jaundice');
-INSERT INTO mindwell.invite_words ("word") VALUES('jealous');
-INSERT INTO mindwell.invite_words ("word") VALUES('jointress');
-INSERT INTO mindwell.invite_words ("word") VALUES('jowls');
-INSERT INTO mindwell.invite_words ("word") VALUES('knapped');
-INSERT INTO mindwell.invite_words ("word") VALUES('ladybird');
-INSERT INTO mindwell.invite_words ("word") VALUES('leasing');
-INSERT INTO mindwell.invite_words ("word") VALUES('leman');
-INSERT INTO mindwell.invite_words ("word") VALUES('lethe');
-INSERT INTO mindwell.invite_words ("word") VALUES('lief');
-INSERT INTO mindwell.invite_words ("word") VALUES('liver');
-INSERT INTO mindwell.invite_words ("word") VALUES('livings');
-INSERT INTO mindwell.invite_words ("word") VALUES('loath');
-INSERT INTO mindwell.invite_words ("word") VALUES('loggerheads');
-INSERT INTO mindwell.invite_words ("word") VALUES('lown');
-INSERT INTO mindwell.invite_words ("word") VALUES('magnificoes');
-INSERT INTO mindwell.invite_words ("word") VALUES('maidenhead');
-INSERT INTO mindwell.invite_words ("word") VALUES('malapert');
-INSERT INTO mindwell.invite_words ("word") VALUES('marchpane');
-INSERT INTO mindwell.invite_words ("word") VALUES('marry');
-INSERT INTO mindwell.invite_words ("word") VALUES('masterless');
-INSERT INTO mindwell.invite_words ("word") VALUES('maugre');
-INSERT INTO mindwell.invite_words ("word") VALUES('mazzard');
-INSERT INTO mindwell.invite_words ("word") VALUES('meet');
-INSERT INTO mindwell.invite_words ("word") VALUES('meetest');
-INSERT INTO mindwell.invite_words ("word") VALUES('meiny');
-INSERT INTO mindwell.invite_words ("word") VALUES('meshes');
-INSERT INTO mindwell.invite_words ("word") VALUES('micher');
-INSERT INTO mindwell.invite_words ("word") VALUES('minion');
-INSERT INTO mindwell.invite_words ("word") VALUES('misprision');
-INSERT INTO mindwell.invite_words ("word") VALUES('moo');
-INSERT INTO mindwell.invite_words ("word") VALUES('mooncalf');
-INSERT INTO mindwell.invite_words ("word") VALUES('mountebanks');
-INSERT INTO mindwell.invite_words ("word") VALUES('mushrumps');
-INSERT INTO mindwell.invite_words ("word") VALUES('mute');
-INSERT INTO mindwell.invite_words ("word") VALUES('naughty');
-INSERT INTO mindwell.invite_words ("word") VALUES('nonce');
-INSERT INTO mindwell.invite_words ("word") VALUES('nuncle');
-INSERT INTO mindwell.invite_words ("word") VALUES('occulted');
-INSERT INTO mindwell.invite_words ("word") VALUES('ordinary');
-INSERT INTO mindwell.invite_words ("word") VALUES('othergates');
-INSERT INTO mindwell.invite_words ("word") VALUES('overname');
-INSERT INTO mindwell.invite_words ("word") VALUES('paddock');
-INSERT INTO mindwell.invite_words ("word") VALUES('palmy');
-INSERT INTO mindwell.invite_words ("word") VALUES('palter');
-INSERT INTO mindwell.invite_words ("word") VALUES('parle');
-INSERT INTO mindwell.invite_words ("word") VALUES('patch');
-INSERT INTO mindwell.invite_words ("word") VALUES('paunch');
-INSERT INTO mindwell.invite_words ("word") VALUES('pearl');
-INSERT INTO mindwell.invite_words ("word") VALUES('peize');
-INSERT INTO mindwell.invite_words ("word") VALUES('pennyworths');
-INSERT INTO mindwell.invite_words ("word") VALUES('perdy');
-INSERT INTO mindwell.invite_words ("word") VALUES('pignuts');
-INSERT INTO mindwell.invite_words ("word") VALUES('portance');
-INSERT INTO mindwell.invite_words ("word") VALUES('possets');
-INSERT INTO mindwell.invite_words ("word") VALUES('posy');
-INSERT INTO mindwell.invite_words ("word") VALUES('praetor');
-INSERT INTO mindwell.invite_words ("word") VALUES('prate');
-INSERT INTO mindwell.invite_words ("word") VALUES('prick');
-INSERT INTO mindwell.invite_words ("word") VALUES('primy');
-INSERT INTO mindwell.invite_words ("word") VALUES('princox');
-INSERT INTO mindwell.invite_words ("word") VALUES('prithee');
-INSERT INTO mindwell.invite_words ("word") VALUES('prodigies');
-INSERT INTO mindwell.invite_words ("word") VALUES('proper');
-INSERT INTO mindwell.invite_words ("word") VALUES('prorogued');
-INSERT INTO mindwell.invite_words ("word") VALUES('pudder');
-INSERT INTO mindwell.invite_words ("word") VALUES('puddled');
-INSERT INTO mindwell.invite_words ("word") VALUES('puling');
-INSERT INTO mindwell.invite_words ("word") VALUES('purblind');
-INSERT INTO mindwell.invite_words ("word") VALUES('pursy');
-INSERT INTO mindwell.invite_words ("word") VALUES('quailing');
-INSERT INTO mindwell.invite_words ("word") VALUES('quaint');
-INSERT INTO mindwell.invite_words ("word") VALUES('quiddities');
-INSERT INTO mindwell.invite_words ("word") VALUES('quilets');
-INSERT INTO mindwell.invite_words ("word") VALUES('quillets');
-INSERT INTO mindwell.invite_words ("word") VALUES('reference');
-INSERT INTO mindwell.invite_words ("word") VALUES('instrument');
-INSERT INTO mindwell.invite_words ("word") VALUES('ranker');
-INSERT INTO mindwell.invite_words ("word") VALUES('rated');
-INSERT INTO mindwell.invite_words ("word") VALUES('razes');
-INSERT INTO mindwell.invite_words ("word") VALUES('receiving');
-INSERT INTO mindwell.invite_words ("word") VALUES('reechy');
-INSERT INTO mindwell.invite_words ("word") VALUES('reeking');
-INSERT INTO mindwell.invite_words ("word") VALUES('remembrances');
-INSERT INTO mindwell.invite_words ("word") VALUES('rheumy');
-INSERT INTO mindwell.invite_words ("word") VALUES('rive');
-INSERT INTO mindwell.invite_words ("word") VALUES('robustious');
-INSERT INTO mindwell.invite_words ("word") VALUES('romage');
-INSERT INTO mindwell.invite_words ("word") VALUES('ronyon');
-INSERT INTO mindwell.invite_words ("word") VALUES('rouse');
-INSERT INTO mindwell.invite_words ("word") VALUES('sallies');
-INSERT INTO mindwell.invite_words ("word") VALUES('saws');
-INSERT INTO mindwell.invite_words ("word") VALUES('scanted');
-INSERT INTO mindwell.invite_words ("word") VALUES('scarfed');
-INSERT INTO mindwell.invite_words ("word") VALUES('scrimers');
-INSERT INTO mindwell.invite_words ("word") VALUES('scutcheon');
-INSERT INTO mindwell.invite_words ("word") VALUES('seel');
-INSERT INTO mindwell.invite_words ("word") VALUES('sennet');
-INSERT INTO mindwell.invite_words ("word") VALUES('sequestration');
-INSERT INTO mindwell.invite_words ("word") VALUES('shent');
-INSERT INTO mindwell.invite_words ("word") VALUES('shoon');
-INSERT INTO mindwell.invite_words ("word") VALUES('shoughs');
-INSERT INTO mindwell.invite_words ("word") VALUES('shrift');
-INSERT INTO mindwell.invite_words ("word") VALUES('sleave');
-INSERT INTO mindwell.invite_words ("word") VALUES('slubber');
-INSERT INTO mindwell.invite_words ("word") VALUES('smilets');
-INSERT INTO mindwell.invite_words ("word") VALUES('sonties');
-INSERT INTO mindwell.invite_words ("word") VALUES('sooth');
-INSERT INTO mindwell.invite_words ("word") VALUES('sounded');
-INSERT INTO mindwell.invite_words ("word") VALUES('spleen');
-INSERT INTO mindwell.invite_words ("word") VALUES('splenetive');
-INSERT INTO mindwell.invite_words ("word") VALUES('spongy');
-INSERT INTO mindwell.invite_words ("word") VALUES('springe');
-INSERT INTO mindwell.invite_words ("word") VALUES('steads');
-INSERT INTO mindwell.invite_words ("word") VALUES('still');
-INSERT INTO mindwell.invite_words ("word") VALUES('stoup');
-INSERT INTO mindwell.invite_words ("word") VALUES('stronds');
-INSERT INTO mindwell.invite_words ("word") VALUES('suit');
-INSERT INTO mindwell.invite_words ("word") VALUES('swoopstake');
-INSERT INTO mindwell.invite_words ("word") VALUES('swounded');
-INSERT INTO mindwell.invite_words ("word") VALUES('tabor');
-INSERT INTO mindwell.invite_words ("word") VALUES('taper');
-INSERT INTO mindwell.invite_words ("word") VALUES('teen');
-INSERT INTO mindwell.invite_words ("word") VALUES('tenders');
-INSERT INTO mindwell.invite_words ("word") VALUES('termagant');
-INSERT INTO mindwell.invite_words ("word") VALUES('tetchy');
-INSERT INTO mindwell.invite_words ("word") VALUES('tinkers');
-INSERT INTO mindwell.invite_words ("word") VALUES('topgallant');
-INSERT INTO mindwell.invite_words ("word") VALUES('traffic');
-INSERT INTO mindwell.invite_words ("word") VALUES('traject');
-INSERT INTO mindwell.invite_words ("word") VALUES('trencher');
-INSERT INTO mindwell.invite_words ("word") VALUES('trimmed');
-INSERT INTO mindwell.invite_words ("word") VALUES('tristful');
-INSERT INTO mindwell.invite_words ("word") VALUES('trowest');
-INSERT INTO mindwell.invite_words ("word") VALUES('truncheon');
-INSERT INTO mindwell.invite_words ("word") VALUES('unbend');
-INSERT INTO mindwell.invite_words ("word") VALUES('unbitted');
-INSERT INTO mindwell.invite_words ("word") VALUES('unbound');
-INSERT INTO mindwell.invite_words ("word") VALUES('unbraced');
-INSERT INTO mindwell.invite_words ("word") VALUES('unbruised');
-INSERT INTO mindwell.invite_words ("word") VALUES('undone');
-INSERT INTO mindwell.invite_words ("word") VALUES('ungently');
-INSERT INTO mindwell.invite_words ("word") VALUES('unhoused');
-INSERT INTO mindwell.invite_words ("word") VALUES('unmake');
-INSERT INTO mindwell.invite_words ("word") VALUES('unprevailing');
-INSERT INTO mindwell.invite_words ("word") VALUES('unprovide');
-INSERT INTO mindwell.invite_words ("word") VALUES('unreclaimed');
-INSERT INTO mindwell.invite_words ("word") VALUES('unstuffed');
-INSERT INTO mindwell.invite_words ("word") VALUES('untaught');
-INSERT INTO mindwell.invite_words ("word") VALUES('untented');
-INSERT INTO mindwell.invite_words ("word") VALUES('unthrifty');
-INSERT INTO mindwell.invite_words ("word") VALUES('unyoke');
-INSERT INTO mindwell.invite_words ("word") VALUES('usance');
-INSERT INTO mindwell.invite_words ("word") VALUES('vailing');
-INSERT INTO mindwell.invite_words ("word") VALUES('varlets');
-INSERT INTO mindwell.invite_words ("word") VALUES('verdure');
-INSERT INTO mindwell.invite_words ("word") VALUES('villanies');
-INSERT INTO mindwell.invite_words ("word") VALUES('vizards');
-INSERT INTO mindwell.invite_words ("word") VALUES('wafter');
-INSERT INTO mindwell.invite_words ("word") VALUES('welkin');
-INSERT INTO mindwell.invite_words ("word") VALUES('weraday');
-INSERT INTO mindwell.invite_words ("word") VALUES('whoreson');
-INSERT INTO mindwell.invite_words ("word") VALUES('wilt');
-INSERT INTO mindwell.invite_words ("word") VALUES('windlasses');
-INSERT INTO mindwell.invite_words ("word") VALUES('yarely');
-INSERT INTO mindwell.invite_words ("word") VALUES('yerked');
-INSERT INTO mindwell.invite_words ("word") VALUES('yoeman');
-INSERT INTO mindwell.invite_words ("word") VALUES('younker');
-
-INSERT INTO mindwell.invite_words ("word") VALUES('aa');
-INSERT INTO mindwell.invite_words ("word") VALUES('abaya');
-INSERT INTO mindwell.invite_words ("word") VALUES('abomasum');
-INSERT INTO mindwell.invite_words ("word") VALUES('absquatulate');
-INSERT INTO mindwell.invite_words ("word") VALUES('adscititious');
-INSERT INTO mindwell.invite_words ("word") VALUES('afreet');
-INSERT INTO mindwell.invite_words ("word") VALUES('alcazar');
-INSERT INTO mindwell.invite_words ("word") VALUES('amphibology');
-INSERT INTO mindwell.invite_words ("word") VALUES('amphisbaena');
-INSERT INTO mindwell.invite_words ("word") VALUES('anfractuous');
-INSERT INTO mindwell.invite_words ("word") VALUES('anguilliform');
-INSERT INTO mindwell.invite_words ("word") VALUES('apoptosis');
-INSERT INTO mindwell.invite_words ("word") VALUES('argute');
-INSERT INTO mindwell.invite_words ("word") VALUES('ariel');
-INSERT INTO mindwell.invite_words ("word") VALUES('aristotle');
-INSERT INTO mindwell.invite_words ("word") VALUES('aspergillum');
-INSERT INTO mindwell.invite_words ("word") VALUES('astrobleme');
-INSERT INTO mindwell.invite_words ("word") VALUES('autotomy');
-INSERT INTO mindwell.invite_words ("word") VALUES('badmash');
-INSERT INTO mindwell.invite_words ("word") VALUES('bandoline');
-INSERT INTO mindwell.invite_words ("word") VALUES('bardolatry');
-INSERT INTO mindwell.invite_words ("word") VALUES('bashment');
-INSERT INTO mindwell.invite_words ("word") VALUES('bawbee');
-INSERT INTO mindwell.invite_words ("word") VALUES('benthos');
-INSERT INTO mindwell.invite_words ("word") VALUES('bergschrund');
-INSERT INTO mindwell.invite_words ("word") VALUES('bezoar');
-INSERT INTO mindwell.invite_words ("word") VALUES('bibliopole');
-INSERT INTO mindwell.invite_words ("word") VALUES('bindlestiff');
-INSERT INTO mindwell.invite_words ("word") VALUES('bingle');
-INSERT INTO mindwell.invite_words ("word") VALUES('blatherskite');
-INSERT INTO mindwell.invite_words ("word") VALUES('boffola');
-INSERT INTO mindwell.invite_words ("word") VALUES('boilover');
-INSERT INTO mindwell.invite_words ("word") VALUES('borborygmus');
-INSERT INTO mindwell.invite_words ("word") VALUES('breatharian');
-INSERT INTO mindwell.invite_words ("word") VALUES('bruxism');
-INSERT INTO mindwell.invite_words ("word") VALUES('bumbo');
-INSERT INTO mindwell.invite_words ("word") VALUES('burnsides');
-INSERT INTO mindwell.invite_words ("word") VALUES('cacoethes');
-INSERT INTO mindwell.invite_words ("word") VALUES('callipygian');
-INSERT INTO mindwell.invite_words ("word") VALUES('callithumpian');
-INSERT INTO mindwell.invite_words ("word") VALUES('camisado');
-INSERT INTO mindwell.invite_words ("word") VALUES('canorous');
-INSERT INTO mindwell.invite_words ("word") VALUES('cantillate');
-INSERT INTO mindwell.invite_words ("word") VALUES('carphology');
-INSERT INTO mindwell.invite_words ("word") VALUES('catoptromancy');
-INSERT INTO mindwell.invite_words ("word") VALUES('cereology');
-INSERT INTO mindwell.invite_words ("word") VALUES('cerulean');
-INSERT INTO mindwell.invite_words ("word") VALUES('chad');
-INSERT INTO mindwell.invite_words ("word") VALUES('chalkdown');
-INSERT INTO mindwell.invite_words ("word") VALUES('chanticleer');
-INSERT INTO mindwell.invite_words ("word") VALUES('chiliad');
-INSERT INTO mindwell.invite_words ("word") VALUES('claggy');
-INSERT INTO mindwell.invite_words ("word") VALUES('clepsydra');
-INSERT INTO mindwell.invite_words ("word") VALUES('colporteur');
-INSERT INTO mindwell.invite_words ("word") VALUES('comess');
-INSERT INTO mindwell.invite_words ("word") VALUES('commensalism');
-INSERT INTO mindwell.invite_words ("word") VALUES('comminatory');
-INSERT INTO mindwell.invite_words ("word") VALUES('concinnity');
-INSERT INTO mindwell.invite_words ("word") VALUES('congius');
-INSERT INTO mindwell.invite_words ("word") VALUES('conniption');
-INSERT INTO mindwell.invite_words ("word") VALUES('constellate');
-INSERT INTO mindwell.invite_words ("word") VALUES('coprolalia');
-INSERT INTO mindwell.invite_words ("word") VALUES('coriaceous');
-INSERT INTO mindwell.invite_words ("word") VALUES('couthy');
-INSERT INTO mindwell.invite_words ("word") VALUES('criticaster');
-INSERT INTO mindwell.invite_words ("word") VALUES('crore');
-INSERT INTO mindwell.invite_words ("word") VALUES('crottle');
-INSERT INTO mindwell.invite_words ("word") VALUES('croze');
-INSERT INTO mindwell.invite_words ("word") VALUES('cryptozoology');
-INSERT INTO mindwell.invite_words ("word") VALUES('cudbear');
-INSERT INTO mindwell.invite_words ("word") VALUES('cupreous');
-INSERT INTO mindwell.invite_words ("word") VALUES('cyanic');
-INSERT INTO mindwell.invite_words ("word") VALUES('cybersquatting');
-INSERT INTO mindwell.invite_words ("word") VALUES('dariole');
-INSERT INTO mindwell.invite_words ("word") VALUES('deasil');
-INSERT INTO mindwell.invite_words ("word") VALUES('decubitus');
-INSERT INTO mindwell.invite_words ("word") VALUES('deedy');
-INSERT INTO mindwell.invite_words ("word") VALUES('defervescence');
-INSERT INTO mindwell.invite_words ("word") VALUES('deglutition');
-INSERT INTO mindwell.invite_words ("word") VALUES('degust');
-INSERT INTO mindwell.invite_words ("word") VALUES('deipnosophist');
-INSERT INTO mindwell.invite_words ("word") VALUES('deracinate');
-INSERT INTO mindwell.invite_words ("word") VALUES('deterge');
-INSERT INTO mindwell.invite_words ("word") VALUES('didi');
-INSERT INTO mindwell.invite_words ("word") VALUES('digerati');
-INSERT INTO mindwell.invite_words ("word") VALUES('dight');
-INSERT INTO mindwell.invite_words ("word") VALUES('discobolus');
-INSERT INTO mindwell.invite_words ("word") VALUES('disembogue');
-INSERT INTO mindwell.invite_words ("word") VALUES('disenthral');
-INSERT INTO mindwell.invite_words ("word") VALUES('divagate');
-INSERT INTO mindwell.invite_words ("word") VALUES('divaricate');
-INSERT INTO mindwell.invite_words ("word") VALUES('donkeyman');
-INSERT INTO mindwell.invite_words ("word") VALUES('doryphore');
-INSERT INTO mindwell.invite_words ("word") VALUES('dotish');
-INSERT INTO mindwell.invite_words ("word") VALUES('douceur');
-INSERT INTO mindwell.invite_words ("word") VALUES('draff');
-INSERT INTO mindwell.invite_words ("word") VALUES('dragoman');
-INSERT INTO mindwell.invite_words ("word") VALUES('dumbsize');
-INSERT INTO mindwell.invite_words ("word") VALUES('dwaal');
-INSERT INTO mindwell.invite_words ("word") VALUES('ecdysiast');
-INSERT INTO mindwell.invite_words ("word") VALUES('edacious');
-INSERT INTO mindwell.invite_words ("word") VALUES('effable');
-INSERT INTO mindwell.invite_words ("word") VALUES('emacity');
-INSERT INTO mindwell.invite_words ("word") VALUES('emmetropia');
-INSERT INTO mindwell.invite_words ("word") VALUES('empasm');
-INSERT INTO mindwell.invite_words ("word") VALUES('ensorcell');
-INSERT INTO mindwell.invite_words ("word") VALUES('entomophagy');
-INSERT INTO mindwell.invite_words ("word") VALUES('erf');
-INSERT INTO mindwell.invite_words ("word") VALUES('ergometer');
-INSERT INTO mindwell.invite_words ("word") VALUES('erubescent');
-INSERT INTO mindwell.invite_words ("word") VALUES('etui');
-INSERT INTO mindwell.invite_words ("word") VALUES('eucatastrophe');
-INSERT INTO mindwell.invite_words ("word") VALUES('eurhythmic');
-INSERT INTO mindwell.invite_words ("word") VALUES('eviternity');
-INSERT INTO mindwell.invite_words ("word") VALUES('exequies');
-INSERT INTO mindwell.invite_words ("word") VALUES('exsanguine');
-INSERT INTO mindwell.invite_words ("word") VALUES('extramundane');
-INSERT INTO mindwell.invite_words ("word") VALUES('eyewater');
-INSERT INTO mindwell.invite_words ("word") VALUES('famulus');
-INSERT INTO mindwell.invite_words ("word") VALUES('fankle');
-INSERT INTO mindwell.invite_words ("word") VALUES('fipple');
-INSERT INTO mindwell.invite_words ("word") VALUES('flatline');
-INSERT INTO mindwell.invite_words ("word") VALUES('flews');
-INSERT INTO mindwell.invite_words ("word") VALUES('floccinaucinihilipilification');
-INSERT INTO mindwell.invite_words ("word") VALUES('flocculent');
-INSERT INTO mindwell.invite_words ("word") VALUES('forehanded');
-INSERT INTO mindwell.invite_words ("word") VALUES('frondeur');
-INSERT INTO mindwell.invite_words ("word") VALUES('fugacious');
-INSERT INTO mindwell.invite_words ("word") VALUES('funambulist');
-INSERT INTO mindwell.invite_words ("word") VALUES('furuncle');
-INSERT INTO mindwell.invite_words ("word") VALUES('fuscous');
-INSERT INTO mindwell.invite_words ("word") VALUES('futhark');
-INSERT INTO mindwell.invite_words ("word") VALUES('futz');
-INSERT INTO mindwell.invite_words ("word") VALUES('gaberlunzie');
-INSERT INTO mindwell.invite_words ("word") VALUES('gaita');
-INSERT INTO mindwell.invite_words ("word") VALUES('galligaskins');
-INSERT INTO mindwell.invite_words ("word") VALUES('gallus');
-INSERT INTO mindwell.invite_words ("word") VALUES('gasconade');
-INSERT INTO mindwell.invite_words ("word") VALUES('glabrous');
-INSERT INTO mindwell.invite_words ("word") VALUES('glaikit');
-INSERT INTO mindwell.invite_words ("word") VALUES('gnathic');
-INSERT INTO mindwell.invite_words ("word") VALUES('gobemouche');
-INSERT INTO mindwell.invite_words ("word") VALUES('goodfella');
-INSERT INTO mindwell.invite_words ("word") VALUES('guddle');
-INSERT INTO mindwell.invite_words ("word") VALUES('habile');
-INSERT INTO mindwell.invite_words ("word") VALUES('hallux');
-INSERT INTO mindwell.invite_words ("word") VALUES('haruspex');
-INSERT INTO mindwell.invite_words ("word") VALUES('higgler');
-INSERT INTO mindwell.invite_words ("word") VALUES('hinky');
-INSERT INTO mindwell.invite_words ("word") VALUES('hodiernal');
-INSERT INTO mindwell.invite_words ("word") VALUES('hoggin');
-INSERT INTO mindwell.invite_words ("word") VALUES('hongi');
-INSERT INTO mindwell.invite_words ("word") VALUES('howff');
-INSERT INTO mindwell.invite_words ("word") VALUES('humdudgeon');
-INSERT INTO mindwell.invite_words ("word") VALUES('hwyl');
-INSERT INTO mindwell.invite_words ("word") VALUES('illywhacker');
-INSERT INTO mindwell.invite_words ("word") VALUES('incrassate');
-INSERT INTO mindwell.invite_words ("word") VALUES('incunabula');
-INSERT INTO mindwell.invite_words ("word") VALUES('ingurgitate');
-INSERT INTO mindwell.invite_words ("word") VALUES('inspissate');
-INSERT INTO mindwell.invite_words ("word") VALUES('inunct');
-INSERT INTO mindwell.invite_words ("word") VALUES('jumbuck');
-INSERT INTO mindwell.invite_words ("word") VALUES('jumentous');
-INSERT INTO mindwell.invite_words ("word") VALUES('jungli');
-INSERT INTO mindwell.invite_words ("word") VALUES('karateka');
-INSERT INTO mindwell.invite_words ("word") VALUES('keek');
-INSERT INTO mindwell.invite_words ("word") VALUES('kenspeckle');
-INSERT INTO mindwell.invite_words ("word") VALUES('kinnikinnick');
-INSERT INTO mindwell.invite_words ("word") VALUES('kylie');
-INSERT INTO mindwell.invite_words ("word") VALUES('labarum');
-INSERT INTO mindwell.invite_words ("word") VALUES('lablab');
-INSERT INTO mindwell.invite_words ("word") VALUES('lactarium');
-INSERT INTO mindwell.invite_words ("word") VALUES('liripipe');
-INSERT INTO mindwell.invite_words ("word") VALUES('loblolly');
-INSERT INTO mindwell.invite_words ("word") VALUES('lobola');
-INSERT INTO mindwell.invite_words ("word") VALUES('logomachy');
-INSERT INTO mindwell.invite_words ("word") VALUES('lollygag');
-INSERT INTO mindwell.invite_words ("word") VALUES('luculent');
-INSERT INTO mindwell.invite_words ("word") VALUES('lycanthropy');
-INSERT INTO mindwell.invite_words ("word") VALUES('macushla');
-INSERT INTO mindwell.invite_words ("word") VALUES('mallam');
-INSERT INTO mindwell.invite_words ("word") VALUES('mamaguy');
-INSERT INTO mindwell.invite_words ("word") VALUES('martlet');
-INSERT INTO mindwell.invite_words ("word") VALUES('meacock');
-INSERT INTO mindwell.invite_words ("word") VALUES('merkin');
-INSERT INTO mindwell.invite_words ("word") VALUES('merrythought');
-INSERT INTO mindwell.invite_words ("word") VALUES('mim');
-INSERT INTO mindwell.invite_words ("word") VALUES('mimsy');
-INSERT INTO mindwell.invite_words ("word") VALUES('minacious');
-INSERT INTO mindwell.invite_words ("word") VALUES('minibeast');
-INSERT INTO mindwell.invite_words ("word") VALUES('misogamy');
-INSERT INTO mindwell.invite_words ("word") VALUES('mistigris');
-INSERT INTO mindwell.invite_words ("word") VALUES('mixologist');
-INSERT INTO mindwell.invite_words ("word") VALUES('mollitious');
-INSERT INTO mindwell.invite_words ("word") VALUES('momism');
-INSERT INTO mindwell.invite_words ("word") VALUES('monorchid');
-INSERT INTO mindwell.invite_words ("word") VALUES('moonraker');
-INSERT INTO mindwell.invite_words ("word") VALUES('mudlark');
-INSERT INTO mindwell.invite_words ("word") VALUES('muktuk');
-INSERT INTO mindwell.invite_words ("word") VALUES('mumpsimus');
-INSERT INTO mindwell.invite_words ("word") VALUES('nacarat');
-INSERT INTO mindwell.invite_words ("word") VALUES('nagware');
-INSERT INTO mindwell.invite_words ("word") VALUES('nainsook');
-INSERT INTO mindwell.invite_words ("word") VALUES('natation');
-INSERT INTO mindwell.invite_words ("word") VALUES('nesh');
-INSERT INTO mindwell.invite_words ("word") VALUES('netizen');
-INSERT INTO mindwell.invite_words ("word") VALUES('noctambulist');
-INSERT INTO mindwell.invite_words ("word") VALUES('noyade');
-INSERT INTO mindwell.invite_words ("word") VALUES('nugacity');
-INSERT INTO mindwell.invite_words ("word") VALUES('nympholepsy');
-INSERT INTO mindwell.invite_words ("word") VALUES('obnubilate');
-INSERT INTO mindwell.invite_words ("word") VALUES('ogdoad');
-INSERT INTO mindwell.invite_words ("word") VALUES('omophagy');
-INSERT INTO mindwell.invite_words ("word") VALUES('omphalos');
-INSERT INTO mindwell.invite_words ("word") VALUES('onolatry');
-INSERT INTO mindwell.invite_words ("word") VALUES('operose');
-INSERT INTO mindwell.invite_words ("word") VALUES('opsimath');
-INSERT INTO mindwell.invite_words ("word") VALUES('orectic');
-INSERT INTO mindwell.invite_words ("word") VALUES('orrery');
-INSERT INTO mindwell.invite_words ("word") VALUES('ortanique');
-INSERT INTO mindwell.invite_words ("word") VALUES('otalgia');
-INSERT INTO mindwell.invite_words ("word") VALUES('oxter');
-INSERT INTO mindwell.invite_words ("word") VALUES('paludal');
-INSERT INTO mindwell.invite_words ("word") VALUES('panurgic');
-INSERT INTO mindwell.invite_words ("word") VALUES('parapente');
-INSERT INTO mindwell.invite_words ("word") VALUES('paraph');
-INSERT INTO mindwell.invite_words ("word") VALUES('patulous');
-INSERT INTO mindwell.invite_words ("word") VALUES('pavonine');
-INSERT INTO mindwell.invite_words ("word") VALUES('pedicular');
-INSERT INTO mindwell.invite_words ("word") VALUES('peever');
-INSERT INTO mindwell.invite_words ("word") VALUES('periapt');
-INSERT INTO mindwell.invite_words ("word") VALUES('petcock');
-INSERT INTO mindwell.invite_words ("word") VALUES('peterman');
-INSERT INTO mindwell.invite_words ("word") VALUES('pettitoes');
-INSERT INTO mindwell.invite_words ("word") VALUES('piacular');
-INSERT INTO mindwell.invite_words ("word") VALUES('pilgarlic');
-INSERT INTO mindwell.invite_words ("word") VALUES('pinguid');
-INSERT INTO mindwell.invite_words ("word") VALUES('piscatorial');
-INSERT INTO mindwell.invite_words ("word") VALUES('pleurodynia');
-INSERT INTO mindwell.invite_words ("word") VALUES('plew');
-INSERT INTO mindwell.invite_words ("word") VALUES('pogey');
-INSERT INTO mindwell.invite_words ("word") VALUES('pollex');
-INSERT INTO mindwell.invite_words ("word") VALUES('pooter');
-INSERT INTO mindwell.invite_words ("word") VALUES('portolan');
-INSERT INTO mindwell.invite_words ("word") VALUES('posology');
-INSERT INTO mindwell.invite_words ("word") VALUES('possident');
-INSERT INTO mindwell.invite_words ("word") VALUES('pother');
-INSERT INTO mindwell.invite_words ("word") VALUES('presenteeism');
-INSERT INTO mindwell.invite_words ("word") VALUES('previse');
-INSERT INTO mindwell.invite_words ("word") VALUES('probang');
-INSERT INTO mindwell.invite_words ("word") VALUES('prosopagnosia');
-INSERT INTO mindwell.invite_words ("word") VALUES('puddysticks');
-INSERT INTO mindwell.invite_words ("word") VALUES('pyknic');
-INSERT INTO mindwell.invite_words ("word") VALUES('pyroclastic');
-INSERT INTO mindwell.invite_words ("word") VALUES('ragtop');
-INSERT INTO mindwell.invite_words ("word") VALUES('ratite');
-INSERT INTO mindwell.invite_words ("word") VALUES('rawky');
-INSERT INTO mindwell.invite_words ("word") VALUES('razzia');
-INSERT INTO mindwell.invite_words ("word") VALUES('rebirthing');
-INSERT INTO mindwell.invite_words ("word") VALUES('retiform');
-INSERT INTO mindwell.invite_words ("word") VALUES('rhinoplasty');
-INSERT INTO mindwell.invite_words ("word") VALUES('rubiginous');
-INSERT INTO mindwell.invite_words ("word") VALUES('rubricate');
-INSERT INTO mindwell.invite_words ("word") VALUES('rumpot');
-INSERT INTO mindwell.invite_words ("word") VALUES('sangoma');
-INSERT INTO mindwell.invite_words ("word") VALUES('sarmie');
-INSERT INTO mindwell.invite_words ("word") VALUES('saucier');
-INSERT INTO mindwell.invite_words ("word") VALUES('saudade');
-INSERT INTO mindwell.invite_words ("word") VALUES('scofflaw');
-INSERT INTO mindwell.invite_words ("word") VALUES('screenager');
-INSERT INTO mindwell.invite_words ("word") VALUES('scrippage');
-INSERT INTO mindwell.invite_words ("word") VALUES('selkie');
-INSERT INTO mindwell.invite_words ("word") VALUES('serac');
-INSERT INTO mindwell.invite_words ("word") VALUES('sesquipedalian');
-INSERT INTO mindwell.invite_words ("word") VALUES('shallop');
-INSERT INTO mindwell.invite_words ("word") VALUES('shamal');
-INSERT INTO mindwell.invite_words ("word") VALUES('shavetail');
-INSERT INTO mindwell.invite_words ("word") VALUES('shippon');
-INSERT INTO mindwell.invite_words ("word") VALUES('shofar');
-INSERT INTO mindwell.invite_words ("word") VALUES('skanky');
-INSERT INTO mindwell.invite_words ("word") VALUES('skelf');
-INSERT INTO mindwell.invite_words ("word") VALUES('skimmington');
-INSERT INTO mindwell.invite_words ("word") VALUES('skycap');
-INSERT INTO mindwell.invite_words ("word") VALUES('snakebitten');
-INSERT INTO mindwell.invite_words ("word") VALUES('snollygoster');
-INSERT INTO mindwell.invite_words ("word") VALUES('sockdolager');
-INSERT INTO mindwell.invite_words ("word") VALUES('solander');
-INSERT INTO mindwell.invite_words ("word") VALUES('soucouyant');
-INSERT INTO mindwell.invite_words ("word") VALUES('spaghettification');
-INSERT INTO mindwell.invite_words ("word") VALUES('spitchcock');
-INSERT INTO mindwell.invite_words ("word") VALUES('splanchnic');
-INSERT INTO mindwell.invite_words ("word") VALUES('spurrier');
-INSERT INTO mindwell.invite_words ("word") VALUES('stercoraceous');
-INSERT INTO mindwell.invite_words ("word") VALUES('sternutator');
-INSERT INTO mindwell.invite_words ("word") VALUES('stiction');
-INSERT INTO mindwell.invite_words ("word") VALUES('strappado');
-INSERT INTO mindwell.invite_words ("word") VALUES('strigil');
-INSERT INTO mindwell.invite_words ("word") VALUES('struthious');
-INSERT INTO mindwell.invite_words ("word") VALUES('studmuffin');
-INSERT INTO mindwell.invite_words ("word") VALUES('stylite');
-INSERT INTO mindwell.invite_words ("word") VALUES('subfusc');
-INSERT INTO mindwell.invite_words ("word") VALUES('submontane');
-INSERT INTO mindwell.invite_words ("word") VALUES('succuss');
-INSERT INTO mindwell.invite_words ("word") VALUES('sudd');
-INSERT INTO mindwell.invite_words ("word") VALUES('suedehead');
-INSERT INTO mindwell.invite_words ("word") VALUES('superbious');
-INSERT INTO mindwell.invite_words ("word") VALUES('superette');
-INSERT INTO mindwell.invite_words ("word") VALUES('taniwha');
-INSERT INTO mindwell.invite_words ("word") VALUES('tappen');
-INSERT INTO mindwell.invite_words ("word") VALUES('tellurian');
-INSERT INTO mindwell.invite_words ("word") VALUES('testudo');
-INSERT INTO mindwell.invite_words ("word") VALUES('thalassic');
-INSERT INTO mindwell.invite_words ("word") VALUES('thaumatrope');
-INSERT INTO mindwell.invite_words ("word") VALUES('thirstland');
-INSERT INTO mindwell.invite_words ("word") VALUES('thrutch');
-INSERT INTO mindwell.invite_words ("word") VALUES('thurifer');
-INSERT INTO mindwell.invite_words ("word") VALUES('tiffin');
-INSERT INTO mindwell.invite_words ("word") VALUES('tigon');
-INSERT INTO mindwell.invite_words ("word") VALUES('tokoloshe');
-INSERT INTO mindwell.invite_words ("word") VALUES('toplofty');
-INSERT INTO mindwell.invite_words ("word") VALUES('transpicuous');
-INSERT INTO mindwell.invite_words ("word") VALUES('triskaidekaphobia');
-INSERT INTO mindwell.invite_words ("word") VALUES('triskelion');
-INSERT INTO mindwell.invite_words ("word") VALUES('tsantsa');
-INSERT INTO mindwell.invite_words ("word") VALUES('turbary');
-INSERT INTO mindwell.invite_words ("word") VALUES('ulu');
-INSERT INTO mindwell.invite_words ("word") VALUES('umbriferous');
-INSERT INTO mindwell.invite_words ("word") VALUES('uncinate');
-INSERT INTO mindwell.invite_words ("word") VALUES('uniped');
-INSERT INTO mindwell.invite_words ("word") VALUES('uroboros');
-INSERT INTO mindwell.invite_words ("word") VALUES('ustad');
-INSERT INTO mindwell.invite_words ("word") VALUES('vagarious');
-INSERT INTO mindwell.invite_words ("word") VALUES('velleity');
-INSERT INTO mindwell.invite_words ("word") VALUES('verjuice');
-INSERT INTO mindwell.invite_words ("word") VALUES('vicinal');
-INSERT INTO mindwell.invite_words ("word") VALUES('vidiot');
-INSERT INTO mindwell.invite_words ("word") VALUES('vomitous');
-INSERT INTO mindwell.invite_words ("word") VALUES('wabbit');
-INSERT INTO mindwell.invite_words ("word") VALUES('waitron');
-INSERT INTO mindwell.invite_words ("word") VALUES('wakeboarding');
-INSERT INTO mindwell.invite_words ("word") VALUES('wayzgoose');
-INSERT INTO mindwell.invite_words ("word") VALUES('winebibber');
-INSERT INTO mindwell.invite_words ("word") VALUES('wittol');
-INSERT INTO mindwell.invite_words ("word") VALUES('woopie');
-INSERT INTO mindwell.invite_words ("word") VALUES('wowser');
-INSERT INTO mindwell.invite_words ("word") VALUES('xenology');
-INSERT INTO mindwell.invite_words ("word") VALUES('ylem');
-INSERT INTO mindwell.invite_words ("word") VALUES('zetetic');
-INSERT INTO mindwell.invite_words ("word") VALUES('zoolatry');
-INSERT INTO mindwell.invite_words ("word") VALUES('zopissa');
-INSERT INTO mindwell.invite_words ("word") VALUES('zorro');
 
 
-
--- CREATE TABLE "invites" ------------------------------------
 CREATE TABLE "mindwell"."invites" (
     "id" Serial NOT NULL,
     "referrer_id" Integer NOT NULL,
@@ -1104,15 +340,10 @@ CREATE TABLE "mindwell"."invites" (
     CONSTRAINT "invite_word2" FOREIGN KEY("word2") REFERENCES "mindwell"."invite_words"("id"),
     CONSTRAINT "invite_word3" FOREIGN KEY("word3") REFERENCES "mindwell"."invite_words"("id") );
 ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_referrer_id" ---------------------------
 CREATE INDEX "index_referrer_id" ON "mindwell"."invites" USING btree( "referrer_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_invite_words" ---------------------------
 CREATE UNIQUE INDEX "index_invite_words" ON "mindwell"."invites" USING btree( "word1", "word2", "word3" );
--- -------------------------------------------------------------
 
 INSERT INTO mindwell.invites (referrer_id, word1, word2, word3) VALUES(1, 1, 1, 1);
 INSERT INTO mindwell.invites (referrer_id, word1, word2, word3) VALUES(1, 2, 2, 2);
@@ -1151,8 +382,6 @@ WHERE invites.referrer_id = users.id
     AND invites.word3 = three.id;
 
 
-
--- CREATE TABLE "relation" -------------------------------------
 CREATE TABLE "mindwell"."relation" (
     "id" Integer UNIQUE NOT NULL,
     "type" Text NOT NULL );
@@ -1162,11 +391,8 @@ INSERT INTO "mindwell"."relation" VALUES(1, 'requested');
 INSERT INTO "mindwell"."relation" VALUES(2, 'cancelled');
 INSERT INTO "mindwell"."relation" VALUES(3, 'ignored');
 INSERT INTO "mindwell"."relation" VALUES(4, 'hidden');
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "relations" ------------------------------------
 CREATE TABLE "mindwell"."relations" (
 	"from_id" Integer NOT NULL,
 	"to_id" Integer NOT NULL,
@@ -1177,15 +403,10 @@ CREATE TABLE "mindwell"."relations" (
     CONSTRAINT "unique_to_relation" FOREIGN KEY ("to_id") REFERENCES "mindwell"."users"("id"),
     CONSTRAINT "enum_relation_type" FOREIGN KEY("type") REFERENCES "mindwell"."relation"("id") );
  ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_related_to_users" -----------------------
 CREATE INDEX "index_related_to_users" ON "mindwell"."relations" USING btree( "to_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_related_from_users" ---------------------
 CREATE INDEX "index_related_from_users" ON "mindwell"."relations" USING btree( "from_id" );
--- -------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION mindwell.count_relations_ins() RETURNS TRIGGER AS $$
     BEGIN
@@ -1255,8 +476,6 @@ CREATE TRIGGER relation_from_ignored
     FOR EACH ROW EXECUTE PROCEDURE mindwell.del_relation_from_ignored();
 
 
-
--- CREATE TABLE "entry_privacy" --------------------------------
 CREATE TABLE "mindwell"."entry_privacy" (
     "id" Integer UNIQUE NOT NULL,
     "type" Text NOT NULL );
@@ -1268,11 +487,8 @@ INSERT INTO "mindwell"."entry_privacy" VALUES(3, 'anonymous');
 INSERT INTO "mindwell"."entry_privacy" VALUES(4, 'registered');
 INSERT INTO "mindwell"."entry_privacy" VALUES(5, 'invited');
 INSERT INTO "mindwell"."entry_privacy" VALUES(6, 'followers');
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "categories" -----------------------------------
 CREATE TABLE "mindwell"."categories" (
     "id" Integer UNIQUE NOT NULL,
     "type" Text NOT NULL );
@@ -1281,8 +497,6 @@ INSERT INTO "mindwell"."categories" VALUES(0, 'tweet');
 INSERT INTO "mindwell"."categories" VALUES(1, 'longread');
 INSERT INTO "mindwell"."categories" VALUES(2, 'media');
 INSERT INTO "mindwell"."categories" VALUES(3, 'comment');
--- -------------------------------------------------------------
-
 
 
 CREATE OR REPLACE FUNCTION to_search_vector(title TEXT, content TEXT)
@@ -1292,7 +506,7 @@ BEGIN
 END
 $$ LANGUAGE plpgsql IMMUTABLE;
 
--- CREATE TABLE "entries" --------------------------------------
+
 CREATE TABLE "mindwell"."entries" (
 	"id" Serial NOT NULL,
 	"created_at" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -1322,40 +536,23 @@ CREATE TABLE "mindwell"."entries" (
     CONSTRAINT "enum_entry_privacy" FOREIGN KEY("visible_for") REFERENCES "mindwell"."entry_privacy"("id"),
     CONSTRAINT "entry_category" FOREIGN KEY("category") REFERENCES "mindwell"."categories"("id") );
  ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_entry_id" -------------------------------
 CREATE INDEX "index_entry_id" ON "mindwell"."entries" USING btree( "id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_entry_date" -----------------------------
 CREATE INDEX "index_entry_date" ON "mindwell"."entries" USING btree( "created_at" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_entry_author_id" ------------------------
 CREATE INDEX "index_entry_author_id" ON "mindwell"."entries" USING btree( "author_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_entry_user_id" --------------------------
 CREATE INDEX "index_entry_user_id" ON "mindwell"."entries" USING btree( "user_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_entry_rating" ---------------------------
 CREATE INDEX "index_entry_rating" ON "mindwell"."entries" USING btree( "rating" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_entry_word_count" -----------------------
 CREATE INDEX "index_entry_word_count" ON "mindwell"."entries" USING btree( "word_count" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_last_comment_id" ------------------------
 CREATE INDEX "index_last_comment_id" ON "mindwell"."entries" USING btree( "last_comment" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_entry_search" ---------------------------
 CREATE INDEX "index_entry_search" ON "mindwell"."entries" USING rum
     (to_search_vector("title", "edit_content") rum_tsvector_ops);
--- -------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION mindwell.notify_entries() RETURNS TRIGGER AS $$
     BEGIN
@@ -1425,31 +622,21 @@ CREATE TRIGGER cnt_tlog_entries_del
     EXECUTE PROCEDURE mindwell.dec_tlog_entries();
 
 
-
 ALTER TABLE users
 ADD CONSTRAINT "user_pinned_entry" FOREIGN KEY("pinned_entry") REFERENCES "mindwell"."entries"("id");
 
 
-
--- CREATE TABLE "tags" -----------------------------------------
 CREATE TABLE "mindwell"."tags" (
     "id" Serial NOT NULL,
     "tag" Text NOT NULL,
     CONSTRAINT "unique_tag_id" PRIMARY KEY( "id" ) );
 ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_tag" ------------------------------------
 CREATE UNIQUE INDEX "index_tag" ON "mindwell"."tags" USING btree( "tag" ) ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_tag_search" -----------------------------
 CREATE INDEX "index_tag_search" ON "mindwell"."tags" USING GIST("tag" gist_trgm_ops);
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "entry_tags" -----------------------------------
 CREATE TABLE "mindwell"."entry_tags" (
     "entry_id" Integer NOT NULL,
     "tag_id" Integer NOT NULL,
@@ -1457,15 +644,10 @@ CREATE TABLE "mindwell"."entry_tags" (
     CONSTRAINT "entry_tags_tag" FOREIGN KEY("tag_id") REFERENCES "mindwell"."tags"("id"),
     CONSTRAINT "unique_entry_tag" UNIQUE("entry_id", "tag_id") );
 ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_tag" ------------------------------------
 CREATE INDEX "index_entry_tags_entry" ON "mindwell"."entry_tags" USING btree( "entry_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_tag" ------------------------------------
 CREATE INDEX "index_entry_tags_tag" ON "mindwell"."entry_tags" USING btree( "tag_id" );
--- -------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION mindwell.count_tags_ins() RETURNS TRIGGER AS $$
     BEGIN
@@ -1563,8 +745,6 @@ CREATE TRIGGER cnt_tags_del
     EXECUTE PROCEDURE mindwell.count_tags_del();
 
 
-
--- CREATE TABLE "favorites" ------------------------------------
 CREATE TABLE "mindwell"."favorites" (
 	"user_id" Integer NOT NULL,
 	"entry_id" Integer NOT NULL,
@@ -1573,15 +753,10 @@ CREATE TABLE "mindwell"."favorites" (
     CONSTRAINT "favorite_entry_id" FOREIGN KEY("entry_id") REFERENCES "mindwell"."entries"("id") ON DELETE CASCADE,
     CONSTRAINT "unique_user_favorite" UNIQUE("user_id", "entry_id") );
  ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_favorite_entries" -----------------------
 CREATE INDEX "index_favorite_entries" ON "mindwell"."favorites" USING btree( "entry_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_favorite_users" -------------------------
 CREATE INDEX "index_favorite_users" ON "mindwell"."favorites" USING btree( "user_id" );
--- -------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION mindwell.inc_favorites() RETURNS TRIGGER AS $$
     BEGIN
@@ -1620,8 +795,6 @@ CREATE TRIGGER cnt_favorites_dec
     FOR EACH ROW EXECUTE PROCEDURE mindwell.dec_favorites();
 
 
-
--- CREATE TABLE "watching" -------------------------------------
 CREATE TABLE "mindwell"."watching" (
 	"user_id" Integer NOT NULL,
 	"entry_id" Integer NOT NULL,
@@ -1630,19 +803,12 @@ CREATE TABLE "mindwell"."watching" (
     CONSTRAINT "watching_entry_id" FOREIGN KEY("entry_id") REFERENCES "mindwell"."entries"("id") ON DELETE CASCADE,
     CONSTRAINT "unique_user_watching" UNIQUE("user_id", "entry_id") );
  ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_watching_entries" -----------------------
 CREATE INDEX "index_watching_entries" ON "mindwell"."watching" USING btree( "entry_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_watching_users" -------------------------
 CREATE INDEX "index_watching_users" ON "mindwell"."watching" USING btree( "user_id" );
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "entry_votes" ----------------------------------
 CREATE TABLE "mindwell"."entry_votes" (
 	"user_id" Integer NOT NULL,
 	"entry_id" Integer NOT NULL,
@@ -1652,15 +818,10 @@ CREATE TABLE "mindwell"."entry_votes" (
     CONSTRAINT "entry_vote_entry_id" FOREIGN KEY("entry_id") REFERENCES "mindwell"."entries"("id") ON DELETE CASCADE,
     CONSTRAINT "unique_entry_vote" UNIQUE("user_id", "entry_id") );
  ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_voted_entries" --------------------------
 CREATE INDEX "index_voted_entries" ON "mindwell"."entry_votes" USING btree( "entry_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_voted_users" ----------------------------
 CREATE INDEX "index_voted_users" ON "mindwell"."entry_votes" USING btree( "user_id" );
--- -------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION mindwell.entry_votes_ins() RETURNS TRIGGER AS $$
     BEGIN
@@ -1771,8 +932,6 @@ CREATE TRIGGER cnt_entry_votes_del
     EXECUTE PROCEDURE mindwell.entry_votes_del();
 
 
-
--- CREATE TABLE "vote_weights" ---------------------------------
 CREATE TABLE "mindwell"."vote_weights" (
 	"user_id" Integer NOT NULL,
 	"category" Integer NOT NULL,
@@ -1784,11 +943,8 @@ CREATE TABLE "mindwell"."vote_weights" (
     CONSTRAINT "vote_weights_category" FOREIGN KEY("category") REFERENCES "mindwell"."categories"("id"),
     CONSTRAINT "unique_vote_weight" UNIQUE("user_id", "category") );
  ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_vote_weights" ---------------------------
 CREATE INDEX "index_vote_weights" ON "mindwell"."vote_weights" USING btree( "user_id" );
--- -------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION mindwell.create_vote_weights() RETURNS TRIGGER AS $$
     BEGIN
@@ -1806,8 +962,6 @@ CREATE TRIGGER crt_vote_weights
     FOR EACH ROW EXECUTE PROCEDURE mindwell.create_vote_weights();
 
 
-
--- CREATE TABLE "entries_privacy" ------------------------------
 CREATE TABLE "mindwell"."entries_privacy" (
 	"user_id" Integer NOT NULL,
 	"entry_id" Integer NOT NULL,
@@ -1815,19 +969,12 @@ CREATE TABLE "mindwell"."entries_privacy" (
     CONSTRAINT "entries_privacy_entry_id" FOREIGN KEY("entry_id") REFERENCES "mindwell"."entries"("id") ON DELETE CASCADE,
     CONSTRAINT "unique_entry_privacy" UNIQUE("user_id", "entry_id") );
  ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_private_entries" ------------------------
 CREATE INDEX "index_private_entries" ON "mindwell"."entries_privacy" USING btree( "entry_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_private_users" --------------------------
 CREATE INDEX "index_private_users" ON "mindwell"."entries_privacy" USING btree( "user_id" );
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "comments" -------------------------------------
 CREATE TABLE "mindwell"."comments" (
 	"id" Serial NOT NULL,
 	"author_id" Integer NOT NULL,
@@ -1845,15 +992,11 @@ CREATE TABLE "mindwell"."comments" (
     CONSTRAINT "comment_user_id" FOREIGN KEY("user_id") REFERENCES "mindwell"."users"("id"),
     CONSTRAINT "comment_entry_id" FOREIGN KEY("entry_id") REFERENCES "mindwell"."entries"("id") ON DELETE CASCADE );
  ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_comment_entry_id" -----------------------
 CREATE INDEX "index_comment_entry_id" ON "mindwell"."comments" USING btree( "entry_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_comment_date" ---------------------------
 CREATE INDEX "index_comment_date" ON "mindwell"."comments" USING btree( "created_at" );
--- -------------------------------------------------------------
+
 
 ALTER TABLE "mindwell"."entries"
 ADD CONSTRAINT "entry_last_comment_id" FOREIGN KEY("last_comment") REFERENCES "mindwell"."comments"("id");
@@ -1931,8 +1074,6 @@ CREATE TRIGGER last_comments_del
     FOR EACH ROW EXECUTE PROCEDURE mindwell.set_last_comment_del();
 
 
-
--- CREATE TABLE "comment_votes" --------------------------------
 CREATE TABLE "mindwell"."comment_votes" (
 	"user_id" Integer NOT NULL,
 	"comment_id" Integer NOT NULL,
@@ -1942,15 +1083,10 @@ CREATE TABLE "mindwell"."comment_votes" (
     CONSTRAINT "comment_vote_comment_id" FOREIGN KEY("comment_id") REFERENCES "mindwell"."comments"("id") ON DELETE CASCADE,
     CONSTRAINT "unique_comment_vote" UNIQUE("user_id", "comment_id") );
  ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_voted_comments" -------------------------
 CREATE INDEX "index_voted_comments" ON "mindwell"."comment_votes" USING btree( "comment_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_comment_voted_users" --------------------
 CREATE INDEX "index_comment_voted_users" ON "mindwell"."comment_votes" USING btree( "user_id" );
--- -------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION mindwell.comment_votes_ins() RETURNS TRIGGER AS $$
     BEGIN
@@ -2064,14 +1200,11 @@ CREATE TRIGGER cnt_comment_votes_del
     EXECUTE PROCEDURE mindwell.comment_votes_del();
 
 
-
 INSERT INTO mindwell.users
     (name, show_name, email, password_hash, invited_by, rank)
     VALUES('Mindwell', 'Mindwell', '', '', 1, 1);
 
 
-
--- CREATE TABLE "notification_type" ----------------------------
 CREATE TABLE "mindwell"."notification_type" (
     "id" Integer UNIQUE NOT NULL,
     "type" Text NOT NULL );
@@ -2090,11 +1223,8 @@ INSERT INTO "mindwell"."notification_type" VALUES(10, 'wish_created');
 INSERT INTO "mindwell"."notification_type" VALUES(11, 'wish_received');
 INSERT INTO "mindwell"."notification_type" VALUES(12, 'entry_moved');
 INSERT INTO "mindwell"."notification_type" VALUES(13, 'badge');
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "notifications" --------------------------------
 CREATE TABLE "mindwell"."notifications" (
     "id" Serial NOT NULL,
     "user_id" Integer NOT NULL,
@@ -2106,19 +1236,12 @@ CREATE TABLE "mindwell"."notifications" (
     CONSTRAINT "notification_user_id" FOREIGN KEY("user_id") REFERENCES "mindwell"."users"("id"),
     CONSTRAINT "enum_notification_type" FOREIGN KEY("type") REFERENCES "mindwell"."notification_type"("id") );
 ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_notification_id" ------------------------
 CREATE UNIQUE INDEX "index_notification_id" ON "mindwell"."notifications" USING btree( "id" );
--- -------------------------------------------------------------
 
--- CREATE "index_notification_user_id" -------------------
 CREATE INDEX "index_notification_user_id" ON "mindwell"."notifications" USING btree( "user_id" );
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "info" -----------------------------------------
 CREATE TABLE "mindwell"."info" (
     "id" Serial NOT NULL,
     "created_at" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -2126,11 +1249,8 @@ CREATE TABLE "mindwell"."info" (
     "link" Text NOT NULL,
 	CONSTRAINT "unique_info_id" PRIMARY KEY("id") );
 ;
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "images" ---------------------------------------
 CREATE TABLE "mindwell"."images" (
 	"id" Serial NOT NULL,
     "user_id" Integer NOT NULL,
@@ -2142,19 +1262,12 @@ CREATE TABLE "mindwell"."images" (
 	CONSTRAINT "unique_image_id" PRIMARY KEY("id"),
     CONSTRAINT "image_user_id" FOREIGN KEY("user_id") REFERENCES "mindwell"."users"("id"));
  ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_image_id" -------------------------------
 CREATE UNIQUE INDEX "index_image_id" ON "mindwell"."images" USING btree( "id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_image_path" -----------------------------
 CREATE UNIQUE INDEX "index_image_path" ON "mindwell"."images" USING btree( "path" );
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "size" -----------------------------------------
 CREATE TABLE "mindwell"."size" (
     "id" Integer UNIQUE NOT NULL,
     "type" Text NOT NULL );
@@ -2163,11 +1276,8 @@ INSERT INTO "mindwell"."size" VALUES(0, 'small');
 INSERT INTO "mindwell"."size" VALUES(1, 'medium');
 INSERT INTO "mindwell"."size" VALUES(2, 'large');
 INSERT INTO "mindwell"."size" VALUES(3, 'thumbnail');
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "image_sizes" ----------------------------------
 CREATE TABLE "mindwell"."image_sizes" (
     "image_id" Integer NOT NULL,
     "size" Integer NOT NULL,
@@ -2177,15 +1287,10 @@ CREATE TABLE "mindwell"."image_sizes" (
     CONSTRAINT "unique_image_id" FOREIGN KEY ("image_id") REFERENCES "mindwell"."images"("id") ON DELETE CASCADE,
     CONSTRAINT "enum_image_size" FOREIGN KEY("size") REFERENCES "mindwell"."size"("id")
 );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_image_size_id" --------------------------
 CREATE INDEX "index_image_size_id" ON "mindwell"."image_sizes" USING btree( "image_id" );
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "entry_images" ---------------------------------
 CREATE TABLE "mindwell"."entry_images" (
     "entry_id" Integer NOT NULL,
     "image_id" Integer NOT NULL,
@@ -2194,19 +1299,12 @@ CREATE TABLE "mindwell"."entry_images" (
     CONSTRAINT "entry_images_image" FOREIGN KEY("image_id") REFERENCES "mindwell"."images"("id") ON DELETE CASCADE,
     CONSTRAINT "unique_entry_image" UNIQUE("entry_id", "image_id") );
 ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_entry_images_entry" ---------------------
 CREATE INDEX "index_entry_images_entry" ON "mindwell"."entry_images" USING btree( "entry_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_entry_images_image" ---------------------
 CREATE INDEX "index_entry_images_image" ON "mindwell"."entry_images" USING btree( "image_id" );
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "complain_type" -------------------------------
 CREATE TABLE "mindwell"."complain_type" (
     "id" Integer UNIQUE NOT NULL,
     "type" Text NOT NULL );
@@ -2217,9 +1315,8 @@ INSERT INTO "mindwell"."complain_type" VALUES(2, 'message');
 INSERT INTO "mindwell"."complain_type" VALUES(3, 'user');
 INSERT INTO "mindwell"."complain_type" VALUES(4, 'theme');
 INSERT INTO "mindwell"."complain_type" VALUES(5, 'wish');
--- -------------------------------------------------------------
 
--- CREATE TABLE "complains" ------------------------------------
+
 CREATE TABLE "mindwell"."complains" (
     "id" Serial NOT NULL,
     "user_id" Integer NOT NULL,
@@ -2231,16 +1328,10 @@ CREATE TABLE "mindwell"."complains" (
     CONSTRAINT "complain_user_id" FOREIGN KEY("user_id") REFERENCES "mindwell"."users"("id"),
     CONSTRAINT "enum_complain_type" FOREIGN KEY("type") REFERENCES "mindwell"."complain_type"("id") );
 ;
--- -------------------------------------------------------------
 
--- CREATE "index_complain_user_id" -------------------
 CREATE INDEX "index_complain_user_id" ON "mindwell"."complains" USING btree( "user_id" );
--- -------------------------------------------------------------
 
 
-
-
--- CREATE TABLE "chats" ----------------------------------------
 CREATE TABLE "mindwell"."chats" (
 	"id" Serial NOT NULL,
     "created_at" Timestamp With Time Zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -2252,27 +1343,16 @@ CREATE TABLE "mindwell"."chats" (
 	CONSTRAINT "chat_partner" FOREIGN KEY ("partner_id") REFERENCES "mindwell"."users"("id") ON DELETE CASCADE,
 	CONSTRAINT "unique_chat_partners" UNIQUE ( "creator_id", "partner_id" ) );
  ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_chat_id" --------------------------------
 CREATE INDEX "index_chat_id" ON "mindwell"."chats" USING btree( "id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_chat_creator_id" ------------------------
 CREATE INDEX "index_chat_creator_id" ON "mindwell"."chats" USING btree( "creator_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_chat_partner_id" ------------------------
 CREATE INDEX "index_chat_partner_id" ON "mindwell"."chats" USING btree( "partner_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_last_message_id" ------------------------
 CREATE INDEX "index_last_message_id" ON "mindwell"."chats" USING btree( "last_message" );
--- -------------------------------------------------------------
 
 
-
--- CREATE TABLE "messages" -------------------------------------
 CREATE TABLE "mindwell"."messages" (
 	"id" Serial NOT NULL,
 	"chat_id" Integer NOT NULL,
@@ -2284,15 +1364,11 @@ CREATE TABLE "mindwell"."messages" (
     CONSTRAINT "message_user_id" FOREIGN KEY("author_id") REFERENCES "mindwell"."users"("id") ON DELETE CASCADE,
     CONSTRAINT "message_chat_id" FOREIGN KEY("chat_id") REFERENCES "mindwell"."chats"("id") ON DELETE CASCADE );
  ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_message_id" -----------------------------
 CREATE INDEX "index_message_id" ON "mindwell"."messages" USING btree( "id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_message_chat" ---------------------------
 CREATE INDEX "index_message_chat" ON "mindwell"."messages" USING btree( "chat_id" );
--- -------------------------------------------------------------
+
 
 ALTER TABLE "mindwell"."chats"
 ADD CONSTRAINT "chat_last_message_id" FOREIGN KEY("last_message") REFERENCES "mindwell"."messages"("id");
@@ -2330,8 +1406,6 @@ CREATE TRIGGER last_messages_del
     FOR EACH ROW EXECUTE PROCEDURE mindwell.set_last_message_del();
 
 
-
--- CREATE TABLE "talkers" --------------------------------------
 CREATE TABLE "mindwell"."talkers" (
 	"chat_id" Integer NOT NULL,
 	"user_id" Integer NOT NULL,
@@ -2341,15 +1415,10 @@ CREATE TABLE "mindwell"."talkers" (
     CONSTRAINT "talkers_user_id" FOREIGN KEY("user_id") REFERENCES "mindwell"."users"("id") ON DELETE CASCADE,
     CONSTRAINT "talkers_chat_id" FOREIGN KEY("chat_id") REFERENCES "mindwell"."chats"("id") ON DELETE CASCADE);
  ;
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_talkers_chat" ---------------------------
 CREATE INDEX "index_talkers_chat" ON "mindwell"."talkers" USING btree( "chat_id" );
--- -------------------------------------------------------------
 
--- CREATE INDEX "index_talkers_user" ---------------------------
 CREATE INDEX "index_talkers_user" ON "mindwell"."talkers" USING btree( "user_id" );
--- -------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION mindwell.count_unread_ins() RETURNS TRIGGER AS $$
     BEGIN
@@ -2381,7 +1450,6 @@ CREATE TRIGGER cnt_unread_del
     FOR EACH ROW EXECUTE PROCEDURE mindwell.count_unread_del();
 
 
-
 CREATE TABLE "mindwell"."badges" (
     "id" Serial NOT NULL,
     "code" Text NOT NULL,
@@ -2393,6 +1461,7 @@ CREATE TABLE "mindwell"."badges" (
     CONSTRAINT "unique_badge_id" PRIMARY KEY ( "id" ),
     CONSTRAINT "unique_badge_code_level" UNIQUE ( "code", "level" )
 );
+
 
 CREATE TABLE "mindwell"."user_badges" (
     "user_id" Integer NOT NULL,
@@ -2454,7 +1523,6 @@ CREATE TRIGGER ntf_badges
     FOR EACH ROW EXECUTE FUNCTION mindwell.notify_user_badges();
 
 
-
 CREATE TABLE "mindwell"."apps" (
     "id" Integer UNIQUE NOT NULL,
     "secret_hash" Bytea NOT NULL,
@@ -2469,6 +1537,7 @@ CREATE TABLE "mindwell"."apps" (
      CONSTRAINT "unique_app_id" PRIMARY KEY("id"),
      CONSTRAINT "app_developer_id" FOREIGN KEY("developer_id") REFERENCES "mindwell"."users"("id") ON DELETE CASCADE
 );
+
 
 CREATE TABLE "mindwell"."sessions" (
     "id" Bigserial,
@@ -2487,6 +1556,7 @@ CREATE TABLE "mindwell"."sessions" (
 CREATE INDEX "index_access_hash" ON "mindwell"."sessions" USING btree( "access_hash" );
 CREATE INDEX "index_refresh_hash" ON "mindwell"."sessions" USING btree( "refresh_hash" );
 
+
 CREATE TABLE "mindwell"."app_tokens" (
     "app_id" Integer NOT NULL,
     "token_hash" Bytea NOT NULL,
@@ -2495,7 +1565,6 @@ CREATE TABLE "mindwell"."app_tokens" (
 );
 
 CREATE INDEX "index_app_token_hash" ON "mindwell"."app_tokens" USING btree( "token_hash" );
-
 
 
 CREATE TABLE "mindwell"."user_log" (
@@ -2519,7 +1588,6 @@ ORDER BY at DESC;
 CREATE INDEX "index_requested_at" ON "mindwell"."user_log" USING btree( "at" );
 
 CREATE INDEX "index_user_log_name" ON "mindwell"."user_log" USING btree( "name" );
-
 
 
 CREATE OR REPLACE FUNCTION mindwell.give_invites() RETURNS TABLE(user_id int) AS $$
@@ -2574,7 +1642,6 @@ FROM inviters, wc
 ON CONFLICT (word1, word2, word3) DO NOTHING
 RETURNING referrer_id;
 $$ LANGUAGE SQL;
-
 
 
 CREATE OR REPLACE FUNCTION mindwell.recalc_karma() RETURNS VOID AS $$
@@ -2670,7 +1737,6 @@ CREATE OR REPLACE FUNCTION mindwell.recalc_karma() RETURNS VOID AS $$
 $$ LANGUAGE SQL;
 
 
-
 CREATE OR REPLACE FUNCTION mindwell.ban_invite(userName Text) RETURNS VOID AS $$
     DELETE FROM mindwell.invites
     WHERE referrer_id = (SELECT id FROM mindwell.users WHERE lower(name) = lower(userName));
@@ -2679,7 +1745,6 @@ CREATE OR REPLACE FUNCTION mindwell.ban_invite(userName Text) RETURNS VOID AS $$
     SET invite_ban = CURRENT_DATE + interval '1 month'
     WHERE lower(name) = lower(userName);
 $$ LANGUAGE SQL;
-
 
 
 CREATE OR REPLACE FUNCTION mindwell.delete_user(user_name TEXT) RETURNS VOID AS $$
