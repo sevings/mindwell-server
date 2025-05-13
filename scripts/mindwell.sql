@@ -2189,6 +2189,7 @@ CREATE INDEX "index_image_size_id" ON "mindwell"."image_sizes" USING btree( "ima
 CREATE TABLE "mindwell"."entry_images" (
     "entry_id" Integer NOT NULL,
     "image_id" Integer NOT NULL,
+    "image_order" INTEGER NOT NULL,
     CONSTRAINT "entry_images_entry" FOREIGN KEY("entry_id") REFERENCES "mindwell"."entries"("id") ON DELETE CASCADE,
     CONSTRAINT "entry_images_image" FOREIGN KEY("image_id") REFERENCES "mindwell"."images"("id") ON DELETE CASCADE,
     CONSTRAINT "unique_entry_image" UNIQUE("entry_id", "image_id") );

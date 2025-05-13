@@ -2,6 +2,8 @@ package entries
 
 import (
 	"database/sql"
+	"strings"
+
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/leporo/sqlf"
 	"github.com/sevings/mindwell-server/models"
@@ -10,7 +12,6 @@ import (
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"github.com/sevings/mindwell-server/utils"
-	"strings"
 )
 
 type addQuery func(stmt *sqlf.Stmt)
@@ -337,12 +338,8 @@ func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID
 	}
 
 	for _, entry := range feed.Entries {
-		var images []int64
-		var imageID int64
-		tx.Query("SELECT image_id from entry_images WHERE entry_id = $1 ORDER BY image_id", entry.ID)
-		for tx.Scan(&imageID) {
-			images = append(images, imageID)
-		}
+		tx.Query("SELECT image_id from entry_images WHERE entry_id = $1 ORDER BY image_order", entry.ID)
+		images := tx.ScanInt64s()
 
 		loadEntryImages(srv, tx, entry, images)
 		loadEntryTags(tx, entry)

@@ -3,16 +3,17 @@ package entries
 import (
 	"database/sql"
 	"errors"
-	"github.com/Workiva/go-datastructures/bitarray"
-	"github.com/leporo/sqlf"
-	"github.com/sevings/mindwell-server/internal/app/mindwell-server/comments"
-	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"log"
 	"math/rand"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Workiva/go-datastructures/bitarray"
+	"github.com/leporo/sqlf"
+	"github.com/sevings/mindwell-server/internal/app/mindwell-server/comments"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
 
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -221,7 +222,7 @@ func createEntry(tx *utils.AutoTx, userID *models.UserID, entry *models.Entry) *
 		is_commentable, is_votable, is_anonymous, in_live, is_shared,
 		category)
 	VALUES ($1, $2, $3, $4, $5,
-		(SELECT id FROM entry_privacy WHERE type = $6), 
+		(SELECT id FROM entry_privacy WHERE type = $6),
 		$7, $8, $9, $10, $11,
 		(SELECT id from categories WHERE type = $12))
 	RETURNING id, extract(epoch from created_at)`
@@ -257,10 +258,10 @@ func loadEntryTags(tx *utils.AutoTx, entry *models.Entry) {
 }
 
 func attachImages(tx *utils.AutoTx, entry *models.Entry) {
-	const q = "INSERT INTO entry_images(entry_id, image_id)	VALUES($1, $2)"
+	const q = "INSERT INTO entry_images(entry_id, image_id, image_order) VALUES($1, $2, $3)"
 	allImages := append(entry.Images, entry.InsertedImages...)
-	for _, img := range allImages {
-		tx.Exec(q, entry.ID, img.ID)
+	for i, img := range allImages {
+		tx.Exec(q, entry.ID, img.ID, i)
 	}
 }
 
@@ -333,7 +334,7 @@ func canPostInLive(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 	}
 
 	var entryCount int64
-	const countQ = `SELECT count(*) FROM entries WHERE user_id = $1 
+	const countQ = `SELECT count(*) FROM entries WHERE user_id = $1
 		AND date_trunc('day', created_at) = CURRENT_DATE AND in_live
 	`
 	tx.Query(countQ, userID.ID).Scan(&entryCount)
@@ -529,8 +530,8 @@ func updateEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 	const q = `
 	UPDATE entries
 	SET title = $1, edit_content = $2,
-	word_count = $3, 
-	visible_for = (SELECT id FROM entry_privacy WHERE type = $4), 
+	word_count = $3,
+	visible_for = (SELECT id FROM entry_privacy WHERE type = $4),
 	is_commentable = $5, is_votable = $6, in_live = $7, is_shared = $8,
 	category = (SELECT id from categories WHERE type = $9)
 	WHERE id = $10 AND user_id = $11
@@ -583,13 +584,13 @@ func canEditInLive(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 	var entryCount int64
 	const countQ = `
 		SELECT count(*)
-		FROM entries, 
+		FROM entries,
 			(
 				SELECT created_at
 				FROM entries
 				WHERE id = $2
 			) AS entry
-		WHERE author_id = $1 
+		WHERE author_id = $1
 			AND date_trunc('day', entries.created_at) = date_trunc('day', entry.created_at)
 			AND in_live
 	`
