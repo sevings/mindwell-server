@@ -64,7 +64,7 @@ func (th TokenHash) ResetPasswordCode(email string) (string, int64) {
 
 func (th TokenHash) CheckResetPasswordCode(email, code string, date int64) bool {
 	now := time.Now().Unix()
-	if (now - date) >= 60*60 {
+	if (now - date) >= 3*60*60 {
 		return false
 	}
 

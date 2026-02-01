@@ -263,7 +263,7 @@ func (pm *Postman) SendResetPassword(address, name, gender, code string, date in
 			},
 			Actions: []hermes.Action{
 				{
-					Instructions: "Или открой эту ссылку и придумай хороший новый пароль. Она будет действительна в течение часа.",
+					Instructions: "Или открой эту ссылку и придумай хороший новый пароль. Она будет действительна в течение трех часов.",
 					Button: hermes.Button{
 						Color: "#22BC66",
 						Text:  "Сбросить пароль",
