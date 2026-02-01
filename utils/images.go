@@ -125,17 +125,24 @@ func loadImageNotCached(srv *MindwellServer, tx *AutoTx, imageID int64) *models.
 }
 
 func LoadImage(srv *MindwellServer, tx *AutoTx, imageID int64) *models.Image {
+	var img models.Image
 	idStr := strconv.FormatInt(imageID, 10)
 	oldImg, found := srv.Imgs.Get(idStr)
 	if found {
-		return oldImg.(*models.Image)
+		img = *oldImg.(*models.Image)
+	} else {
+		newImg := loadImageNotCached(srv, tx, imageID)
+		if newImg == nil || newImg.Processing {
+			return newImg
+		}
+		if !newImg.Processing {
+			srv.Imgs.Set(idStr, newImg, cache.DefaultExpiration)
+		}
+
+		img = *newImg
 	}
 
-	img := loadImageNotCached(srv, tx, imageID)
-	if img == nil || img.Processing {
-		return img
-	}
+	img.Author = LoadUser(tx, img.Author.ID)
 
-	srv.Imgs.Set(idStr, img, cache.DefaultExpiration)
-	return img
+	return &img
 }
