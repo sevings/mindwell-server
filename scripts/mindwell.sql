@@ -622,7 +622,7 @@ CREATE TRIGGER cnt_tlog_entries_del
     EXECUTE PROCEDURE mindwell.dec_tlog_entries();
 
 
-ALTER TABLE users
+ALTER TABLE "mindwell"."users"
 ADD CONSTRAINT "user_pinned_entry" FOREIGN KEY("pinned_entry") REFERENCES "mindwell"."entries"("id");
 
 
@@ -1461,6 +1461,10 @@ CREATE TABLE "mindwell"."badges" (
     CONSTRAINT "unique_badge_id" PRIMARY KEY ( "id" ),
     CONSTRAINT "unique_badge_code_level" UNIQUE ( "code", "level" )
 );
+
+INSERT INTO "mindwell"."badges" ("code", "title", "description", "icon")
+VALUES ('test1', 'test1', 'test badge 1', 'test1.webp'),
+       ('test2', 'test2', 'test badge 2', 'test2.webp');
 
 
 CREATE TABLE "mindwell"."user_badges" (
