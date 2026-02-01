@@ -77,7 +77,7 @@ func TestMain(m *testing.M) {
 		log.Fatal("Email count")
 	}
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		email := "test" + strconv.Itoa(i) + "@example.com"
 		if esm.Emails[i] != email {
 			log.Fatal("Greeting has not sent to ", email)

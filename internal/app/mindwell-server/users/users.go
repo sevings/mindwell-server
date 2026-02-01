@@ -84,7 +84,7 @@ LEFT JOIN chats ON (chats.creator_id = users.id AND chats.partner_id = $2)
                        OR (chats.creator_id = $2 AND chats.partner_id = users.id)
 `
 
-func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, userID *models.UserID, arg interface{}) *models.Profile {
+func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, userID *models.UserID, arg any) *models.Profile {
 	var profile models.Profile
 	profile.Design = &models.Design{}
 	profile.Counts = &models.FriendAO1Counts{}
@@ -492,7 +492,7 @@ WHERE `
 const loadUserQueryID = loadUserQuery + "id = $1"
 const loadUserQueryName = loadUserQuery + "lower(name) = lower($1)"
 
-func loadUser(srv *utils.MindwellServer, tx *utils.AutoTx, query string, arg interface{}) *models.User {
+func loadUser(srv *utils.MindwellServer, tx *utils.AutoTx, query string, arg any) *models.User {
 	var user models.User
 	var avatar string
 

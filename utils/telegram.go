@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -72,7 +73,7 @@ type TelegramBot struct {
 	msgs   *cache.Cache
 	rels   *cache.Cache
 	send   chan func()
-	stop   chan interface{}
+	stop   chan any
 }
 
 type messageID struct {
@@ -96,7 +97,7 @@ func NewTelegramBot(srv *MindwellServer) *TelegramBot {
 		msgs:   cache.New(12*time.Hour, 1*time.Hour),
 		rels:   cache.New(1*time.Hour, 1*time.Hour),
 		send:   make(chan func(), 200),
-		stop:   make(chan interface{}),
+		stop:   make(chan any),
 	}
 
 	if bot.ipAPI == "" {
@@ -137,13 +138,7 @@ func inGroup(upd *tgbotapi.Update, ids []int64) bool {
 
 	from := upd.Message.From.ID
 
-	for _, id := range ids {
-		if id == from {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(ids, from)
 }
 
 func (bot *TelegramBot) isAdmin(upd *tgbotapi.Update) bool {
@@ -897,7 +892,8 @@ WHERE entries.id = $1`
 		return fmt.Sprintf("Запись %d не найдена.", id)
 	}
 
-	text := fmt.Sprintf("Голоса за запись %d автора %s\n", id, bot.userNameLink(author, author))
+	var text strings.Builder
+	text.WriteString(fmt.Sprintf("Голоса за запись %d автора %s\n", id, bot.userNameLink(author, author)))
 
 	const votesQuery = `SELECT name, vote > 0, entry_votes.created_at
 FROM entry_votes
@@ -919,11 +915,11 @@ ORDER BY created_at DESC`
 			vote = "против"
 		}
 		at := createdAt.Format("02.01.2006 15:04")
-		text += fmt.Sprintf(`%s %s (%s)`, bot.userNameLink(name, name), vote, at)
-		text += "\n"
+		text.WriteString(fmt.Sprintf(`%s %s (%s)`, bot.userNameLink(name, name), vote, at))
+		text.WriteString("\n")
 	}
 
-	return text
+	return text.String()
 }
 
 func (bot *TelegramBot) crossVotes(upd *tgbotapi.Update) string {
@@ -966,9 +962,10 @@ func (bot *TelegramBot) crossVotes(upd *tgbotapi.Update) string {
 		return fmt.Sprintf("Пользователь %s не найден.", logins[1])
 	}
 
-	text := fmt.Sprintf("Cross voting of %s and %s\n",
+	var text strings.Builder
+	text.WriteString(fmt.Sprintf("Cross voting of %s and %s\n",
 		bot.userLink(users[0]),
-		bot.userLink(users[1]))
+		bot.userLink(users[1])))
 
 	voteStr := func(vote bool) string {
 		if vote {
@@ -985,7 +982,7 @@ func (bot *TelegramBot) crossVotes(upd *tgbotapi.Update) string {
 	addTitle := func(title string, queryFunc func() *sqlf.Stmt) {
 		q := queryFunc().Select("COUNT(*)")
 		cnt := atx.QueryStmt(q).ScanInt64()
-		text += fmt.Sprintf("<b>%s</b>: %d\n", title, cnt)
+		text.WriteString(fmt.Sprintf("<b>%s</b>: %d\n", title, cnt))
 	}
 
 	repeatEntryQuery := func() *sqlf.Stmt {
@@ -1014,11 +1011,11 @@ func (bot *TelegramBot) crossVotes(upd *tgbotapi.Update) string {
 			break
 		}
 
-		text += fmt.Sprintf("%s %s and %s %s %s's entry %s\n",
+		text.WriteString(fmt.Sprintf("%s %s and %s %s %s's entry %s\n",
 			users[0].ShowName, voteStr(vote1),
 			users[1].ShowName, voteStr(vote2),
 			bot.userNameLink(authorName, authorShowName),
-			entryLink(entryID))
+			entryLink(entryID)))
 	}
 
 	crossEntryQuery := func() *sqlf.Stmt {
@@ -1046,9 +1043,9 @@ func (bot *TelegramBot) crossVotes(upd *tgbotapi.Update) string {
 			break
 		}
 
-		text += fmt.Sprintf("%s %s %s's entry %s\n",
+		text.WriteString(fmt.Sprintf("%s %s %s's entry %s\n",
 			user, voteStr(vote),
-			author, entryLink(entryID))
+			author, entryLink(entryID)))
 	}
 
 	repeatCommentQuery := func() *sqlf.Stmt {
@@ -1077,11 +1074,11 @@ func (bot *TelegramBot) crossVotes(upd *tgbotapi.Update) string {
 			break
 		}
 
-		text += fmt.Sprintf("%s %s and %s %s %s's comment %d on entry %s\n",
+		text.WriteString(fmt.Sprintf("%s %s and %s %s %s's comment %d on entry %s\n",
 			users[0].ShowName, voteStr(vote1),
 			users[1].ShowName, voteStr(vote2),
 			bot.userNameLink(authorName, authorShowName),
-			commentID, entryLink(entryID))
+			commentID, entryLink(entryID)))
 	}
 
 	crossCommentQuery := func() *sqlf.Stmt {
@@ -1110,12 +1107,12 @@ func (bot *TelegramBot) crossVotes(upd *tgbotapi.Update) string {
 			break
 		}
 
-		text += fmt.Sprintf("%s %s %s's comment %d on entry %s\n",
+		text.WriteString(fmt.Sprintf("%s %s %s's comment %d on entry %s\n",
 			user, voteStr(vote),
-			author, commentID, entryLink(entryID))
+			author, commentID, entryLink(entryID)))
 	}
 
-	return text
+	return text.String()
 }
 
 func (bot *TelegramBot) stat(upd *tgbotapi.Update) string {
@@ -1346,20 +1343,21 @@ func (bot *TelegramBot) giveBadge(upd *tgbotapi.Update) string {
 		return "Не удалось выдать значки. Проверь правильность логинов и код значка."
 	}
 
-	result := fmt.Sprintf("Выдан значок <b>%s</b> уровня %d для пользователей:\n", code, level)
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Выдан значок <b>%s</b> уровня %d для пользователей:\n", code, level))
 
 	for i, login := range successLogins {
-		result += fmt.Sprintf("%d. %s\n", i+1, bot.userNameLink(login, login))
+		result.WriteString(fmt.Sprintf("%d. %s\n", i+1, bot.userNameLink(login, login)))
 	}
 
 	if len(failedLogins) > 0 {
-		result += "\nНе удалось выдать значок пользователям:\n"
+		result.WriteString("\nНе удалось выдать значок пользователям:\n")
 		for i, login := range failedLogins {
-			result += fmt.Sprintf("%d. %s\n", i+1, login)
+			result.WriteString(fmt.Sprintf("%d. %s\n", i+1, login))
 		}
 	}
 
-	return result
+	return result.String()
 }
 
 func idToString(id int64) string {

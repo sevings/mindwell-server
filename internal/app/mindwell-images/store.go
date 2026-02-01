@@ -59,7 +59,7 @@ func (pl *pageList) split() error {
 	}
 
 	*pl = make([]*vips.ImageRef, 0, img.Pages())
-	for i := 0; i < pages; i++ {
+	for i := range pages {
 		var page *vips.ImageRef
 		page, err = img.Copy()
 		if err != nil {

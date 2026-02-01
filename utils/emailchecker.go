@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 )
@@ -40,16 +41,12 @@ func (ec *EmailChecker) IsAllowed(email string) bool {
 
 	service := loginAtService[1]
 
-	for _, s := range ec.trusted {
-		if s == service {
-			return true
-		}
+	if slices.Contains(ec.trusted, service) {
+		return true
 	}
 
-	for _, s := range ec.banned {
-		if s == service {
-			return false
-		}
+	if slices.Contains(ec.banned, service) {
+		return false
 	}
 
 	resp, err := ec.client.Get(checkUrl + service)

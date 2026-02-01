@@ -19,7 +19,7 @@ type message struct {
 type Notifier struct {
 	cent *gocent.Client
 	ch   chan *message
-	stop chan interface{}
+	stop chan any
 }
 
 const (
@@ -56,7 +56,7 @@ func NewNotifier(apiURL, apiKey string) *Notifier {
 	ntf := &Notifier{
 		cent: gocent.New(cfg),
 		ch:   make(chan *message, 200),
-		stop: make(chan interface{}),
+		stop: make(chan any),
 	}
 
 	go func() {

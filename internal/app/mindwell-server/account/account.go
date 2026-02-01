@@ -239,7 +239,7 @@ INNER JOIN alignment ON users.text_alignment = alignment.id
 LEFT JOIN users AS invited_by ON users.invited_by = invited_by.id
 `
 
-func loadAuthProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, args ...interface{}) *models.AuthProfile {
+func loadAuthProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, args ...any) *models.AuthProfile {
 	var profile models.AuthProfile
 	profile.Design = &models.Design{}
 	profile.Counts = &models.FriendAO1Counts{}
@@ -689,8 +689,8 @@ func newTelegramSettingsEditor(srv *utils.MindwellServer) func(account.PutAccoun
 				WHERE id = $1`
 
 			tx.Exec(q, userID.ID, *params.Comments, *params.Followers,
-			 *params.Invites, *params.Messages,
-			 *params.MovedEntries, *params.Badges)
+				*params.Invites, *params.Messages,
+				*params.MovedEntries, *params.Badges)
 
 			return account.NewPutAccountSettingsTelegramOK()
 		})

@@ -1848,7 +1848,7 @@ func TestRandomEntry(t *testing.T) {
 
 	es := make([]*models.Entry, 0, 100)
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		var privacy string
 		if i%20 == 3 {
 			privacy = models.EntryPrivacyMe
@@ -1891,12 +1891,12 @@ func TestRandomEntry(t *testing.T) {
 	}
 
 	ok := false
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		ok = ok || load(true)
 	}
 	req.True(ok)
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		if es[i].ID == 0 {
 			continue
 		}

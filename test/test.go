@@ -3,6 +3,7 @@ package test
 import (
 	"database/sql"
 	"log"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -127,13 +128,7 @@ func (ecm EmailCheckerMock) IsAllowed(email string) bool {
 
 	service := loginAtService[1]
 
-	for _, s := range ecm.Trusted {
-		if s == service {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(ecm.Trusted, service)
 }
 
 func register(name string) (*models.UserID, *models.AuthProfile) {
@@ -195,7 +190,7 @@ func registerTestUsers(db *sql.DB) ([]*models.UserID, []*models.AuthProfile) {
 		Avatar:   inviter.Avatar,
 	}
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		id, profile := register("test" + strconv.Itoa(i))
 		userIDs = append(userIDs, id)
 		profiles = append(profiles, profile)

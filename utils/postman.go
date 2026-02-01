@@ -19,7 +19,7 @@ type Postman struct {
 	Logger    *zap.Logger
 	h         hermes.Hermes
 	ch        chan *mail.Email
-	stop      chan interface{}
+	stop      chan any
 }
 
 func (pm *Postman) Start(smtpHost string, smtpPort int, username, password, helo string) error {
@@ -39,7 +39,7 @@ func (pm *Postman) Start(smtpHost string, smtpPort int, username, password, helo
 		},
 	}
 	pm.ch = make(chan *mail.Email, 200)
-	pm.stop = make(chan interface{})
+	pm.stop = make(chan any)
 
 	smtp := mail.NewSMTPClient()
 	smtp.Host = smtpHost

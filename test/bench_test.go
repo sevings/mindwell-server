@@ -33,7 +33,7 @@ func BenchmarkLoadLive(b *testing.B) {
 		IsShared:      &shared,
 		IsDraft:       &draft,
 	}
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		title = fmt.Sprintf("Entry %d", i)
 		entryParams.Content = fmt.Sprintf("test test test %d", i)
 		post(entryParams, userIDs[0])
@@ -83,7 +83,7 @@ func BenchmarkLoadFavorite(b *testing.B) {
 		IsDraft:       &draft,
 	}
 	var ids []int64
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		title = fmt.Sprintf("Entry %d", i)
 		entryParams.Content = fmt.Sprintf("test test test %d", i)
 		resp := post(entryParams, userIDs[0])

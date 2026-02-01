@@ -138,7 +138,7 @@ type AutoTx struct {
 	err   error
 }
 
-func (tx *AutoTx) Query(query string, args ...interface{}) *AutoTx {
+func (tx *AutoTx) Query(query string, args ...any) *AutoTx {
 	if tx.HasQueryError() {
 		return tx
 	}
@@ -159,7 +159,7 @@ func (tx *AutoTx) QueryStmt(stmt *sqlf.Stmt) *AutoTx {
 	return tx
 }
 
-func (tx *AutoTx) Scan(dest ...interface{}) bool {
+func (tx *AutoTx) Scan(dest ...any) bool {
 	if tx.err != nil {
 		return false
 	}
@@ -233,31 +233,31 @@ func (tx *AutoTx) ScanStrings() []string {
 	return result
 }
 
-func (tx *AutoTx) QueryBool(query string, args ...interface{}) bool {
+func (tx *AutoTx) QueryBool(query string, args ...any) bool {
 	return tx.Query(query, args...).ScanBool()
 }
 
-func (tx *AutoTx) QueryBools(query string, args ...interface{}) []bool {
+func (tx *AutoTx) QueryBools(query string, args ...any) []bool {
 	return tx.Query(query, args...).ScanBools()
 }
 
-func (tx *AutoTx) QueryInt64(query string, args ...interface{}) int64 {
+func (tx *AutoTx) QueryInt64(query string, args ...any) int64 {
 	return tx.Query(query, args...).ScanInt64()
 }
 
-func (tx *AutoTx) QueryInt64s(query string, args ...interface{}) []int64 {
+func (tx *AutoTx) QueryInt64s(query string, args ...any) []int64 {
 	return tx.Query(query, args...).ScanInt64s()
 }
 
-func (tx *AutoTx) QueryFloat64(query string, args ...interface{}) float64 {
+func (tx *AutoTx) QueryFloat64(query string, args ...any) float64 {
 	return tx.Query(query, args...).ScanFloat64()
 }
 
-func (tx *AutoTx) QueryString(query string, args ...interface{}) string {
+func (tx *AutoTx) QueryString(query string, args ...any) string {
 	return tx.Query(query, args...).ScanString()
 }
 
-func (tx *AutoTx) QueryStrings(query string, args ...interface{}) []string {
+func (tx *AutoTx) QueryStrings(query string, args ...any) []string {
 	return tx.Query(query, args...).ScanStrings()
 }
 
@@ -280,7 +280,7 @@ func (tx *AutoTx) LastQuery() string {
 	return tx.query
 }
 
-func (tx *AutoTx) Exec(query string, args ...interface{}) {
+func (tx *AutoTx) Exec(query string, args ...any) {
 	if tx.HasQueryError() {
 		return
 	}

@@ -75,7 +75,7 @@ func checkThankWish(t *testing.T, user *models.UserID, wishID int64, success boo
 func TestWishes(t *testing.T) {
 	req := require.New(t)
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		_, found := wishesImpl.LastCreatedWish(db, userIDs[i])
 		req.False(found)
 	}
@@ -93,7 +93,7 @@ WHERE id IN ($1, $2, $3)`,
 
 	time.Sleep(10 * time.Millisecond)
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		_, found := wishesImpl.LastCreatedWish(db, userIDs[i])
 		req.False(found)
 	}
@@ -131,7 +131,7 @@ WHERE id = $1`,
 	findReceiver := func(w *models.Wish) *models.UserID {
 		req.NotNil(w.Receiver)
 
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			if userIDs[i].ID == w.Receiver.ID {
 				return userIDs[i]
 			}
@@ -186,7 +186,7 @@ WHERE id IN ($1, $2, $3)`,
 		userIDs[0].ID, userIDs[1].ID, userIDs[2].ID)
 	req.Nil(err)
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		_, found := wishesImpl.LastCreatedWish(db, userIDs[i])
 		req.False(found)
 	}
