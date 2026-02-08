@@ -11,6 +11,7 @@ import (
 )
 
 const admArg = "adm"
+const cleanupArg = "cleanup"
 const helpArg = "help"
 const mailArg = "mail"
 const logArg = "log"
@@ -20,16 +21,21 @@ const webappArg = "webapp"
 func printHelp() {
 	log.Printf(
 		`
-Usage: mindwell-helper [option]
+Usage: mindwell-helper [option] [flags]
 
 Options are:
 %s		- set grandfathers in adm and sent emails to them.
+%s		- cleanup orphaned image files.
+		  Flags:
+		    --unused    Check for unused database images (not in entries, >6 months old)
+		    --delete    Actually delete files (requires confirmation)
+		    --verbose   Show detailed progress
 %s		- send email reminders.
 %s		- send email survey.
 %s		- import user request log.
 %s		- create the official Mindwell web app.
 %s		- print this help message.
-`, admArg, mailArg, surveyArg, logArg, webappArg, helpArg)
+`, admArg, cleanupArg, mailArg, surveyArg, logArg, webappArg, helpArg)
 }
 
 func main() {
@@ -80,9 +86,16 @@ func main() {
 
 	args := os.Args[1:]
 	for _, arg := range args {
+		// Skip flags (arguments starting with --)
+		if len(arg) >= 2 && arg[0:2] == "--" {
+			continue
+		}
+
 		switch arg {
 		case admArg:
 			helper.UpdateAdm(tx, mail)
+		case cleanupArg:
+			helper.CleanupOrphanedImages(tx, cfg)
 		case mailArg:
 			helper.SendReminders(tx, mail)
 		case surveyArg:
