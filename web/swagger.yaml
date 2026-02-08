@@ -4404,11 +4404,12 @@ paths:
           name: file
           type: file
           required: true
+          description: Upload 1-10 images. Specify the 'file' parameter multiple times for batch upload.
       responses:
         200:
-          description: Image
+          description: List of uploaded images
           schema:
-            $ref: '#/definitions/Image'
+            $ref: '#/definitions/ImageList'
         400:
           description: bad request
           schema:

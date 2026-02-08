@@ -1,11 +1,12 @@
 package images
 
 import (
+	"regexp"
+
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi_images/operations/images"
 	"github.com/sevings/mindwell-server/utils"
-	"regexp"
 )
 
 func setProcessingImage(mi *MindwellImages, img *models.Image) {
@@ -95,40 +96,72 @@ func loadImageSizes(mi *MindwellImages, tx *utils.AutoTx, img *models.Image,
 
 func NewImageUploader(mi *MindwellImages) func(images.PostImagesParams, *models.UserID) middleware.Responder {
 	return func(params images.PostImagesParams, userID *models.UserID) middleware.Responder {
-		store := newImageStore(mi)
-		store.ReadImage(params.File)
-
-		if store.Error() != nil {
-			mi.LogApi().Error(store.Error().Error())
+		r := params.HTTPRequest
+		if r.MultipartForm == nil {
+			mi.LogApi().Error("No multipart form data")
 			return images.NewPostImagesBadRequest()
 		}
 
-		img := &models.Image{
-			Author: &models.User{
-				ID:   userID.ID,
-				Name: userID.Name,
-			},
-			IsAnimated: store.IsAnimated(),
-			Processing: true,
+		fileHeaders := r.MultipartForm.File["file"]
+		if len(fileHeaders) == 0 {
+			mi.LogApi().Error("No files uploaded")
+			return images.NewPostImagesBadRequest()
 		}
 
+		if len(fileHeaders) > 10 {
+			mi.LogApi().Error("Too many files uploaded, maximum is 10")
+			return images.NewPostImagesBadRequest()
+		}
+
+		var uploadedImages []*models.Image
+
 		return utils.Transact(mi.DB(), func(tx *utils.AutoTx) middleware.Responder {
-			const query = `INSERT INTO images(user_id, path, extension, preview_extension, processing) 
-				VALUES($1, 'processing', $2, $3, $4) RETURNING id`
-			tx.Query(query, userID.ID, store.FileExtension(), store.PreviewExtension(), img.Processing)
-			tx.Scan(&img.ID)
+			for _, fileHeader := range fileHeaders {
+				file, err := fileHeader.Open()
+				if err != nil {
+					mi.LogApi().Error("Failed to open file: " + err.Error())
+					return images.NewPostImagesBadRequest()
+				}
+				defer file.Close()
 
-			store.SetID(img.ID)
-			tx.Exec("UPDATE images SET path = $2 WHERE id = $1", img.ID, store.FileName())
+				store := newImageStore(mi)
+				store.ReadImage(file)
 
-			if tx.Error() != nil {
-				return images.NewPostImagesBadRequest()
+				if store.Error() != nil {
+					mi.LogApi().Error(store.Error().Error())
+					return images.NewPostImagesBadRequest()
+				}
+
+				img := &models.Image{
+					Author: &models.User{
+						ID:   userID.ID,
+						Name: userID.Name,
+					},
+					IsAnimated: store.IsAnimated(),
+					Processing: true,
+				}
+
+				const query = `INSERT INTO images(user_id, path, extension, preview_extension, processing)
+					VALUES($1, 'processing', $2, $3, $4) RETURNING id`
+				tx.Query(query, userID.ID, store.FileExtension(), store.PreviewExtension(), img.Processing)
+				tx.Scan(&img.ID)
+
+				store.SetID(img.ID)
+				tx.Exec("UPDATE images SET path = $2 WHERE id = $1", img.ID, store.FileName())
+
+				if tx.Error() != nil {
+					return images.NewPostImagesBadRequest()
+				}
+
+				setProcessingImage(mi, img)
+				mi.QueueAction(store, img.ID, ActionAlbum)
+
+				uploadedImages = append(uploadedImages, img)
 			}
 
-			setProcessingImage(mi, img)
-			mi.QueueAction(store, img.ID, ActionAlbum)
-
-			return images.NewPostImagesOK().WithPayload(img)
+			return images.NewPostImagesOK().WithPayload(&models.ImageList{
+				Data: uploadedImages,
+			})
 		})
 	}
 }
