@@ -1,9 +1,10 @@
 package test
 
 import (
+	libauth "github.com/sevings/mindwell-server/lib/auth"
+	"github.com/sevings/mindwell-server/lib/database"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/chats"
-	"github.com/sevings/mindwell-server/utils"
 	"github.com/stretchr/testify/require"
 	"math/rand"
 	"testing"
@@ -392,7 +393,7 @@ func TestCanSendMessage(t *testing.T) {
 		}
 	}
 
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 
 	check(userIDs[0], userIDs[0], true)
 	check(userIDs[1], userIDs[0], true)
@@ -467,7 +468,7 @@ func TestCanSendMessage(t *testing.T) {
 	checkAndKeep(userIDs[0], userIDs[3], true)
 	checkAndKeep(userIDs[3], userIDs[0], true)
 
-	utils.ClearDatabase(db)
+	database.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)
 	esm.Clear()
 }

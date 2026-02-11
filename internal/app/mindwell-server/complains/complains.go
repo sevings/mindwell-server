@@ -1,11 +1,15 @@
 package complains
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"database/sql"
 	"errors"
+
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/leporo/sqlf"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/chats"
 	"github.com/sevings/mindwell-server/restapi/operations/comments"
@@ -13,14 +17,13 @@ import (
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"github.com/sevings/mindwell-server/restapi/operations/wishes"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 var errCAY *models.Error
 var errCC *models.Error
 
 // ConfigureAPI creates operations handlers
-func ConfigureAPI(srv *utils.MindwellServer) {
+func ConfigureAPI(srv *server.MindwellServer) {
 	errCAY = srv.NewError(&i18n.Message{ID: "complain_against_yourself", Other: "You can't complain against yourself."})
 	errCC = srv.NewError(&i18n.Message{ID: "cant_complain", Other: "You are not allowed to complain."})
 
@@ -50,14 +53,14 @@ const createQuery = `
     VALUES($1, (SELECT id FROM complain_type WHERE type = $2), $3, $4)    
 `
 
-func newEntryComplainer(srv *utils.MindwellServer) func(entries.PostEntriesIDComplainParams, *models.UserID) middleware.Responder {
+func newEntryComplainer(srv *server.MindwellServer) func(entries.PostEntriesIDComplainParams, *models.UserID) middleware.Responder {
 	return func(params entries.PostEntriesIDComplainParams, userID *models.UserID) middleware.Responder {
 		if userID.Ban.Complain {
 			return entries.NewGetEntriesIDForbidden().WithPayload(errCC)
 		}
 
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			allowed := utils.CanViewEntry(tx, userID, params.ID)
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			allowed := userutil.CanViewEntry(tx, userID, params.ID)
 			if !allowed {
 				err := srv.StandardError("no_entry")
 				return entries.NewPostEntriesIDComplainNotFound().WithPayload(err)
@@ -86,18 +89,18 @@ func newEntryComplainer(srv *utils.MindwellServer) func(entries.PostEntriesIDCom
 	}
 }
 
-func newCommentComplainer(srv *utils.MindwellServer) func(comments.PostCommentsIDComplainParams, *models.UserID) middleware.Responder {
+func newCommentComplainer(srv *server.MindwellServer) func(comments.PostCommentsIDComplainParams, *models.UserID) middleware.Responder {
 	return func(params comments.PostCommentsIDComplainParams, userID *models.UserID) middleware.Responder {
 		if userID.Ban.Complain {
 			comments.NewPostCommentsIDComplainForbidden().WithPayload(errCC)
 		}
 
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			var entryID, authorID int64
 			tx.Query("SELECT entry_id, author_id FROM comments WHERE id = $1", params.ID)
 			tx.Scan(&entryID, &authorID)
 
-			allowed := utils.CanViewEntry(tx, userID, entryID)
+			allowed := userutil.CanViewEntry(tx, userID, entryID)
 			if !allowed {
 				err := srv.StandardError("no_comment")
 				return comments.NewPostCommentsIDComplainNotFound().WithPayload(err)
@@ -125,13 +128,13 @@ func newCommentComplainer(srv *utils.MindwellServer) func(comments.PostCommentsI
 	}
 }
 
-func newMessageComplainer(srv *utils.MindwellServer) func(chats.PostMessagesIDComplainParams, *models.UserID) middleware.Responder {
+func newMessageComplainer(srv *server.MindwellServer) func(chats.PostMessagesIDComplainParams, *models.UserID) middleware.Responder {
 	return func(params chats.PostMessagesIDComplainParams, userID *models.UserID) middleware.Responder {
 		if userID.Ban.Complain {
 			return chats.NewPostMessagesIDComplainForbidden().WithPayload(errCC)
 		}
 
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			chatQuery := sqlf.Select("creator_id, partner_id, author_id").
 				From("chats").
 				Join("messages", "chats.id = messages.chat_id").
@@ -166,14 +169,14 @@ func newMessageComplainer(srv *utils.MindwellServer) func(chats.PostMessagesIDCo
 	}
 }
 
-func newUserComplainer(srv *utils.MindwellServer) func(users.PostUsersNameComplainParams, *models.UserID) middleware.Responder {
+func newUserComplainer(srv *server.MindwellServer) func(users.PostUsersNameComplainParams, *models.UserID) middleware.Responder {
 	return func(params users.PostUsersNameComplainParams, userID *models.UserID) middleware.Responder {
 		if userID.Ban.Complain {
 			return users.NewPostUsersNameComplainForbidden().WithPayload(errCC)
 		}
 
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			against := utils.LoadUserByName(tx, params.Name)
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			against := userutil.LoadUserByName(tx, params.Name)
 			if against.ID == 0 || against.IsTheme {
 				err := srv.StandardError("no_tlog")
 				return users.NewPostUsersNameComplainNotFound().WithPayload(err)
@@ -200,14 +203,14 @@ func newUserComplainer(srv *utils.MindwellServer) func(users.PostUsersNameCompla
 	}
 }
 
-func newThemeComplainer(srv *utils.MindwellServer) func(themes.PostThemesNameComplainParams, *models.UserID) middleware.Responder {
+func newThemeComplainer(srv *server.MindwellServer) func(themes.PostThemesNameComplainParams, *models.UserID) middleware.Responder {
 	return func(params themes.PostThemesNameComplainParams, userID *models.UserID) middleware.Responder {
 		if userID.Ban.Complain {
 			return users.NewPostUsersNameComplainForbidden().WithPayload(errCC)
 		}
 
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			against := utils.LoadUserByName(tx, params.Name)
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			against := userutil.LoadUserByName(tx, params.Name)
 			if against.ID == 0 || !against.IsTheme {
 				err := srv.StandardError("no_theme")
 				return themes.NewPostThemesNameComplainNotFound().WithPayload(err)
@@ -231,13 +234,13 @@ func newThemeComplainer(srv *utils.MindwellServer) func(themes.PostThemesNameCom
 	}
 }
 
-func newWishComplainer(srv *utils.MindwellServer) func(wishes.PostWishesIDComplainParams, *models.UserID) middleware.Responder {
+func newWishComplainer(srv *server.MindwellServer) func(wishes.PostWishesIDComplainParams, *models.UserID) middleware.Responder {
 	return func(params wishes.PostWishesIDComplainParams, userID *models.UserID) middleware.Responder {
 		if userID.Ban.Complain {
 			return wishes.NewPostWishesIDComplainForbidden().WithPayload(errCC)
 		}
 
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			const wishQuery = `
 UPDATE wishes
 SET state = (SELECT id FROM wish_states WHERE state = 'complained')

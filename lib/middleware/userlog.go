@@ -1,13 +1,15 @@
-package utils
+package middleware
 
 import (
 	"database/sql"
-	"github.com/go-openapi/runtime/middleware"
-	"go.uber.org/zap"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-openapi/runtime/middleware"
+	"github.com/sevings/mindwell-server/lib/database"
+	"go.uber.org/zap"
 )
 
 type userRequest struct {
@@ -106,7 +108,7 @@ func (ul *userLog) clearOld() {
 	newPrev := make(map[string]*userRequest)
 	minAt := time.Now().Add(-1 * time.Hour)
 
-	tx := NewAutoTx(ul.db)
+	tx := database.NewAutoTx(ul.db)
 	defer tx.Finish()
 
 	for key, req := range ul.prev {
@@ -141,13 +143,13 @@ func (ul *userLog) addRequest(req *userRequest) {
 
 	ul.prev[key] = req
 
-	tx := NewAutoTx(ul.db)
+	tx := database.NewAutoTx(ul.db)
 	defer tx.Finish()
 
 	ul.save(tx, req, true)
 }
 
-func (ul *userLog) save(tx *AutoTx, req *userRequest, first bool) {
+func (ul *userLog) save(tx *database.AutoTx, req *userRequest, first bool) {
 	if req.user == "" {
 		return
 	}
@@ -176,7 +178,7 @@ func (ul *userLog) save(tx *AutoTx, req *userRequest, first bool) {
 	ip := strings.SplitN(req.ip, ",", 2)[0]
 
 	const query = `
-    INSERT INTO user_log(name, ip, user_agent, device, app, uid, uid2, at, first) 
+    INSERT INTO user_log(name, ip, user_agent, device, app, uid, uid2, at, first)
     VALUES(lower($1), $2, $3, $4, $5, $6, $7, $8, $9)
 `
 

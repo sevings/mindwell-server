@@ -1,4 +1,4 @@
-package utils
+package server
 
 import (
 	"database/sql"
@@ -9,6 +9,12 @@ import (
 
 	"github.com/leporo/sqlf"
 	"go.uber.org/zap"
+	"github.com/sevings/mindwell-server/lib/auth"
+	"github.com/sevings/mindwell-server/lib/database"
+	"github.com/sevings/mindwell-server/lib/helpers"
+	"github.com/sevings/mindwell-server/lib/notifications"
+	"github.com/sevings/mindwell-server/lib/pubsub"
+	"github.com/sevings/mindwell-server/lib/validation"
 
 	"github.com/BurntSushi/toml"
 	"github.com/carlescere/scheduler"
@@ -21,29 +27,6 @@ import (
 	"golang.org/x/text/language"
 )
 
-type MailSender interface {
-	SendGreeting(address, name, code string)
-	SendPasswordChanged(address, name string)
-	SendEmailChanged(address, name string)
-	SendResetPassword(address, name, gender, code string, date int64)
-	SendNewComment(address, fromGender, toShowName, entryTitle string, cmt *models.Comment)
-	SendNewFollower(address, fromName, fromShowName, fromGender string, toPrivate bool, toShowName string)
-	SendNewAccept(address, fromName, fromShowName, fromGender, toShowName string)
-	SendNewInvite(address, name string)
-	SendInvited(address, fromShowName, fromGender, toShowName string)
-	SendAdmSent(address, toShowName string)
-	SendAdmReceived(address, toShowName string)
-	SendCommentComplain(from, against, content, comment string, commentID, entryID int64)
-	SendEntryComplain(from, against, content, entry string, entryID int64)
-	SendEntryMoved(address, toShowName, entryTitle string, entryID int64)
-	SendBadge(address, toName, toShowName, badgeTitle, badgeDesc string)
-	Stop()
-}
-
-type EmailAllowedChecker interface {
-	IsAllowed(email string) bool
-}
-
 const (
 	logApi      = "api"
 	logTelegram = "telegram"
@@ -54,11 +37,11 @@ const (
 
 type MindwellServer struct {
 	DB    *sql.DB
-	PS    *PubSub
+	PS    *pubsub.PubSub
 	API   *operations.MindwellAPI
-	Ntf   *CompositeNotifier
+	Ntf   *notifications.CompositeNotifier
+	Eac   validation.EmailAllowedChecker
 	Imgs  *cache.Cache
-	Eac   EmailAllowedChecker
 	log   *zap.Logger
 	cfg   *goconf.Config
 	local *i18n.Localizer
@@ -71,8 +54,8 @@ func NewMindwellServer(api *operations.MindwellAPI, configPath string) *Mindwell
 		log.Println(err)
 	}
 
-	config := LoadConfig(configPath)
-	db := OpenDatabase(config)
+	config := helpers.LoadConfig(configPath)
+	db := database.OpenDatabase(config)
 
 	trFile, err := config.String("server.tr_file")
 	if err != nil {
@@ -103,10 +86,11 @@ func NewMindwellServer(api *operations.MindwellAPI, configPath string) *Mindwell
 		},
 	}
 
-	srv.PS = NewPubSub(ConnectionString(config), srv.LogSystem())
+	srv.PS = pubsub.NewPubSub(database.ConnectionString(config), srv.LogSystem())
 	srv.PS.Start()
 
-	srv.Ntf = NewCompositeNotifier(srv)
+	srv.Ntf = notifications.NewCompositeNotifier(srv, srv.PS)
+	srv.Eac = validation.NewEmailChecker(srv)
 
 	if _, err := scheduler.Every().Day().At("03:10").Run(srv.recalcKarma); err != nil {
 		srv.LogSystem().Error(err.Error())
@@ -119,6 +103,10 @@ func NewMindwellServer(api *operations.MindwellAPI, configPath string) *Mindwell
 	}
 
 	return srv
+}
+
+func (srv *MindwellServer) GetDB() *sql.DB {
+	return srv.DB
 }
 
 func (srv *MindwellServer) ConfigStrings(field string) []string {
@@ -244,12 +232,12 @@ func (srv *MindwellServer) ImagesFolder() string {
 	return srv.ConfigString("images.folder")
 }
 
-func (srv *MindwellServer) Transact(txFunc func(*AutoTx) middleware.Responder) middleware.Responder {
-	return Transact(srv.DB, txFunc)
+func (srv *MindwellServer) Transact(txFunc func(*database.AutoTx) middleware.Responder) middleware.Responder {
+	return database.Transact(srv.DB, txFunc)
 }
 
-func (srv *MindwellServer) TokenHash() TokenHash {
-	return NewTokenHash(srv)
+func (srv *MindwellServer) TokenHash() auth.TokenHash {
+	return auth.NewTokenHash(srv)
 }
 
 // NewError returns error object with some message
@@ -315,7 +303,7 @@ func (srv *MindwellServer) recalcKarma() {
 func (srv *MindwellServer) giveInvites() {
 	start := time.Now()
 
-	tx := NewAutoTx(srv.DB)
+	tx := database.NewAutoTx(srv.DB)
 	defer tx.Finish()
 
 	tx.Query("SELECT user_id FROM give_invites()")
@@ -343,7 +331,7 @@ func (srv *MindwellServer) giveInvites() {
 func (srv *MindwellServer) searchAlts() {
 	start := time.Now()
 
-	tx := NewAutoTx(srv.DB)
+	tx := database.NewAutoTx(srv.DB)
 	defer tx.Finish()
 
 	namesQ := sqlf.Select("name").

@@ -6,9 +6,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/sevings/mindwell-server/utils"
-
 	"github.com/davidbyttow/govips/v2/vips"
+	"github.com/sevings/mindwell-server/lib/textutil"
 	"github.com/sevings/mindwell-server/models"
 )
 
@@ -196,7 +195,7 @@ func (se storeError) Error() string {
 }
 
 func newImageStore(mi *MindwellImages) *imageStore {
-	name := utils.GenerateString(8)
+	name := textutil.GenerateString(8)
 	path := name[:1] + "/" + name[:2] + "/"
 
 	return &imageStore{

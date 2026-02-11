@@ -1,20 +1,23 @@
 package users
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"fmt"
-	"github.com/aofei/cameron"
-	"github.com/go-openapi/runtime/middleware"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"github.com/sevings/mindwell-server/models"
-	"github.com/sevings/mindwell-server/restapi/operations/themes"
-	"github.com/sevings/mindwell-server/utils"
 	"image/jpeg"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/aofei/cameron"
+	"github.com/go-openapi/runtime/middleware"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/sevings/mindwell-server/lib/textutil"
+	"github.com/sevings/mindwell-server/models"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
 )
 
-func loadTopThemes(srv *utils.MindwellServer, tx *utils.AutoTx, top string) []*models.Friend {
+func loadTopThemes(srv *server.MindwellServer, tx *database.AutoTx, top string) []*models.Friend {
 	query := usersQuerySelect + ", 0 "
 
 	if top == "rank" {
@@ -34,9 +37,9 @@ func loadTopThemes(srv *utils.MindwellServer, tx *utils.AutoTx, top string) []*m
 	return list
 }
 
-func newThemesLoader(srv *utils.MindwellServer) func(themes.GetThemesParams, *models.UserID) middleware.Responder {
+func newThemesLoader(srv *server.MindwellServer) func(themes.GetThemesParams, *models.UserID) middleware.Responder {
 	return func(params themes.GetThemesParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			body := &themes.GetThemesOKBody{}
 
 			if params.Query != nil {
@@ -52,11 +55,11 @@ func newThemesLoader(srv *utils.MindwellServer) func(themes.GetThemesParams, *mo
 	}
 }
 
-func newThemeLoader(srv *utils.MindwellServer) func(themes.GetThemesNameParams, *models.UserID) middleware.Responder {
+func newThemeLoader(srv *server.MindwellServer) func(themes.GetThemesNameParams, *models.UserID) middleware.Responder {
 	return func(params themes.GetThemesNameParams, userID *models.UserID) middleware.Responder {
 		const query = profileQuery + "WHERE lower(users.name) = lower($1) AND users.creator_id IS NOT NULL"
 
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			theme := loadUserProfile(srv, tx, query, userID, params.Name)
 			if theme.ID == 0 {
 				return themes.NewGetThemesNameNotFound()
@@ -67,7 +70,7 @@ func newThemeLoader(srv *utils.MindwellServer) func(themes.GetThemesNameParams, 
 	}
 }
 
-func removeInvite(tx *utils.AutoTx, userID int64) bool {
+func removeInvite(tx *database.AutoTx, userID int64) bool {
 	const idQ = `
 		SELECT id
 		FROM invites
@@ -90,7 +93,7 @@ func removeInvite(tx *utils.AutoTx, userID int64) bool {
 	return tx.RowsAffected() == 1
 }
 
-func saveAvatar(srv *utils.MindwellServer, size, blockSize int, name, folder, fileName string) {
+func saveAvatar(srv *server.MindwellServer, size, blockSize int, name, folder, fileName string) {
 	path := srv.ImagesFolder() + "avatars/" + strconv.Itoa(size) + "/" + folder
 	err := os.MkdirAll(path, 0777)
 	if err != nil {
@@ -110,9 +113,9 @@ func saveAvatar(srv *utils.MindwellServer, size, blockSize int, name, folder, fi
 	}
 }
 
-func generateAvatar(srv *utils.MindwellServer, name string) string {
+func generateAvatar(srv *server.MindwellServer, name string) string {
 	folder := name[:1] + "/"
-	fileName := utils.GenerateString(5) + ".jpg"
+	fileName := textutil.GenerateString(5) + ".jpg"
 
 	saveAvatar(srv, 124, 15, name, folder, fileName)
 	saveAvatar(srv, 92, 11, name, folder, fileName)
@@ -121,7 +124,7 @@ func generateAvatar(srv *utils.MindwellServer, name string) string {
 	return folder + fileName
 }
 
-func createTheme(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, name, showName string) int64 {
+func createTheme(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, name, showName string) int64 {
 	const rankQ = "SELECT COUNT(*) + 1 FROM users WHERE creator_id IS NOT NULL AND karma >= 0"
 	rank := tx.QueryInt64(rankQ)
 
@@ -137,7 +140,7 @@ func createTheme(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 	return user
 }
 
-func newThemeCreator(srv *utils.MindwellServer) func(themes.PostThemesParams, *models.UserID) middleware.Responder {
+func newThemeCreator(srv *server.MindwellServer) func(themes.PostThemesParams, *models.UserID) middleware.Responder {
 	return func(params themes.PostThemesParams, userID *models.UserID) middleware.Responder {
 		if userID.Ban.Invite {
 			err := srv.NewError(&i18n.Message{ID: "cant_create_theme", Other: "You are not allowed to create themes."})
@@ -147,7 +150,7 @@ func newThemeCreator(srv *utils.MindwellServer) func(themes.PostThemesParams, *m
 		name := strings.TrimSpace(params.Name)
 		showName := strings.TrimSpace(params.ShowName)
 
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			const idQ = "SELECT id FROM users WHERE lower(name) = lower($1)"
 			oldID := tx.QueryInt64(idQ, name)
 			if oldID > 0 {
@@ -175,13 +178,13 @@ func newThemeCreator(srv *utils.MindwellServer) func(themes.PostThemesParams, *m
 	}
 }
 
-func checkThemeAdmin(tx *utils.AutoTx, userID *models.UserID, name string) bool {
+func checkThemeAdmin(tx *database.AutoTx, userID *models.UserID, name string) bool {
 	const q = `SELECT creator_id = $1 FROM users WHERE lower(name) = lower($2)`
 
 	return tx.QueryBool(q, userID.ID, name)
 }
 
-func editThemeProfile(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, params themes.PutThemesNameParams) *models.Profile {
+func editThemeProfile(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, params themes.PutThemesNameParams) *models.Profile {
 	name := params.Name
 
 	if params.IsDaylog != nil {
@@ -208,9 +211,9 @@ func editThemeProfile(srv *utils.MindwellServer, tx *utils.AutoTx, userID *model
 	return loadUserProfile(srv, tx, loadQuery, userID, name)
 }
 
-func newThemeEditor(srv *utils.MindwellServer) func(themes.PutThemesNameParams, *models.UserID) middleware.Responder {
+func newThemeEditor(srv *server.MindwellServer) func(themes.PutThemesNameParams, *models.UserID) middleware.Responder {
 	return func(params themes.PutThemesNameParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			if !checkThemeAdmin(tx, userID, params.Name) {
 				err := srv.StandardError("no_theme")
 				return themes.NewPutThemesNameForbidden().WithPayload(err)
@@ -227,7 +230,7 @@ func newThemeEditor(srv *utils.MindwellServer) func(themes.PutThemesNameParams, 
 	}
 }
 
-func newThemeFollowersLoader(srv *utils.MindwellServer) func(themes.GetThemesNameFollowersParams, *models.UserID) middleware.Responder {
+func newThemeFollowersLoader(srv *server.MindwellServer) func(themes.GetThemesNameFollowersParams, *models.UserID) middleware.Responder {
 	return func(params themes.GetThemesNameFollowersParams, userID *models.UserID) middleware.Responder {
 		list := loadRelatedUsers(srv, userID, usersQueryToName, usersToNameQueryWhere,
 			models.RelationshipRelationFollowed, params.Name, models.FriendListRelationFollowers,

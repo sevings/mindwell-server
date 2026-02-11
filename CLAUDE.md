@@ -135,11 +135,13 @@ Each module exports a `ConfigureAPI(srv *utils.MindwellServer)` function that wi
 ### Database Layer
 
 **Transaction Pattern:**
-All database operations use `utils.AutoTx` for automatic transaction management:
+All database operations use `database.AutoTx` for automatic transaction management:
 
 ```go
+import "github.com/sevings/mindwell-server/lib/database"
+
 func handler(params) middleware.Responder {
-    return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+    return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
         tx.Query(sqlStatement, args...)
         tx.Scan(&result)
         if tx.Error() != nil {
@@ -169,9 +171,9 @@ func handler(params) middleware.Responder {
 ```
 PostgreSQL LISTEN/NOTIFY
   ↓
-utils/pubsub.go (event dispatcher)
+lib/pubsub/ (event dispatcher)
   ↓
-utils/notifier.go (Centrifugo client)
+lib/notifications/ (Centrifugo, email, Telegram)
   ↓
 WebSocket clients
 ```
@@ -180,10 +182,10 @@ Channels include: `moved_entries`, `user_badges`, `new_notification`, `chats`, e
 
 ### Multi-Channel Notifications
 
-The `CompositeNotifier` pattern routes notifications through three channels:
-- **Email** - SMTP via Hermes HTML templates (`utils/postman.go`)
-- **Telegram** - Bot API integration (`utils/telegram.go`)
-- **Real-time** - Centrifugo WebSocket (`utils/notifier.go`)
+The `CompositeNotifier` pattern (in `lib/notifications/`) routes notifications through three channels:
+- **Email** - SMTP via Hermes HTML templates
+- **Telegram** - Bot API integration
+- **Real-time** - Centrifugo WebSocket
 
 Users can enable/disable each channel per notification type.
 
@@ -192,7 +194,7 @@ Users can enable/disable each channel per notification type.
 Privacy rules are enforced at query time using complex SQL WHERE clauses:
 
 ```go
-// From utils/utils.go - AddEntryOpenQuery
+// From lib/userutil/ - AddEntryOpenQuery, AddCommentOpenQuery
 // Builds conditional access based on:
 // - Entry privacy level (all, registered, followers, invited, some, author)
 // - User's relationship to author (follower, friend, blocked)
@@ -229,7 +231,7 @@ func newHandler(srv *utils.MindwellServer) func(params) middleware.Responder {
 
 This provides clean dependency injection.
 
-### Authentication (`utils/auth.go`)
+### Authentication (`lib/auth/`)
 
 OAuth2 implementation with three flows:
 - **Password** - Username/password authentication
@@ -240,6 +242,13 @@ Token management:
 - Access tokens (JWT with scope-based authorization)
 - Refresh tokens (database-backed)
 - User loading from token: `userID := params.HTTPRequest.Context().Value("UserID").(int64)`
+
+**Import pattern:**
+```go
+import libauth "github.com/sevings/mindwell-server/lib/auth"
+
+user := libauth.LoadUser(tx, userID)
+```
 
 ### Configuration (`configs/*.toml`)
 
@@ -286,9 +295,14 @@ Add SQL to `scripts/update.sql` for schema changes. Complex migrations may need 
 ### Privacy Rules
 
 When querying entries or comments:
-- Use `utils.AddEntryOpenQuery()` to enforce privacy
-- Use `utils.AddCommentOpenQuery()` for comment visibility
+- Use `userutil.AddEntryOpenQuery()` to enforce privacy
+- Use `userutil.AddCommentOpenQuery()` for comment visibility
 - Consider user relationships (following, blocking, friends)
+
+**Import:**
+```go
+import "github.com/sevings/mindwell-server/lib/userutil"
+```
 
 ### Security Notes
 
@@ -335,10 +349,14 @@ if tx.Error() != nil {
 
 ### Loading Authenticated User
 ```go
+import libauth "github.com/sevings/mindwell-server/lib/auth"
+
 userID, ok := params.HTTPRequest.Context().Value("UserID").(int64)
 if !ok {
     return operations.NewErrorUnauthorized()
 }
+
+user := libauth.LoadUser(tx, userID)
 ```
 
 ### Sending Notifications
@@ -353,9 +371,11 @@ srv.CompNtf.NotifyNewEntry(authorID, entryID, tlogID)
 srv.PS.Publish("channel_name", payload)
 ```
 
-### Caching Image URLs
+### Loading Images
 ```go
-img := srv.LoadImage(imageID, "author") // Cached for 48 hours
+import "github.com/sevings/mindwell-server/lib/media"
+
+img := media.LoadImage(srv, srv.Imgs, tx, imageID) // Cached for 48 hours
 ```
 
 ## File Structure Reference
@@ -366,13 +386,25 @@ mindwell-server/
 │   ├── mindwell-server/         # Main API server
 │   ├── mindwell-images-server/  # Image processing server
 │   └── mindwell-helper/         # CLI utility
-├── internal/app/                # Core application logic
-│   ├── mindwell-server/         # Main server modules (20+ packages)
-│   └── mindwell-images/         # Image processing service
+├── internal/
+│   ├── app/                     # Core application logic
+│   │   ├── mindwell-server/     # Main server modules (20+ packages)
+│   │   └── mindwell-images/     # Image processing service
+│   └── lib/                     # Shared library packages (10 packages)
+│       ├── auth/                # OAuth2 authentication
+│       ├── database/            # Database transaction management
+│       ├── helpers/             # App creation, config loading
+│       ├── media/               # Image loading and caching
+│       ├── middleware/          # HTTP logging, user activity
+│       ├── notifications/       # Multi-channel notifications
+│       ├── pubsub/              # PostgreSQL LISTEN/NOTIFY
+│       ├── textutil/            # Text manipulation utilities
+│       ├── userutil/            # User operations, privacy queries
+│       └── validation/          # Email validation
 ├── restapi/                     # Generated API layer (main server)
 ├── restapi_images/              # Generated API layer (image server)
 ├── models/                      # Data models (~40 files)
-├── utils/                       # Shared utilities and core services
+├── utils/                       # Core server orchestrator (MindwellServer)
 ├── helper/                      # Helper utilities for CLI
 ├── web/                         # Static Swagger UI + swagger.yaml
 │   └── swagger.yaml             # OpenAPI 2.0 specification (4476 lines)

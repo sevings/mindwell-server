@@ -9,24 +9,26 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/sevings/mindwell-server/utils"
+	"github.com/sevings/mindwell-server/lib/database"
+	"github.com/sevings/mindwell-server/lib/helpers"
+	"github.com/sevings/mindwell-server/lib/pubsub"
 )
 
 func TestPubSub(t *testing.T) {
 	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
 
-	config := utils.LoadConfig("../configs/server")
-	connString := utils.ConnectionString(config)
+	config := helpers.LoadConfig("../configs/server")
+	connString := database.ConnectionString(config)
 
 	t.Run("NewPubSub", func(t *testing.T) {
-		ps := utils.NewPubSub(connString, logger)
+		ps := pubsub.NewPubSub(connString, logger)
 		require.NotNil(t, ps)
 		ps.Stop()
 	})
 
 	t.Run("Subscribe and receive notification", func(t *testing.T) {
-		ps := utils.NewPubSub(connString, logger)
+		ps := pubsub.NewPubSub(connString, logger)
 		require.NotNil(t, ps)
 		defer ps.Stop()
 
@@ -58,7 +60,7 @@ func TestPubSub(t *testing.T) {
 	})
 
 	t.Run("Multiple subscribers", func(t *testing.T) {
-		ps := utils.NewPubSub(connString, logger)
+		ps := pubsub.NewPubSub(connString, logger)
 		require.NotNil(t, ps)
 		defer ps.Stop()
 
@@ -99,7 +101,7 @@ func TestPubSub(t *testing.T) {
 	})
 
 	t.Run("Stop PubSub", func(t *testing.T) {
-		ps := utils.NewPubSub(connString, logger)
+		ps := pubsub.NewPubSub(connString, logger)
 		require.NotNil(t, ps)
 
 		ps.Start()

@@ -1,10 +1,13 @@
 package test
 
 import (
+	libauth "github.com/sevings/mindwell-server/lib/auth"
+	"github.com/sevings/mindwell-server/lib/database"
+	"github.com/sevings/mindwell-server/lib/textutil"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/account"
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
-	"github.com/sevings/mindwell-server/utils"
 	"github.com/stretchr/testify/require"
 	"log"
 	"testing"
@@ -111,7 +114,7 @@ func checkLoadTheme(t *testing.T, success bool, user *models.UserID, exp *models
 func createTestTheme(t *testing.T, user *models.UserID) *models.Profile {
 	giveInvite(t, user)
 
-	name := utils.GenerateString(7)
+	name := textutil.GenerateString(7)
 	theme := checkCreateTheme(t, true, user, name, name+" "+name)
 	checkLoadTheme(t, true, user, theme)
 
@@ -137,7 +140,7 @@ func TestLoadTheme(t *testing.T) {
 
 	theme := createTestTheme(t, userIDs[0])
 
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 
 	setThemePrivacy(t, userIDs[0], theme, "registered")
 	checkLoadTheme(t, false, noAuthUser, theme)
@@ -279,12 +282,12 @@ func TestIsThemeOpenForMe(t *testing.T) {
 	theme := createTestTheme(t, userIDs[0])
 
 	check := func(userID *models.UserID, name string, res bool) {
-		tx := utils.NewAutoTx(db)
+		tx := database.NewAutoTx(db)
 		defer tx.Finish()
-		require.Equal(t, res, utils.CanViewTlogName(tx, userID, name))
+		require.Equal(t, res, userutil.CanViewTlogName(tx, userID, name))
 	}
 
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 
 	check(userIDs[0], theme.Name, true)
 	check(userIDs[1], theme.Name, true)

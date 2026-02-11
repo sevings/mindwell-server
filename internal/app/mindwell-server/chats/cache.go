@@ -1,11 +1,12 @@
 package chats
 
 import (
+	"github.com/sevings/mindwell-server/lib/database"
 	"fmt"
+	"time"
+
 	"github.com/patrickmn/go-cache"
 	"github.com/sevings/mindwell-server/models"
-	"github.com/sevings/mindwell-server/utils"
-	"time"
 )
 
 var userIDs *cache.Cache
@@ -20,7 +21,7 @@ func init() {
 	partners = cache.New(48*time.Hour, 24*time.Hour)
 }
 
-func findUserID(tx *utils.AutoTx, name string) int64 {
+func findUserID(tx *database.AutoTx, name string) int64 {
 	id, found := userIDs.Get(name)
 	if found {
 		return id.(int64)
@@ -35,7 +36,7 @@ func findUserID(tx *utils.AutoTx, name string) int64 {
 	return userID
 }
 
-func findDialogID(tx *utils.AutoTx, userID, otherID int64) int64 {
+func findDialogID(tx *database.AutoTx, userID, otherID int64) int64 {
 	var creatorID, partnerID int64
 	if userID < otherID {
 		creatorID = userID
@@ -60,7 +61,7 @@ func findDialogID(tx *utils.AutoTx, userID, otherID int64) int64 {
 	return chatID
 }
 
-func findDialog(tx *utils.AutoTx, userID int64, partnerName string) (chatID, otherID int64) {
+func findDialog(tx *database.AutoTx, userID int64, partnerName string) (chatID, otherID int64) {
 	otherID = findUserID(tx, partnerName)
 	if otherID != 0 {
 		chatID = findDialogID(tx, userID, otherID)
@@ -84,7 +85,7 @@ func setCachedMessage(userID, uid int64, partnerName string, msg *models.Message
 	messages.SetDefault(key, msg)
 }
 
-func findPartner(tx *utils.AutoTx, chatID, userID int64) string {
+func findPartner(tx *database.AutoTx, chatID, userID int64) string {
 	key := fmt.Sprintf("%d_%d", chatID, userID)
 	name, found := partners.Get(key)
 	if found {

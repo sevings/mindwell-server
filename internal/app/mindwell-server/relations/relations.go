@@ -1,15 +1,16 @@
 package relations
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/relations"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 // ConfigureAPI creates operations handlers
-func ConfigureAPI(srv *utils.MindwellServer) {
+func ConfigureAPI(srv *server.MindwellServer) {
 	srv.API.RelationsGetRelationsToNameHandler = relations.GetRelationsToNameHandlerFunc(newToRelationLoader(srv))
 	srv.API.RelationsGetRelationsFromNameHandler = relations.GetRelationsFromNameHandlerFunc(newFromRelationLoader(srv))
 
@@ -22,27 +23,27 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.RelationsPostRelationsInvitedNameHandler = relations.PostRelationsInvitedNameHandlerFunc(newInviter(srv))
 }
 
-func newToRelationLoader(srv *utils.MindwellServer) func(relations.GetRelationsToNameParams, *models.UserID) middleware.Responder {
+func newToRelationLoader(srv *server.MindwellServer) func(relations.GetRelationsToNameParams, *models.UserID) middleware.Responder {
 	return func(params relations.GetRelationsToNameParams, uID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			relation := relationship(tx, params.Name, uID.Name)
 			return relations.NewGetRelationsToNameOK().WithPayload(relation)
 		})
 	}
 }
 
-func newFromRelationLoader(srv *utils.MindwellServer) func(relations.GetRelationsFromNameParams, *models.UserID) middleware.Responder {
+func newFromRelationLoader(srv *server.MindwellServer) func(relations.GetRelationsFromNameParams, *models.UserID) middleware.Responder {
 	return func(params relations.GetRelationsFromNameParams, uID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			relation := relationship(tx, uID.Name, params.Name)
 			return relations.NewGetRelationsFromNameOK().WithPayload(relation)
 		})
 	}
 }
 
-func newToRelationSetter(srv *utils.MindwellServer) func(relations.PutRelationsToNameParams, *models.UserID) middleware.Responder {
+func newToRelationSetter(srv *server.MindwellServer) func(relations.PutRelationsToNameParams, *models.UserID) middleware.Responder {
 	return func(params relations.PutRelationsToNameParams, uID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			if uID.Name == params.Name {
 				err := srv.NewError(&i18n.Message{ID: "self_relation", Other: "You can't have relationship with youself."})
 				return relations.NewPutRelationsToNameForbidden().WithPayload(err)
@@ -96,9 +97,9 @@ func newToRelationSetter(srv *utils.MindwellServer) func(relations.PutRelationsT
 	}
 }
 
-func newFromRelationSetter(srv *utils.MindwellServer) func(relations.PutRelationsFromNameParams, *models.UserID) middleware.Responder {
+func newFromRelationSetter(srv *server.MindwellServer) func(relations.PutRelationsFromNameParams, *models.UserID) middleware.Responder {
 	return func(params relations.PutRelationsFromNameParams, uID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			relation := relationship(tx, params.Name, uID.Name)
 			if relation.Relation != models.RelationshipRelationRequested {
 				err := srv.StandardError("no_request")
@@ -118,9 +119,9 @@ func newFromRelationSetter(srv *utils.MindwellServer) func(relations.PutRelation
 	}
 }
 
-func newToRelationDeleter(srv *utils.MindwellServer) func(relations.DeleteRelationsToNameParams, *models.UserID) middleware.Responder {
+func newToRelationDeleter(srv *server.MindwellServer) func(relations.DeleteRelationsToNameParams, *models.UserID) middleware.Responder {
 	return func(params relations.DeleteRelationsToNameParams, uID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			if checkPrev(uID, params.Name) {
 				srv.Ntf.SendRemoveFollower(tx, uID.ID, params.Name)
 				removePrev(uID, params.Name)
@@ -132,9 +133,9 @@ func newToRelationDeleter(srv *utils.MindwellServer) func(relations.DeleteRelati
 	}
 }
 
-func newFromRelationDeleter(srv *utils.MindwellServer) func(relations.DeleteRelationsFromNameParams, *models.UserID) middleware.Responder {
+func newFromRelationDeleter(srv *server.MindwellServer) func(relations.DeleteRelationsFromNameParams, *models.UserID) middleware.Responder {
 	return func(params relations.DeleteRelationsFromNameParams, uID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			relation := relationship(tx, params.Name, uID.Name)
 			if relation.Relation != models.RelationshipRelationRequested && relation.Relation != models.RelationshipRelationFollowed {
 				err := srv.StandardError("no_request")
@@ -147,9 +148,9 @@ func newFromRelationDeleter(srv *utils.MindwellServer) func(relations.DeleteRela
 	}
 }
 
-func newInviter(srv *utils.MindwellServer) func(relations.PostRelationsInvitedNameParams, *models.UserID) middleware.Responder {
+func newInviter(srv *server.MindwellServer) func(relations.PostRelationsInvitedNameParams, *models.UserID) middleware.Responder {
 	return func(params relations.PostRelationsInvitedNameParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			if userID.Ban.Invite {
 				err := srv.NewError(&i18n.Message{ID: "cant_invite", Other: "You are not allowed to invite users."})
 				return relations.NewPostRelationsInvitedNameForbidden().WithPayload(err)

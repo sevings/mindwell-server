@@ -1,26 +1,30 @@
 package comments
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"database/sql"
 	"fmt"
-	"github.com/sevings/mindwell-server/restapi/operations/me"
-	"github.com/sevings/mindwell-server/restapi/operations/themes"
-	"github.com/sevings/mindwell-server/restapi/operations/users"
 	"net/url"
 	"regexp"
 	"strings"
 
+	"github.com/sevings/mindwell-server/restapi/operations/me"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
+	"github.com/sevings/mindwell-server/restapi/operations/users"
+
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	usersIml "github.com/sevings/mindwell-server/internal/app/mindwell-server/users"
+	"github.com/sevings/mindwell-server/lib/helpers"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/restapi/operations/comments"
 
 	"github.com/sevings/mindwell-server/models"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 // ConfigureAPI creates operations handlers
-func ConfigureAPI(srv *utils.MindwellServer) {
+func ConfigureAPI(srv *server.MindwellServer) {
 	srv.API.CommentsGetCommentsIDHandler = comments.GetCommentsIDHandlerFunc(newCommentLoader(srv))
 	srv.API.CommentsPutCommentsIDHandler = comments.PutCommentsIDHandlerFunc(newCommentEditor(srv))
 	srv.API.CommentsDeleteCommentsIDHandler = comments.DeleteCommentsIDHandlerFunc(newCommentDeleter(srv))
@@ -65,7 +69,7 @@ func HtmlContent(content string) string {
 	}
 
 	content = strings.TrimSpace(content)
-	content = utils.ReplaceToHtml(content)
+	content = helpers.ReplaceToHtml(content)
 	content = iMdRe.ReplaceAllString(content, "$1")
 	content = urlRe.ReplaceAllStringFunc(content, replaceURL)
 
@@ -96,7 +100,7 @@ func setCommentText(comment *models.Comment) {
 	comment.Content = HtmlContent(comment.EditContent)
 }
 
-func LoadEntryAuthor(tx *utils.AutoTx, entryID int64) (entryUserID int64, themeCreatorID int64) {
+func LoadEntryAuthor(tx *database.AutoTx, entryID int64) (entryUserID int64, themeCreatorID int64) {
 	const entryAuthorQuery = `
 SELECT user_id, COALESCE(creator_id, 0)
 FROM entries
@@ -106,7 +110,7 @@ WHERE entries.id = $1`
 	return entryUserID, themeCreatorID
 }
 
-func LoadComment(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, commentID int64) *models.Comment {
+func LoadComment(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, commentID int64) *models.Comment {
 	q := baseFeedQuery(userID, 1).
 		Where("comments.id = ?", commentID)
 
@@ -120,16 +124,16 @@ func LoadComment(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 	return nil
 }
 
-func newCommentLoader(srv *utils.MindwellServer) func(comments.GetCommentsIDParams, *models.UserID) middleware.Responder {
+func newCommentLoader(srv *server.MindwellServer) func(comments.GetCommentsIDParams, *models.UserID) middleware.Responder {
 	return func(params comments.GetCommentsIDParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			comment := LoadComment(srv, tx, userID, params.ID)
 			if tx.Error() != nil {
 				err := srv.StandardError("no_comment")
 				return comments.NewGetCommentsIDNotFound().WithPayload(err)
 			}
 
-			canView := utils.CanViewEntry(tx, userID, comment.EntryID)
+			canView := userutil.CanViewEntry(tx, userID, comment.EntryID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return comments.NewGetCommentsIDNotFound().WithPayload(err)
@@ -140,7 +144,7 @@ func newCommentLoader(srv *utils.MindwellServer) func(comments.GetCommentsIDPara
 	}
 }
 
-func editComment(tx *utils.AutoTx, comment *models.Comment) {
+func editComment(tx *database.AutoTx, comment *models.Comment) {
 	const q = `
 		UPDATE comments
 		SET edit_content = $2
@@ -149,9 +153,9 @@ func editComment(tx *utils.AutoTx, comment *models.Comment) {
 	tx.Exec(q, comment.ID, comment.EditContent)
 }
 
-func newCommentEditor(srv *utils.MindwellServer) func(comments.PutCommentsIDParams, *models.UserID) middleware.Responder {
+func newCommentEditor(srv *server.MindwellServer) func(comments.PutCommentsIDParams, *models.UserID) middleware.Responder {
 	return func(params comments.PutCommentsIDParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			comment := LoadComment(srv, tx, userID, params.ID)
 			if tx.Error() != nil {
 				err := srv.StandardError("no_comment")
@@ -180,7 +184,7 @@ func newCommentEditor(srv *utils.MindwellServer) func(comments.PutCommentsIDPara
 	}
 }
 
-func canDeleteComment(tx *utils.AutoTx, userID *models.UserID, commentID int64) bool {
+func canDeleteComment(tx *database.AutoTx, userID *models.UserID, commentID int64) bool {
 	if userID.ID == 0 {
 		return false
 	}
@@ -198,7 +202,7 @@ func canDeleteComment(tx *utils.AutoTx, userID *models.UserID, commentID int64) 
 	return commentUserID == userID.ID || entryUserID == userID.ID || themeCreatorID == userID.ID
 }
 
-func deleteComment(tx *utils.AutoTx, commentID int64) {
+func deleteComment(tx *database.AutoTx, commentID int64) {
 	const q = `
 		DELETE FROM comments
 		WHERE id = $1`
@@ -206,9 +210,9 @@ func deleteComment(tx *utils.AutoTx, commentID int64) {
 	tx.Exec(q, commentID)
 }
 
-func newCommentDeleter(srv *utils.MindwellServer) func(comments.DeleteCommentsIDParams, *models.UserID) middleware.Responder {
+func newCommentDeleter(srv *server.MindwellServer) func(comments.DeleteCommentsIDParams, *models.UserID) middleware.Responder {
 	return func(params comments.DeleteCommentsIDParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			allowed := canDeleteComment(tx, userID, params.ID)
 			if tx.Error() != nil {
 				err := srv.NewError(nil)
@@ -234,10 +238,10 @@ func newCommentDeleter(srv *utils.MindwellServer) func(comments.DeleteCommentsID
 	}
 }
 
-func newEntryCommentsLoader(srv *utils.MindwellServer) func(comments.GetEntriesIDCommentsParams, *models.UserID) middleware.Responder {
+func newEntryCommentsLoader(srv *server.MindwellServer) func(comments.GetEntriesIDCommentsParams, *models.UserID) middleware.Responder {
 	return func(params comments.GetEntriesIDCommentsParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.CanViewEntry(tx, userID, params.ID)
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			canView := userutil.CanViewEntry(tx, userID, params.ID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return comments.NewGetEntriesIDCommentsNotFound().WithPayload(err)
@@ -254,19 +258,19 @@ func newEntryCommentsLoader(srv *utils.MindwellServer) func(comments.GetEntriesI
 	}
 }
 
-func newMyCommentsLoader(srv *utils.MindwellServer) func(me.GetMeCommentsParams, *models.UserID) middleware.Responder {
+func newMyCommentsLoader(srv *server.MindwellServer) func(me.GetMeCommentsParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeCommentsParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			data := loadUserComments(srv, tx, userID, *params.Limit, userID.Name, *params.After, *params.Before)
 			return me.NewGetMeCommentsOK().WithPayload(data)
 		})
 	}
 }
 
-func newUserCommentsLoader(srv *utils.MindwellServer) func(users.GetUsersNameCommentsParams, *models.UserID) middleware.Responder {
+func newUserCommentsLoader(srv *server.MindwellServer) func(users.GetUsersNameCommentsParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameCommentsParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.CanViewTlogName(tx, userID, params.Name)
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			canView := userutil.CanViewTlogName(tx, userID, params.Name)
 			if !canView {
 				err := srv.StandardError("no_tlog")
 				return users.NewGetUsersNameCommentsNotFound().WithPayload(err)
@@ -283,10 +287,10 @@ func newUserCommentsLoader(srv *utils.MindwellServer) func(users.GetUsersNameCom
 	}
 }
 
-func newThemeCommentsLoader(srv *utils.MindwellServer) func(themes.GetThemesNameCommentsParams, *models.UserID) middleware.Responder {
+func newThemeCommentsLoader(srv *server.MindwellServer) func(themes.GetThemesNameCommentsParams, *models.UserID) middleware.Responder {
 	return func(params themes.GetThemesNameCommentsParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.CanViewTlogName(tx, userID, params.Name)
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			canView := userutil.CanViewTlogName(tx, userID, params.Name)
 			if !canView {
 				err := srv.StandardError("no_theme")
 				return themes.NewGetThemesNameCommentsNotFound().WithPayload(err)
@@ -303,16 +307,16 @@ func newThemeCommentsLoader(srv *utils.MindwellServer) func(themes.GetThemesName
 	}
 }
 
-func newAllCommentsLoader(srv *utils.MindwellServer) func(comments.GetCommentsParams, *models.UserID) middleware.Responder {
+func newAllCommentsLoader(srv *server.MindwellServer) func(comments.GetCommentsParams, *models.UserID) middleware.Responder {
 	return func(params comments.GetCommentsParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			data := loadAllComments(srv, tx, userID, *params.Limit, *params.After, *params.Before)
 			return comments.NewGetCommentsOK().WithPayload(data)
 		})
 	}
 }
 
-func commentatorID(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entryID int64) (int64, *models.Error) {
+func commentatorID(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, entryID int64) (int64, *models.Error) {
 	const q = `
 		SELECT author_id, user_id, is_commentable, is_anonymous
 		FROM entries
@@ -330,7 +334,7 @@ func commentatorID(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 		return entryUserID, nil
 	}
 
-	if !commentable || userID.Ban.Comment || !utils.CanViewEntry(tx, userID, entryID) {
+	if !commentable || userID.Ban.Comment || !userutil.CanViewEntry(tx, userID, entryID) {
 		err := srv.NewError(&i18n.Message{ID: "cant_comment", Other: "You can't comment this entry."})
 		return 0, err
 	}
@@ -338,7 +342,7 @@ func commentatorID(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 	return userID.ID, nil
 }
 
-func postComment(tx *utils.AutoTx, userID *models.UserID, comment *models.Comment) {
+func postComment(tx *database.AutoTx, userID *models.UserID, comment *models.Comment) {
 	const q = `
 		INSERT INTO comments (user_id, author_id, entry_id, edit_content)
 		VALUES ($1, $2, $3, $4)
@@ -361,9 +365,9 @@ func postComment(tx *utils.AutoTx, userID *models.UserID, comment *models.Commen
 	comment.Rating.ID = comment.ID
 }
 
-func newCommentPoster(srv *utils.MindwellServer) func(comments.PostEntriesIDCommentsParams, *models.UserID) middleware.Responder {
+func newCommentPoster(srv *server.MindwellServer) func(comments.PostEntriesIDCommentsParams, *models.UserID) middleware.Responder {
 	return func(params comments.PostEntriesIDCommentsParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			prev, found := checkPrev(params, userID)
 			if found {
 				return comments.NewPostEntriesIDCommentsCreated().WithPayload(prev)
@@ -395,9 +399,9 @@ func newCommentPoster(srv *utils.MindwellServer) func(comments.PostEntriesIDComm
 	}
 }
 
-func newCommentatorLoader(srv *utils.MindwellServer) func(comments.GetEntriesIDCommentatorParams, *models.UserID) middleware.Responder {
+func newCommentatorLoader(srv *server.MindwellServer) func(comments.GetEntriesIDCommentatorParams, *models.UserID) middleware.Responder {
 	return func(params comments.GetEntriesIDCommentatorParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			authorID, err := commentatorID(srv, tx, userID, params.ID)
 			if err != nil {
 				return comments.NewGetEntriesIDCommentatorNotFound().WithPayload(err)

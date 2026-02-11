@@ -1,4 +1,4 @@
-package utils
+package validation
 
 import (
 	"encoding/json"
@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 const checkUrl = "http://open.kickbox.com/v1/disposable/"
@@ -15,14 +17,25 @@ type reply struct {
 	Disposable bool
 }
 
+// EmailAllowedChecker is the interface for email validation
+type EmailAllowedChecker interface {
+	IsAllowed(email string) bool
+}
+
+// ConfigProvider provides access to configuration strings
+type ConfigProvider interface {
+	ConfigStrings(key string) []string
+	LogSystem() *zap.Logger
+}
+
 type EmailChecker struct {
-	srv     *MindwellServer
+	srv     ConfigProvider
 	client  *http.Client
 	trusted []string
 	banned  []string
 }
 
-func NewEmailChecker(srv *MindwellServer) *EmailChecker {
+func NewEmailChecker(srv ConfigProvider) *EmailChecker {
 	return &EmailChecker{
 		srv: srv,
 		client: &http.Client{

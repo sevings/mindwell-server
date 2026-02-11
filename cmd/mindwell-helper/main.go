@@ -7,7 +7,9 @@ import (
 	"os"
 
 	"github.com/sevings/mindwell-server/helper"
-	"github.com/sevings/mindwell-server/utils"
+	"github.com/sevings/mindwell-server/lib/database"
+	"github.com/sevings/mindwell-server/lib/helpers"
+	"github.com/sevings/mindwell-server/lib/notifications"
 )
 
 const admArg = "adm"
@@ -44,7 +46,7 @@ func main() {
 		return
 	}
 
-	cfg := utils.LoadConfig("configs/server")
+	cfg := helpers.LoadConfig("configs/server")
 
 	baseURL, _ := cfg.String("server.base_url")
 	support, _ := cfg.String("server.support")
@@ -61,7 +63,7 @@ func main() {
 
 	emailLog := zapLog.With(zap.String("type", "email"))
 
-	mail := &utils.Postman{
+	mail := &notifications.Postman{
 		BaseUrl:   baseURL,
 		Support:   support,
 		Moderator: moderator,
@@ -80,8 +82,8 @@ func main() {
 
 	surveyUrl, _ := cfg.String("email.survey")
 
-	db := utils.OpenDatabase(cfg)
-	tx := utils.NewAutoTx(db)
+	db := database.OpenDatabase(cfg)
+	tx := database.NewAutoTx(db)
 	defer tx.Finish()
 
 	args := os.Args[1:]

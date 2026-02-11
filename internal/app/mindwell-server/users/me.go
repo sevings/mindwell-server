@@ -1,17 +1,19 @@
 package users
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"database/sql"
 	"strings"
 
-	"github.com/sevings/mindwell-server/utils"
+	"github.com/sevings/mindwell-server/lib/helpers"
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
 )
 
-func loadMyProfile(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID) *models.AuthProfile {
+func loadMyProfile(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID) *models.AuthProfile {
 	const q = `
 	SELECT users.id, users.name, users.show_name,
 	users.avatar,
@@ -104,7 +106,7 @@ func loadMyProfile(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 		}
 	}
 
-	profile.Account.Email = utils.HideEmail(profile.Account.Email)
+	profile.Account.Email = helpers.HideEmail(profile.Account.Email)
 
 	if bday.Valid {
 		profile.Birthday = bday.String
@@ -146,9 +148,9 @@ func loadMyProfile(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 	return &profile
 }
 
-func newMeLoader(srv *utils.MindwellServer) func(me.GetMeParams, *models.UserID) middleware.Responder {
+func newMeLoader(srv *server.MindwellServer) func(me.GetMeParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			user := loadMyProfile(srv, tx, userID)
 
 			if tx.Error() != nil {
@@ -161,7 +163,7 @@ func newMeLoader(srv *utils.MindwellServer) func(me.GetMeParams, *models.UserID)
 	}
 }
 
-func editMyProfile(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, params me.PutMeParams) *models.Profile {
+func editMyProfile(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, params me.PutMeParams) *models.Profile {
 	id := userID.ID
 
 	if params.Birthday != nil && len(*params.Birthday) > 0 {
@@ -214,9 +216,9 @@ show_name = $4 where id = $1`
 	return loadUserProfile(srv, tx, loadQuery, userID, id)
 }
 
-func newMeEditor(srv *utils.MindwellServer) func(me.PutMeParams, *models.UserID) middleware.Responder {
+func newMeEditor(srv *server.MindwellServer) func(me.PutMeParams, *models.UserID) middleware.Responder {
 	return func(params me.PutMeParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			user := editMyProfile(srv, tx, userID, params)
 
 			if tx.Error() != nil {
@@ -229,7 +231,7 @@ func newMeEditor(srv *utils.MindwellServer) func(me.PutMeParams, *models.UserID)
 	}
 }
 
-func newMyFollowersLoader(srv *utils.MindwellServer) func(me.GetMeFollowersParams, *models.UserID) middleware.Responder {
+func newMyFollowersLoader(srv *server.MindwellServer) func(me.GetMeFollowersParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeFollowersParams, userID *models.UserID) middleware.Responder {
 		return loadTlogRelatedUsers(srv, userID, usersQueryToName, usersToNameQueryWhere,
 			models.RelationshipRelationFollowed, userID.Name, models.FriendListRelationFollowers,
@@ -237,7 +239,7 @@ func newMyFollowersLoader(srv *utils.MindwellServer) func(me.GetMeFollowersParam
 	}
 }
 
-func newMyFollowingsLoader(srv *utils.MindwellServer) func(me.GetMeFollowingsParams, *models.UserID) middleware.Responder {
+func newMyFollowingsLoader(srv *server.MindwellServer) func(me.GetMeFollowingsParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeFollowingsParams, userID *models.UserID) middleware.Responder {
 		return loadTlogRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
 			models.RelationshipRelationFollowed, userID.Name, models.FriendListRelationFollowings,
@@ -245,14 +247,14 @@ func newMyFollowingsLoader(srv *utils.MindwellServer) func(me.GetMeFollowingsPar
 	}
 }
 
-func newMyInvitedLoader(srv *utils.MindwellServer) func(me.GetMeInvitedParams, *models.UserID) middleware.Responder {
+func newMyInvitedLoader(srv *server.MindwellServer) func(me.GetMeInvitedParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeInvitedParams, userID *models.UserID) middleware.Responder {
 		return loadInvitedUsers(srv, userID, invitedUsersQuery, invitedByQueryWhere,
 			userID.Name, *params.After, *params.Before, *params.Limit)
 	}
 }
 
-func newMyIgnoredLoader(srv *utils.MindwellServer) func(me.GetMeIgnoredParams, *models.UserID) middleware.Responder {
+func newMyIgnoredLoader(srv *server.MindwellServer) func(me.GetMeIgnoredParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeIgnoredParams, userID *models.UserID) middleware.Responder {
 		return loadTlogRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
 			models.RelationshipRelationIgnored, userID.Name, models.FriendListRelationIgnored,
@@ -260,7 +262,7 @@ func newMyIgnoredLoader(srv *utils.MindwellServer) func(me.GetMeIgnoredParams, *
 	}
 }
 
-func newMyHiddenLoader(srv *utils.MindwellServer) func(me.GetMeHiddenParams, *models.UserID) middleware.Responder {
+func newMyHiddenLoader(srv *server.MindwellServer) func(me.GetMeHiddenParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeHiddenParams, userID *models.UserID) middleware.Responder {
 		return loadTlogRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
 			models.RelationshipRelationHidden, userID.Name, models.FriendListRelationHidden,
@@ -268,7 +270,7 @@ func newMyHiddenLoader(srv *utils.MindwellServer) func(me.GetMeHiddenParams, *mo
 	}
 }
 
-func newMyRequestedLoader(srv *utils.MindwellServer) func(me.GetMeRequestedParams, *models.UserID) middleware.Responder {
+func newMyRequestedLoader(srv *server.MindwellServer) func(me.GetMeRequestedParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeRequestedParams, userID *models.UserID) middleware.Responder {
 		return loadTlogRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
 			models.RelationshipRelationRequested, userID.Name, models.FriendListRelationRequested,
@@ -276,9 +278,9 @@ func newMyRequestedLoader(srv *utils.MindwellServer) func(me.GetMeRequestedParam
 	}
 }
 
-func newMyOnlineSetter(srv *utils.MindwellServer) func(me.PutMeOnlineParams, *models.UserID) middleware.Responder {
+func newMyOnlineSetter(srv *server.MindwellServer) func(me.PutMeOnlineParams, *models.UserID) middleware.Responder {
 	return func(params me.PutMeOnlineParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			const q = `UPDATE users SET last_seen_at = DEFAULT WHERE id = $1`
 			tx.Exec(q, userID.ID)
 

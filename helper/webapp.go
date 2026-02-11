@@ -1,11 +1,14 @@
 package helper
 
 import (
-	"github.com/sevings/mindwell-server/utils"
-	"github.com/zpatrick/go-config"
 	"log"
 	"strconv"
 	"strings"
+
+	"github.com/sevings/mindwell-server/lib/auth"
+	"github.com/sevings/mindwell-server/lib/database"
+	"github.com/sevings/mindwell-server/lib/helpers"
+	"github.com/zpatrick/go-config"
 )
 
 type hashConfig struct {
@@ -21,11 +24,11 @@ func (hc hashConfig) ConfigString(key string) string {
 	return value
 }
 
-func CreateWebApp(tx *utils.AutoTx, cfg *config.Config) {
+func CreateWebApp(tx *database.AutoTx, cfg *config.Config) {
 	hc := hashConfig{cfg: cfg}
 	baseURL := hc.ConfigString("server.base_url")
 
-	app := utils.CreateAppParameters{
+	app := helpers.CreateAppParameters{
 		DevName:     "Mindwell",
 		Type:        "private",
 		Flow:        "password",
@@ -36,8 +39,8 @@ func CreateWebApp(tx *utils.AutoTx, cfg *config.Config) {
 		Info:        "The official Mindwell web app.",
 	}
 
-	hash := utils.NewTokenHash(hashConfig{cfg: cfg})
-	appID, secret, err := utils.CreateApp(tx, hash, app)
+	hash := auth.NewTokenHash(hashConfig{cfg: cfg})
+	appID, secret, err := helpers.CreateApp(tx, hash, app)
 	if err != nil {
 		log.Println(err)
 		return

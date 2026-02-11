@@ -1,20 +1,22 @@
 package favorites
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"github.com/go-openapi/runtime/middleware"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/favorites"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 // ConfigureAPI creates operations handlers
-func ConfigureAPI(srv *utils.MindwellServer) {
+func ConfigureAPI(srv *server.MindwellServer) {
 	srv.API.FavoritesGetEntriesIDFavoriteHandler = favorites.GetEntriesIDFavoriteHandlerFunc(newStatusLoader(srv))
 	srv.API.FavoritesPutEntriesIDFavoriteHandler = favorites.PutEntriesIDFavoriteHandlerFunc(newFavoriteAdder(srv))
 	srv.API.FavoritesDeleteEntriesIDFavoriteHandler = favorites.DeleteEntriesIDFavoriteHandlerFunc(newFavoriteDeleter(srv))
 }
 
-func favoriteCount(tx *utils.AutoTx, entryID int64) int64 {
+func favoriteCount(tx *database.AutoTx, entryID int64) int64 {
 	const q = `
 		SELECT favorites_count
 		FROM entries
@@ -22,7 +24,7 @@ func favoriteCount(tx *utils.AutoTx, entryID int64) int64 {
 	return tx.QueryInt64(q, entryID)
 }
 
-func favoriteStatus(tx *utils.AutoTx, userID, entryID int64) *models.FavoriteStatus {
+func favoriteStatus(tx *database.AutoTx, userID, entryID int64) *models.FavoriteStatus {
 	status := models.FavoriteStatus{ID: entryID}
 	status.Count = favoriteCount(tx, entryID)
 
@@ -35,10 +37,10 @@ func favoriteStatus(tx *utils.AutoTx, userID, entryID int64) *models.FavoriteSta
 	return &status
 }
 
-func newStatusLoader(srv *utils.MindwellServer) func(favorites.GetEntriesIDFavoriteParams, *models.UserID) middleware.Responder {
+func newStatusLoader(srv *server.MindwellServer) func(favorites.GetEntriesIDFavoriteParams, *models.UserID) middleware.Responder {
 	return func(params favorites.GetEntriesIDFavoriteParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.CanViewEntry(tx, userID, params.ID)
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			canView := userutil.CanViewEntry(tx, userID, params.ID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return favorites.NewGetEntriesIDFavoriteNotFound().WithPayload(err)
@@ -50,7 +52,7 @@ func newStatusLoader(srv *utils.MindwellServer) func(favorites.GetEntriesIDFavor
 	}
 }
 
-func addToFavorites(tx *utils.AutoTx, userID, entryID int64) *models.FavoriteStatus {
+func addToFavorites(tx *database.AutoTx, userID, entryID int64) *models.FavoriteStatus {
 	const q = `
 		INSERT INTO favorites(user_id, entry_id)
 		VALUES($1, $2)
@@ -68,10 +70,10 @@ func addToFavorites(tx *utils.AutoTx, userID, entryID int64) *models.FavoriteSta
 	return &status
 }
 
-func newFavoriteAdder(srv *utils.MindwellServer) func(favorites.PutEntriesIDFavoriteParams, *models.UserID) middleware.Responder {
+func newFavoriteAdder(srv *server.MindwellServer) func(favorites.PutEntriesIDFavoriteParams, *models.UserID) middleware.Responder {
 	return func(params favorites.PutEntriesIDFavoriteParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.CanViewEntry(tx, userID, params.ID)
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			canView := userutil.CanViewEntry(tx, userID, params.ID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return favorites.NewPutEntriesIDFavoriteNotFound().WithPayload(err)
@@ -83,7 +85,7 @@ func newFavoriteAdder(srv *utils.MindwellServer) func(favorites.PutEntriesIDFavo
 	}
 }
 
-func removeFromFavorites(tx *utils.AutoTx, userID, entryID int64) *models.FavoriteStatus {
+func removeFromFavorites(tx *database.AutoTx, userID, entryID int64) *models.FavoriteStatus {
 	const q = `
 		DELETE FROM favorites
 		WHERE user_id = $1 AND entry_id = $2`
@@ -99,10 +101,10 @@ func removeFromFavorites(tx *utils.AutoTx, userID, entryID int64) *models.Favori
 	return &status
 }
 
-func newFavoriteDeleter(srv *utils.MindwellServer) func(favorites.DeleteEntriesIDFavoriteParams, *models.UserID) middleware.Responder {
+func newFavoriteDeleter(srv *server.MindwellServer) func(favorites.DeleteEntriesIDFavoriteParams, *models.UserID) middleware.Responder {
 	return func(params favorites.DeleteEntriesIDFavoriteParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.CanViewEntry(tx, userID, params.ID)
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			canView := userutil.CanViewEntry(tx, userID, params.ID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return favorites.NewDeleteEntriesIDFavoriteNotFound().WithPayload(err)

@@ -1,13 +1,14 @@
 package helper
 
 import (
+	"github.com/sevings/mindwell-server/lib/notifications"
 	"github.com/leporo/sqlf"
-	"github.com/sevings/mindwell-server/utils"
+	"github.com/sevings/mindwell-server/lib/database"
 	"log"
 	"time"
 )
 
-func SendReminders(tx *utils.AutoTx, mail *utils.Postman) {
+func SendReminders(tx *database.AutoTx, mail *notifications.Postman) {
 	q := sqlf.Select("show_name, gender.type, email, last_seen_at").
 		From("users").
 		Join("gender", "users.gender = gender.id").
@@ -38,7 +39,7 @@ func SendReminders(tx *utils.AutoTx, mail *utils.Postman) {
 	}
 }
 
-func SendSurvey(tx *utils.AutoTx, mail *utils.Postman, surveyUrl string) {
+func SendSurvey(tx *database.AutoTx, mail *notifications.Postman, surveyUrl string) {
 	if surveyUrl == "" {
 		log.Println("The survey url is empty")
 		return

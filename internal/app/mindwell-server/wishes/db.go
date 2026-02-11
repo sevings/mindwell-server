@@ -1,14 +1,16 @@
 package wishes
 
 import (
+	"github.com/sevings/mindwell-server/lib/database"
 	"database/sql"
-	"github.com/sevings/mindwell-server/models"
-	"github.com/sevings/mindwell-server/utils"
 	"time"
+
+	"github.com/sevings/mindwell-server/lib/userutil"
+	"github.com/sevings/mindwell-server/models"
 )
 
 func LastCreatedWish(db *sql.DB, userID *models.UserID) (int64, bool) {
-	tx := utils.NewAutoTx(db)
+	tx := database.NewAutoTx(db)
 	defer tx.Finish()
 
 	const q = `
@@ -25,7 +27,7 @@ LIMIT 1
 	return wishID, wishID != 0
 }
 
-func LoadWish(tx *utils.AutoTx, userID *models.UserID, id int64) (*models.Wish, bool) {
+func LoadWish(tx *database.AutoTx, userID *models.UserID, id int64) (*models.Wish, bool) {
 	const q = `
 SELECT content, to_id, wish_states.state,
 	extract(epoch from created_at + interval '12 hours')
@@ -52,7 +54,7 @@ WHERE wishes.id = $1 AND (
 	if userID.ID == receiverID {
 		wish.SendUntil = 0
 	} else {
-		wish.Receiver = utils.LoadUser(tx, receiverID)
+		wish.Receiver = userutil.LoadUser(tx, receiverID)
 		switch wish.State {
 		case models.WishStateNew:
 			if time.Now().Unix() > int64(wish.SendUntil) {
@@ -73,7 +75,7 @@ WHERE wishes.id = $1 AND (
 	return wish, true
 }
 
-func saveWish(tx *utils.AutoTx, userID *models.UserID, id int64, content string) (int64, bool) {
+func saveWish(tx *database.AutoTx, userID *models.UserID, id int64, content string) (int64, bool) {
 	const q = `
 UPDATE wishes
 SET content = $3,
@@ -88,7 +90,7 @@ RETURNING to_id
 	return toID, toID != 0
 }
 
-func declineWish(tx *utils.AutoTx, userID *models.UserID, id int64) bool {
+func declineWish(tx *database.AutoTx, userID *models.UserID, id int64) bool {
 	const q = `
 UPDATE wishes
 SET state = (SELECT id FROM wish_states WHERE state = 'declined')
@@ -101,7 +103,7 @@ WHERE wishes.id = $1 AND from_id = $2
 	return tx.RowsAffected() == 1
 }
 
-func thankWish(tx *utils.AutoTx, userID *models.UserID, id int64) bool {
+func thankWish(tx *database.AutoTx, userID *models.UserID, id int64) bool {
 	const q = `
 UPDATE wishes
 SET state = (SELECT id FROM wish_states WHERE state = 'thanked')
@@ -113,7 +115,7 @@ WHERE wishes.id = $1 AND to_id = $2
 	return tx.RowsAffected() == 1
 }
 
-func createWish(tx *utils.AutoTx, userID int64) (int64, bool) {
+func createWish(tx *database.AutoTx, userID int64) (int64, bool) {
 	const canSendQuery = `
 SELECT invited_by IS NOT NULL
 	AND invite_ban <= CURRENT_DATE

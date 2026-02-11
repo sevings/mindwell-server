@@ -2,12 +2,12 @@ package images
 
 import (
 	"database/sql"
-	"go.uber.org/zap"
 	"log"
 
-	"github.com/sevings/mindwell-server/utils"
-
+	"github.com/sevings/mindwell-server/lib/auth"
+	"github.com/sevings/mindwell-server/lib/database"
 	"github.com/zpatrick/go-config"
+	"go.uber.org/zap"
 )
 
 type MindwellImages struct {
@@ -38,7 +38,7 @@ func NewMindwellImages(cfg *config.Config) *MindwellImages {
 		mi.LogSystem().Error(err.Error())
 	}
 
-	mi.db = utils.OpenDatabase(cfg)
+	mi.db = database.OpenDatabase(cfg)
 	mi.baseURL = mi.ConfigString("images.base_url")
 	mi.folder = mi.ConfigString("images.folder")
 
@@ -65,8 +65,8 @@ func (mi *MindwellImages) ConfigBytes(key string) []byte {
 	return []byte(mi.ConfigString(key))
 }
 
-func (mi *MindwellImages) TokenHash() utils.TokenHash {
-	return utils.NewTokenHash(mi)
+func (mi *MindwellImages) TokenHash() auth.TokenHash {
+	return auth.NewTokenHash(mi)
 }
 
 func (mi *MindwellImages) Folder() string {

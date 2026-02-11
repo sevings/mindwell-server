@@ -2,7 +2,7 @@ package test
 
 import (
 	"fmt"
-	"github.com/sevings/mindwell-server/utils"
+	libauth "github.com/sevings/mindwell-server/lib/auth"
 	"github.com/stretchr/testify/require"
 	"math/rand"
 	"sync"
@@ -260,9 +260,9 @@ Dependent certainty off **discovery** him his tolerably offending. Ham for atten
 	runFunc(4, loadLive, userIDs[1])
 	runFunc(5, loadLive, userIDs[2])
 	runFunc(6, loadLive, userIDs[3])
-	runFunc(7, loadLive, utils.NoAuthUser())
+	runFunc(7, loadLive, libauth.NoAuthUser())
 	runFunc(8, loadLast, userIDs[0])
-	runFunc(9, loadLast, utils.NoAuthUser())
+	runFunc(9, loadLast, libauth.NoAuthUser())
 
 	wg.Wait()
 

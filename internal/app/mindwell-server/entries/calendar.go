@@ -1,18 +1,22 @@
 package entries
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"database/sql"
+	"strings"
+	"time"
+
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/leporo/sqlf"
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/sevings/mindwell-server/lib/textutil"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/entries"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
-	"github.com/sevings/mindwell-server/utils"
-	"strings"
-	"time"
 )
 
 func baseCalendarQuery(cal *models.Calendar) *sqlf.Stmt {
@@ -50,10 +54,10 @@ func tlogCalendarQuery(userID *models.UserID, tlog string, cal *models.Calendar)
 		Where(`(entries.user_id = entries.author_id OR NOT entry_users.shadow_ban OR ?)`, userID.Ban.Shadow).
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id")
 	AddRelationToTlogQuery(q, userID, tlog)
-	return utils.AddEntryOpenQuery(q, userID, false)
+	return userutil.AddEntryOpenQuery(q, userID, false)
 }
 
-func loadEmptyCalendar(tx *utils.AutoTx, q *sqlf.Stmt, start, end, limit int64) *models.Calendar {
+func loadEmptyCalendar(tx *database.AutoTx, q *sqlf.Stmt, start, end, limit int64) *models.Calendar {
 	var createdAt float64
 	tx.QueryStmt(q)
 	tx.Scan(&createdAt)
@@ -80,7 +84,7 @@ func loadEmptyCalendar(tx *utils.AutoTx, q *sqlf.Stmt, start, end, limit int64) 
 	}
 }
 
-func loadCalendarEntry(tx *utils.AutoTx) *models.CalendarEntry {
+func loadCalendarEntry(tx *database.AutoTx) *models.CalendarEntry {
 	var title, content string
 	var entry models.CalendarEntry
 	ok := tx.Scan(&entry.ID, &entry.CreatedAt,
@@ -92,18 +96,18 @@ func loadCalendarEntry(tx *utils.AutoTx) *models.CalendarEntry {
 	title = strings.TrimSpace(title)
 	if title != "" {
 		title = bluemonday.StrictPolicy().Sanitize(title)
-		entry.Title, _ = utils.CutText(title, 100)
+		entry.Title, _ = textutil.CutText(title, 100)
 	} else {
 		content = strings.TrimSpace(content)
 		content = md.RenderToString([]byte(content))
-		content = utils.RemoveHTML(content)
-		entry.Title, _ = utils.CutHtml(content, 1, 100, 0)
+		content = textutil.RemoveHTML(content)
+		entry.Title, _ = textutil.CutHtml(content, 1, 100, 0)
 	}
 
 	return &entry
 }
 
-func loadCalendar(tx *utils.AutoTx, cal *models.Calendar) {
+func loadCalendar(tx *database.AutoTx, cal *models.Calendar) {
 	for {
 		entry := loadCalendarEntry(tx)
 		if entry == nil {
@@ -121,7 +125,7 @@ func loadCalendar(tx *utils.AutoTx, cal *models.Calendar) {
 	}
 }
 
-func loadTlogCalendar(tx *utils.AutoTx, userID *models.UserID, tlog string, start, end, limit int64) *models.Calendar {
+func loadTlogCalendar(tx *database.AutoTx, userID *models.UserID, tlog string, start, end, limit int64) *models.Calendar {
 	if userID.Name == tlog {
 		return loadMyCalendar(tx, userID, start, end, limit)
 	}
@@ -142,10 +146,10 @@ func loadTlogCalendar(tx *utils.AutoTx, userID *models.UserID, tlog string, star
 	return cal
 }
 
-func newTlogCalendarLoader(srv *utils.MindwellServer) func(users.GetUsersNameCalendarParams, *models.UserID) middleware.Responder {
+func newTlogCalendarLoader(srv *server.MindwellServer) func(users.GetUsersNameCalendarParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameCalendarParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.CanViewTlogName(tx, userID, params.Name)
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			canView := userutil.CanViewTlogName(tx, userID, params.Name)
 			if !canView {
 				err := srv.StandardError("no_tlog")
 				return users.NewGetUsersNameCalendarNotFound().WithPayload(err)
@@ -157,10 +161,10 @@ func newTlogCalendarLoader(srv *utils.MindwellServer) func(users.GetUsersNameCal
 	}
 }
 
-func newThemeCalendarLoader(srv *utils.MindwellServer) func(themes.GetThemesNameCalendarParams, *models.UserID) middleware.Responder {
+func newThemeCalendarLoader(srv *server.MindwellServer) func(themes.GetThemesNameCalendarParams, *models.UserID) middleware.Responder {
 	return func(params themes.GetThemesNameCalendarParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.CanViewTlogName(tx, userID, params.Name)
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			canView := userutil.CanViewTlogName(tx, userID, params.Name)
 			if !canView {
 				err := srv.StandardError("no_theme")
 				return themes.NewGetThemesNameCalendarNotFound().WithPayload(err)
@@ -172,7 +176,7 @@ func newThemeCalendarLoader(srv *utils.MindwellServer) func(themes.GetThemesName
 	}
 }
 
-func loadMyCalendar(tx *utils.AutoTx, userID *models.UserID, start, end, limit int64) *models.Calendar {
+func loadMyCalendar(tx *database.AutoTx, userID *models.UserID, start, end, limit int64) *models.Calendar {
 	createdAtQuery := sqlf.Select("extract(epoch FROM created_at)").
 		From("users").
 		Where("id = ?", userID.ID)
@@ -189,9 +193,9 @@ func loadMyCalendar(tx *utils.AutoTx, userID *models.UserID, start, end, limit i
 	return cal
 }
 
-func newMyCalendarLoader(srv *utils.MindwellServer) func(me.GetMeCalendarParams, *models.UserID) middleware.Responder {
+func newMyCalendarLoader(srv *server.MindwellServer) func(me.GetMeCalendarParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeCalendarParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			feed := loadMyCalendar(tx, userID, *params.Start, *params.End, *params.Limit)
 
 			if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
@@ -204,7 +208,7 @@ func newMyCalendarLoader(srv *utils.MindwellServer) func(me.GetMeCalendarParams,
 	}
 }
 
-func loadAdjacent(tx *utils.AutoTx, userID *models.UserID, entryID int64) models.AdjacentEntries {
+func loadAdjacent(tx *database.AutoTx, userID *models.UserID, entryID int64) models.AdjacentEntries {
 	var createdAt time.Time
 	var authorID int64
 	curQuery := sqlf.Select("author_id, created_at").From("entries").Where("id = ?", entryID)
@@ -222,7 +226,7 @@ func loadAdjacent(tx *utils.AutoTx, userID *models.UserID, entryID int64) models
 		q.Join("users AS entry_users", "entries.user_id = entry_users.id")
 		q.Where(`(entries.user_id = entries.author_id OR NOT entry_users.shadow_ban OR ?)`, userID.Ban.Shadow)
 		q = addRelationToQuery(q, userID, authorID)
-		q = utils.AddEntryOpenQuery(q, userID, false)
+		q = userutil.AddEntryOpenQuery(q, userID, false)
 	}
 
 	newerQuery := q.Clone().
@@ -244,10 +248,10 @@ func loadAdjacent(tx *utils.AutoTx, userID *models.UserID, entryID int64) models
 	}
 }
 
-func newAdjacentLoader(srv *utils.MindwellServer) func(entries.GetEntriesIDAdjacentParams, *models.UserID) middleware.Responder {
+func newAdjacentLoader(srv *server.MindwellServer) func(entries.GetEntriesIDAdjacentParams, *models.UserID) middleware.Responder {
 	return func(params entries.GetEntriesIDAdjacentParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.CanViewEntry(tx, userID, params.ID)
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			canView := userutil.CanViewEntry(tx, userID, params.ID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return entries.NewGetEntriesIDAdjacentNotFound().WithPayload(err)

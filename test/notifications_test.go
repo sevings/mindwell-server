@@ -1,11 +1,11 @@
 package test
 
 import (
+	"github.com/sevings/mindwell-server/lib/database"
 	"testing"
 
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/notifications"
-	"github.com/sevings/mindwell-server/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -74,7 +74,7 @@ func checkReadNotifications(t *testing.T, id *models.UserID, time float64, unrea
 }
 
 func TestNotification(t *testing.T) {
-	utils.ClearDatabase(db)
+	database.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)
 	esm.Clear()
 
@@ -129,7 +129,7 @@ func TestNotification(t *testing.T) {
 }
 
 func TestNotificationInfo(t *testing.T) {
-	tx := utils.NewAutoTx(db)
+	tx := database.NewAutoTx(db)
 	infoID := tx.QueryInt64(`
 		INSERT INTO info(content, link) 
 		VALUES('test content', 'test link')

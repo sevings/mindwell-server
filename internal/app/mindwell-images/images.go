@@ -6,7 +6,8 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi_images/operations/images"
-	"github.com/sevings/mindwell-server/utils"
+	"github.com/sevings/mindwell-server/lib/database"
+	"github.com/sevings/mindwell-server/lib/userutil"
 )
 
 func setProcessingImage(mi *MindwellImages, img *models.Image) {
@@ -35,7 +36,7 @@ func setProcessingImage(mi *MindwellImages, img *models.Image) {
 	}
 }
 
-func loadImageSizes(mi *MindwellImages, tx *utils.AutoTx, img *models.Image,
+func loadImageSizes(mi *MindwellImages, tx *database.AutoTx, img *models.Image,
 	path string, extension string, previewExt string) {
 	var width, height int64
 	var size string
@@ -115,7 +116,7 @@ func NewImageUploader(mi *MindwellImages) func(images.PostImagesParams, *models.
 
 		var uploadedImages []*models.Image
 
-		return utils.Transact(mi.DB(), func(tx *utils.AutoTx) middleware.Responder {
+		return database.Transact(mi.DB(), func(tx *database.AutoTx) middleware.Responder {
 			for _, fileHeader := range fileHeaders {
 				file, err := fileHeader.Open()
 				if err != nil {
@@ -168,7 +169,7 @@ func NewImageUploader(mi *MindwellImages) func(images.PostImagesParams, *models.
 
 func NewImageLoader(mi *MindwellImages) func(images.GetImagesIDParams, *models.UserID) middleware.Responder {
 	return func(params images.GetImagesIDParams, userID *models.UserID) middleware.Responder {
-		return utils.Transact(mi.DB(), func(tx *utils.AutoTx) middleware.Responder {
+		return database.Transact(mi.DB(), func(tx *database.AutoTx) middleware.Responder {
 			var authorID int64
 			var path, extension, previewExt string
 			var processing bool
@@ -185,7 +186,7 @@ func NewImageLoader(mi *MindwellImages) func(images.GetImagesIDParams, *models.U
 					return images.NewGetImagesIDForbidden()
 				}
 
-				allowed := utils.CanViewEntry(tx, userID, entryID)
+				allowed := userutil.CanViewEntry(tx, userID, entryID)
 				if !allowed {
 					return images.NewGetImagesIDForbidden()
 				}
@@ -215,7 +216,7 @@ func NewImageFinder(mi *MindwellImages) func(images.GetImagesFindParams, *models
 	pathRe := regexp.MustCompile("^" + mi.BaseURL() + `albums/(?:thumbnails|small|medium|large)/([a-zA-Z0-9\-_/]+)\.\w+$`)
 
 	return func(params images.GetImagesFindParams, userID *models.UserID) middleware.Responder {
-		return utils.Transact(mi.DB(), func(tx *utils.AutoTx) middleware.Responder {
+		return database.Transact(mi.DB(), func(tx *database.AutoTx) middleware.Responder {
 			var authorID, imgID int64
 			var extension, previewExt string
 			var processing bool
@@ -254,7 +255,7 @@ func NewImageFinder(mi *MindwellImages) func(images.GetImagesFindParams, *models
 
 func NewImageDeleter(mi *MindwellImages) func(images.DeleteImagesIDParams, *models.UserID) middleware.Responder {
 	return func(params images.DeleteImagesIDParams, userID *models.UserID) middleware.Responder {
-		return utils.Transact(mi.DB(), func(tx *utils.AutoTx) middleware.Responder {
+		return database.Transact(mi.DB(), func(tx *database.AutoTx) middleware.Responder {
 			authorID := tx.QueryInt64("SELECT user_id FROM images WHERE id = $1", params.ID)
 			if authorID == 0 {
 				return images.NewDeleteImagesIDNotFound()

@@ -3,9 +3,9 @@ package test
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"github.com/sevings/mindwell-server/lib/textutil"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/oauth2"
-	"github.com/sevings/mindwell-server/utils"
 	"github.com/stretchr/testify/require"
 	"log"
 	"math/rand"
@@ -46,7 +46,7 @@ VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	var secretHash []byte
 
 	if genSecret {
-		app.secret = utils.GenerateString(64)
+		app.secret = textutil.GenerateString(64)
 		secretHash = srv.TokenHash().AppSecretHash(app.secret)
 	}
 
@@ -295,7 +295,7 @@ func TestCodeChallengeToken(t *testing.T) {
 	req := require.New(t)
 	app := createOauth2AppSecret(2, false)
 
-	verifier := utils.GenerateString(48)
+	verifier := textutil.GenerateString(48)
 	sum := sha256.Sum256([]byte(verifier))
 	challenge := base64.URLEncoding.EncodeToString(sum[:])
 
@@ -350,7 +350,7 @@ func TestCodeChallengeToken(t *testing.T) {
 
 	loadToken(false)
 
-	verifier = utils.GenerateString(48)
+	verifier = textutil.GenerateString(48)
 	challenge = verifier
 	method = "plain"
 

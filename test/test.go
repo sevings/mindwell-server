@@ -1,6 +1,9 @@
 package test
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
+	"github.com/sevings/mindwell-server/lib/textutil"
 	"database/sql"
 	"log"
 	"slices"
@@ -17,7 +20,6 @@ import (
 	"github.com/sevings/mindwell-server/restapi/operations/account"
 	"github.com/sevings/mindwell-server/restapi/operations/comments"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 type EmailSenderMock struct {
@@ -291,7 +293,7 @@ func createTlogEntry(t *testing.T, id *models.UserID, privacy string, commentabl
 	shared := false
 	draft := false
 	params := me.PostMeTlogParams{
-		Content:       "test test test" + utils.GenerateString(5),
+		Content:       "test test test" + textutil.GenerateString(5),
 		Title:         &title,
 		Privacy:       privacy,
 		IsCommentable: &commentable,
@@ -314,7 +316,7 @@ func createThemeEntry(t *testing.T, id *models.UserID, theme, privacy string, co
 	draft := false
 	params := themes.PostThemesNameTlogParams{
 		Name:          theme,
-		Content:       "test test test" + utils.GenerateString(5),
+		Content:       "test test test" + textutil.GenerateString(5),
 		Title:         &title,
 		Privacy:       privacy,
 		IsCommentable: &commentable,
@@ -335,7 +337,7 @@ func createThemeEntry(t *testing.T, id *models.UserID, theme, privacy string, co
 func createComment(t *testing.T, id *models.UserID, entryID int64) *models.Comment {
 	params := comments.PostEntriesIDCommentsParams{
 		ID:      entryID,
-		Content: "test comment" + utils.GenerateString(5),
+		Content: "test comment" + textutil.GenerateString(5),
 	}
 
 	post := api.CommentsPostEntriesIDCommentsHandler.Handle
@@ -347,14 +349,14 @@ func createComment(t *testing.T, id *models.UserID, entryID int64) *models.Comme
 }
 
 func saveImage(db *sql.DB, userID int64, img *models.Image, fileName string) {
-	tx := utils.NewAutoTx(db)
+	tx := database.NewAutoTx(db)
 	defer tx.Finish()
 
 	tx.Query("INSERT INTO images(user_id, path, extension) VALUES($1, $2, $3) RETURNING id",
 		userID, fileName, "jpg")
 	tx.Scan(&img.ID)
 
-	saveImageSize := func(tx *utils.AutoTx, imageID, width, height int64, size string) {
+	saveImageSize := func(tx *database.AutoTx, imageID, width, height int64, size string) {
 		const q = `
 		INSERT INTO image_sizes(image_id, size, width, height)
 		VALUES($1, (SELECT id FROM size WHERE type = $2), $3, $4)
@@ -369,9 +371,9 @@ func saveImage(db *sql.DB, userID int64, img *models.Image, fileName string) {
 	saveImageSize(tx, img.ID, img.Large.Width, img.Large.Height, "large")
 }
 
-func createImage(srv *utils.MindwellServer, db *sql.DB, userID *models.UserID) *models.Image {
+func createImage(srv *server.MindwellServer, db *sql.DB, userID *models.UserID) *models.Image {
 	baseURL := srv.ConfigString("images.base_url")
-	path := "a/aa/" + utils.GenerateString(5)
+	path := "a/aa/" + textutil.GenerateString(5)
 
 	img := &models.Image{
 		Author: &models.User{

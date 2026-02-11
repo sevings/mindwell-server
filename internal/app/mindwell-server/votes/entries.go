@@ -1,16 +1,18 @@
 package votes
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"database/sql"
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/votes"
-	"github.com/sevings/mindwell-server/utils"
 )
 
-func entryRating(tx *utils.AutoTx, userID, entryID int64) *models.Rating {
+func entryRating(tx *database.AutoTx, userID, entryID int64) *models.Rating {
 	const q = `
 		WITH votes AS (
 			SELECT entry_id, vote
@@ -45,10 +47,10 @@ func entryRating(tx *utils.AutoTx, userID, entryID int64) *models.Rating {
 	return &status
 }
 
-func newEntryVoteLoader(srv *utils.MindwellServer) func(votes.GetEntriesIDVoteParams, *models.UserID) middleware.Responder {
+func newEntryVoteLoader(srv *server.MindwellServer) func(votes.GetEntriesIDVoteParams, *models.UserID) middleware.Responder {
 	return func(params votes.GetEntriesIDVoteParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.CanViewEntry(tx, userID, params.ID)
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			canView := userutil.CanViewEntry(tx, userID, params.ID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return votes.NewGetEntriesIDVoteNotFound().WithPayload(err)
@@ -60,7 +62,7 @@ func newEntryVoteLoader(srv *utils.MindwellServer) func(votes.GetEntriesIDVotePa
 	}
 }
 
-func canVoteForEntry(tx *utils.AutoTx, userID *models.UserID, entryID int64) bool {
+func canVoteForEntry(tx *database.AutoTx, userID *models.UserID, entryID int64) bool {
 	if userID.Ban.Vote {
 		return false
 	}
@@ -81,10 +83,10 @@ func canVoteForEntry(tx *utils.AutoTx, userID *models.UserID, entryID int64) boo
 		return false
 	}
 
-	return utils.CanViewEntry(tx, userID, entryID)
+	return userutil.CanViewEntry(tx, userID, entryID)
 }
 
-func loadEntryRating(tx *utils.AutoTx, entryID int64) *models.Rating {
+func loadEntryRating(tx *database.AutoTx, entryID int64) *models.Rating {
 	const q = `
 		SELECT up_votes, down_votes, rating
 		FROM entries
@@ -97,7 +99,7 @@ func loadEntryRating(tx *utils.AutoTx, entryID int64) *models.Rating {
 	return rating
 }
 
-func voteForEntry(tx *utils.AutoTx, userID *models.UserID, entryID int64, positive bool) *models.Rating {
+func voteForEntry(tx *database.AutoTx, userID *models.UserID, entryID int64, positive bool) *models.Rating {
 	const q = `
 		INSERT INTO entry_votes (user_id, entry_id, vote)
 		VALUES ($1, $2, CASE
@@ -131,9 +133,9 @@ func voteForEntry(tx *utils.AutoTx, userID *models.UserID, entryID int64, positi
 	return rating
 }
 
-func newEntryVoter(srv *utils.MindwellServer) func(votes.PutEntriesIDVoteParams, *models.UserID) middleware.Responder {
+func newEntryVoter(srv *server.MindwellServer) func(votes.PutEntriesIDVoteParams, *models.UserID) middleware.Responder {
 	return func(params votes.PutEntriesIDVoteParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			canVote := canVoteForEntry(tx, userID, params.ID)
 			if !canVote {
 				err := srv.NewError(&i18n.Message{ID: "cant_vote", Other: "You are not allowed to vote for this entry."})
@@ -146,7 +148,7 @@ func newEntryVoter(srv *utils.MindwellServer) func(votes.PutEntriesIDVoteParams,
 	}
 }
 
-func unvoteEntry(tx *utils.AutoTx, userID, entryID int64) (*models.Rating, bool) {
+func unvoteEntry(tx *database.AutoTx, userID, entryID int64) (*models.Rating, bool) {
 	const q = `
 		DELETE FROM entry_votes
 		WHERE user_id = $1 AND entry_id = $2`
@@ -162,9 +164,9 @@ func unvoteEntry(tx *utils.AutoTx, userID, entryID int64) (*models.Rating, bool)
 	return rating, true
 }
 
-func newEntryUnvoter(srv *utils.MindwellServer) func(votes.DeleteEntriesIDVoteParams, *models.UserID) middleware.Responder {
+func newEntryUnvoter(srv *server.MindwellServer) func(votes.DeleteEntriesIDVoteParams, *models.UserID) middleware.Responder {
 	return func(params votes.DeleteEntriesIDVoteParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			status, ok := unvoteEntry(tx, userID.ID, params.ID)
 			if !ok {
 				err := srv.NewError(nil)

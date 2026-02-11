@@ -4,7 +4,7 @@ import (
 	"go.uber.org/zap"
 	"time"
 
-	"github.com/sevings/mindwell-server/utils"
+	"github.com/sevings/mindwell-server/lib/database"
 )
 
 const (
@@ -76,7 +76,7 @@ func (ip *ImageProcessor) saveAvatar() {
 		return
 	}
 
-	tx := utils.NewAutoTx(ip.mi.DB())
+	tx := database.NewAutoTx(ip.mi.DB())
 	defer tx.Finish()
 
 	var old string
@@ -109,7 +109,7 @@ func (ip *ImageProcessor) saveCover() {
 		return
 	}
 
-	tx := utils.NewAutoTx(ip.mi.DB())
+	tx := database.NewAutoTx(ip.mi.DB())
 	defer tx.Finish()
 
 	var old string
@@ -143,10 +143,10 @@ func (ip *ImageProcessor) saveAlbumPhoto() {
 		return
 	}
 
-	tx := utils.NewAutoTx(ip.mi.DB())
+	tx := database.NewAutoTx(ip.mi.DB())
 	defer tx.Finish()
 
-	saveImageSize := func(tx *utils.AutoTx, imageID, width, height int64, size string) {
+	saveImageSize := func(tx *database.AutoTx, imageID, width, height int64, size string) {
 		const q = `
 			INSERT INTO image_sizes(image_id, size, width, height)
 			VALUES($1, (SELECT id FROM size WHERE type = $2), $3, $4)
@@ -164,7 +164,7 @@ func (ip *ImageProcessor) saveAlbumPhoto() {
 }
 
 func (ip *ImageProcessor) deleteAlbumPhoto() {
-	tx := utils.NewAutoTx(ip.mi.DB())
+	tx := database.NewAutoTx(ip.mi.DB())
 	defer tx.Finish()
 
 	const deleteQuery = `DELETE FROM images WHERE id = $1 RETURNING path, extension, preview_extension`

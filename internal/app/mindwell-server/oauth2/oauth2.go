@@ -1,6 +1,10 @@
 package oauth2
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
+	libauth "github.com/sevings/mindwell-server/lib/auth"
+	"github.com/sevings/mindwell-server/lib/textutil"
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
@@ -9,7 +13,6 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/oauth2"
-	"github.com/sevings/mindwell-server/utils"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,12 +20,12 @@ import (
 )
 
 // ConfigureAPI creates operations handlers
-func ConfigureAPI(srv *utils.MindwellServer) {
+func ConfigureAPI(srv *server.MindwellServer) {
 	webIP = srv.ConfigString("web.ip")
 
-	srv.API.OAuth2PasswordAuth = utils.NewOAuth2User(srv.TokenHash(), srv.DB, utils.PasswordFlow)
-	srv.API.OAuth2CodeAuth = utils.NewOAuth2User(srv.TokenHash(), srv.DB, utils.CodeFlow)
-	srv.API.OAuth2AppAuth = utils.NewOAuth2App(srv.TokenHash(), srv.DB)
+	srv.API.OAuth2PasswordAuth = libauth.NewOAuth2User(srv.TokenHash(), srv.DB, libauth.PasswordFlow)
+	srv.API.OAuth2CodeAuth = libauth.NewOAuth2User(srv.TokenHash(), srv.DB, libauth.CodeFlow)
+	srv.API.OAuth2AppAuth = libauth.NewOAuth2App(srv.TokenHash(), srv.DB)
 
 	srv.API.Oauth2PostOauth2AllowHandler = oauth2.PostOauth2AllowHandlerFunc(newOAuth2Allow(srv))
 	srv.API.Oauth2GetOauth2DenyHandler = oauth2.GetOauth2DenyHandlerFunc(newOAuth2Deny(srv))
@@ -46,19 +49,19 @@ type authData struct {
 
 var authCache = cache.New(15*time.Minute, time.Hour)
 
-func createTokens(h utils.TokenHash, tx *utils.AutoTx, appID, userID int64, scope uint32, userName string) *models.OAuth2Token {
+func createTokens(h libauth.TokenHash, tx *database.AutoTx, appID, userID int64, scope uint32, userName string) *models.OAuth2Token {
 	token := &models.OAuth2Token{
-		AccessToken:  userName + "." + utils.GenerateString(utils.AccessTokenLength),
-		ExpiresIn:    utils.AccessTokenLifetime,
-		RefreshToken: strconv.FormatInt(userID, 32) + "." + utils.GenerateString(utils.RefreshTokenLength),
-		Scope:        utils.ScopeToString(scope),
+		AccessToken:  userName + "." + textutil.GenerateString(libauth.AccessTokenLength),
+		ExpiresIn:    libauth.AccessTokenLifetime,
+		RefreshToken: strconv.FormatInt(userID, 32) + "." + textutil.GenerateString(libauth.RefreshTokenLength),
+		Scope:        libauth.ScopeToString(scope),
 		TokenType:    models.OAuth2TokenTokenTypeBearer,
 	}
 
 	accessHash := h.AccessTokenHash(token.AccessToken)
 	refreshHash := h.RefreshTokenHash(token.RefreshToken)
-	accessThru := time.Now().Add(utils.AccessTokenLifetime * time.Second)
-	refreshThru := time.Now().Add(utils.RefreshTokenLifetime * time.Second)
+	accessThru := time.Now().Add(libauth.AccessTokenLifetime * time.Second)
+	refreshThru := time.Now().Add(libauth.RefreshTokenLifetime * time.Second)
 
 	const query = `
 INSERT INTO sessions(app_id, user_id, scope, access_hash, refresh_hash, access_thru, refresh_thru)
@@ -73,22 +76,22 @@ VALUES($1, $2, $3, $4, $5, $6, $7)
 	return token
 }
 
-func createAppToken(h utils.TokenHash, tx *utils.AutoTx, appID int64, appName string) (string, error) {
+func createAppToken(h libauth.TokenHash, tx *database.AutoTx, appID int64, appName string) (string, error) {
 	const query = `
 INSERT INTO app_tokens(app_id, token_hash, valid_thru)
 VALUES($1, $2, $3)
 `
 
-	token := appName + "+" + utils.GenerateString(utils.AppTokenLength)
+	token := appName + "+" + textutil.GenerateString(libauth.AppTokenLength)
 	hash := h.AppTokenHash(token)
-	thru := time.Now().Add(utils.AppTokenLifetime * time.Second)
+	thru := time.Now().Add(libauth.AppTokenLifetime * time.Second)
 
 	tx.Exec(query, appID, hash[:], thru)
 
 	return token, tx.Error()
 }
 
-func checkCodeGrant(tx *utils.AutoTx, appID int64) (authData, bool, error) {
+func checkCodeGrant(tx *database.AutoTx, appID int64) (authData, bool, error) {
 	const query = `
 SELECT secret_hash, redirect_uri, flow, ban
 FROM apps
@@ -97,29 +100,29 @@ WHERE id = $1
 
 	auth := authData{appID: appID}
 	var ban bool
-	var f utils.AuthFlow
+	var f libauth.AuthFlow
 	tx.Query(query, appID).Scan(&auth.secretHash, &auth.redirectUri, &f, &ban)
 
-	granted := !ban && f&utils.CodeFlow == utils.CodeFlow
+	granted := !ban && f&libauth.CodeFlow == libauth.CodeFlow
 	return auth, granted, tx.Error()
 }
 
-func checkPasswordGrant(h utils.TokenHash, tx *utils.AutoTx, appID int64, appSecret string) (bool, error) {
+func checkPasswordGrant(h libauth.TokenHash, tx *database.AutoTx, appID int64, appSecret string) (bool, error) {
 	const grantQuery = `
 SELECT flow, ban
 FROM apps
 WHERE id = $1 AND secret_hash = $2
 `
 	var ban bool
-	var f utils.AuthFlow
+	var f libauth.AuthFlow
 	secretHash := h.AppSecretHash(appSecret)
 	tx.Query(grantQuery, appID, secretHash).Scan(&f, &ban)
 
-	granted := !ban && f&utils.PasswordFlow == utils.PasswordFlow
+	granted := !ban && f&libauth.PasswordFlow == libauth.PasswordFlow
 	return granted, tx.Error()
 }
 
-func checkAppGrant(h utils.TokenHash, tx *utils.AutoTx, appID int64, appSecret string) (string, bool, error) {
+func checkAppGrant(h libauth.TokenHash, tx *database.AutoTx, appID int64, appSecret string) (string, bool, error) {
 	const query = `
 SELECT name, flow, ban
 FROM apps
@@ -127,15 +130,15 @@ WHERE id = $1 AND secret_hash = $2
 `
 	var name string
 	var ban bool
-	var f utils.AuthFlow
+	var f libauth.AuthFlow
 	secretHash := h.AppSecretHash(appSecret)
 	tx.Query(query, appID, secretHash).Scan(&name, &f, &ban)
 
-	granted := !ban && f&utils.AppFlow == utils.AppFlow
+	granted := !ban && f&libauth.AppFlow == libauth.AppFlow
 	return name, granted, tx.Error()
 }
 
-func checkRefreshGrant(h utils.TokenHash, tx *utils.AutoTx, appID int64, appSecret string) (bool, error) {
+func checkRefreshGrant(h libauth.TokenHash, tx *database.AutoTx, appID int64, appSecret string) (bool, error) {
 	const query = `
 SELECT ban
 FROM apps
@@ -167,13 +170,13 @@ func postAllowBadRequest(err string) middleware.Responder {
 	return oauth2.NewPostOauth2AllowBadRequest().WithPayload(&body)
 }
 
-func newOAuth2Allow(srv *utils.MindwellServer) func(oauth2.PostOauth2AllowParams, *models.UserID) middleware.Responder {
+func newOAuth2Allow(srv *server.MindwellServer) func(oauth2.PostOauth2AllowParams, *models.UserID) middleware.Responder {
 	return func(params oauth2.PostOauth2AllowParams, userID *models.UserID) middleware.Responder {
 		if err, ok := checkWebRequest(params.HTTPRequest); !ok {
 			return postAllowBadRequest(err)
 		}
 
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			auth, granted, err := checkCodeGrant(tx, params.ClientID)
 			if err != nil {
 				return postAllowBadRequest(models.OAuth2ErrorErrorUnrecognizedClient)
@@ -185,7 +188,7 @@ func newOAuth2Allow(srv *utils.MindwellServer) func(oauth2.PostOauth2AllowParams
 				return postAllowBadRequest(models.OAuth2ErrorErrorInvalidGrant)
 			}
 
-			scope, err := utils.ScopeFromString(params.Scope)
+			scope, err := libauth.ScopeFromString(params.Scope)
 			if err != nil {
 				return postAllowBadRequest(models.OAuth2ErrorErrorInvalidScope)
 			}
@@ -195,7 +198,7 @@ func newOAuth2Allow(srv *utils.MindwellServer) func(oauth2.PostOauth2AllowParams
 			}
 
 			resp := &oauth2.PostOauth2AllowOKBody{
-				Code: utils.GenerateString(utils.CodeLength),
+				Code: textutil.GenerateString(libauth.CodeLength),
 			}
 
 			if params.State != nil {
@@ -226,13 +229,13 @@ func getDenyBadRequest(err string) middleware.Responder {
 	return oauth2.NewGetOauth2DenyBadRequest().WithPayload(&body)
 }
 
-func newOAuth2Deny(srv *utils.MindwellServer) func(oauth2.GetOauth2DenyParams) middleware.Responder {
+func newOAuth2Deny(srv *server.MindwellServer) func(oauth2.GetOauth2DenyParams) middleware.Responder {
 	return func(params oauth2.GetOauth2DenyParams) middleware.Responder {
 		if err, ok := checkWebRequest(params.HTTPRequest); !ok {
 			return getDenyBadRequest(err)
 		}
 
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			auth, granted, err := checkCodeGrant(tx, params.ClientID)
 			if err != nil {
 				return getDenyBadRequest(models.OAuth2ErrorErrorUnrecognizedClient)
@@ -249,7 +252,7 @@ func newOAuth2Deny(srv *utils.MindwellServer) func(oauth2.GetOauth2DenyParams) m
 	}
 }
 
-func loadUserByPassword(h utils.TokenHash, tx *utils.AutoTx, name, password string) (int64, string) {
+func loadUserByPassword(h libauth.TokenHash, tx *database.AutoTx, name, password string) (int64, string) {
 	name = strings.TrimSpace(name)
 	password = strings.TrimSpace(password)
 	hash := h.PasswordHash(password)
@@ -278,7 +281,7 @@ func postTokenBadRequest(err string) middleware.Responder {
 	return oauth2.NewPostOauth2TokenBadRequest().WithPayload(&body)
 }
 
-func requestPasswordToken(h utils.TokenHash, tx *utils.AutoTx, appID int64, appSecret, name, password string) middleware.Responder {
+func requestPasswordToken(h libauth.TokenHash, tx *database.AutoTx, appID int64, appSecret, name, password string) middleware.Responder {
 	userID, userName := loadUserByPassword(h, tx, name, password)
 	if userID == 0 {
 		return postTokenBadRequest(models.OAuth2ErrorErrorInvalidRequest)
@@ -301,7 +304,7 @@ func requestPasswordToken(h utils.TokenHash, tx *utils.AutoTx, appID int64, appS
 	return oauth2.NewPostOauth2TokenOK().WithPayload(resp)
 }
 
-func requestAppToken(h utils.TokenHash, tx *utils.AutoTx, appID int64, appSecret string) middleware.Responder {
+func requestAppToken(h libauth.TokenHash, tx *database.AutoTx, appID int64, appSecret string) middleware.Responder {
 	appName, granted, err := checkAppGrant(h, tx, appID, appSecret)
 	if err != nil {
 		return postTokenBadRequest(models.OAuth2ErrorErrorUnrecognizedClient)
@@ -317,14 +320,14 @@ func requestAppToken(h utils.TokenHash, tx *utils.AutoTx, appID int64, appSecret
 
 	resp := &models.OAuth2Token{
 		AccessToken: appToken,
-		ExpiresIn:   utils.AccessTokenLifetime,
+		ExpiresIn:   libauth.AccessTokenLifetime,
 		TokenType:   models.OAuth2TokenTokenTypeBearer,
 	}
 
 	return oauth2.NewPostOauth2TokenOK().WithPayload(resp)
 }
 
-func revokeTokens(h utils.TokenHash, tx *utils.AutoTx, userID int64, access, refresh string) {
+func revokeTokens(h libauth.TokenHash, tx *database.AutoTx, userID int64, access, refresh string) {
 	const query = `
 DELETE FROM sessions
 WHERE user_id = $1
@@ -336,7 +339,7 @@ WHERE user_id = $1
 	tx.Exec(query, userID, accessHash, refreshHash)
 }
 
-func requestAccessToken(h utils.TokenHash, tx *utils.AutoTx, appID int64, code, redirectUri string, appSecret, verifier *string) middleware.Responder {
+func requestAccessToken(h libauth.TokenHash, tx *database.AutoTx, appID int64, code, redirectUri string, appSecret, verifier *string) middleware.Responder {
 	authValue, found := authCache.Get(code)
 	if !found {
 		return postTokenBadRequest(models.OAuth2ErrorErrorInvalidRequest)
@@ -400,7 +403,7 @@ func requestAccessToken(h utils.TokenHash, tx *utils.AutoTx, appID int64, code, 
 	return oauth2.NewPostOauth2TokenOK().WithPayload(resp)
 }
 
-func requestRefreshToken(h utils.TokenHash, tx *utils.AutoTx, appID int64, appSecret, token string) middleware.Responder {
+func requestRefreshToken(h libauth.TokenHash, tx *database.AutoTx, appID int64, appSecret, token string) middleware.Responder {
 	const query = `
 DELETE FROM sessions
 WHERE app_id = $1 AND user_id = $2 AND refresh_hash = $3
@@ -449,9 +452,9 @@ RETURNING scope, refresh_thru
 	return oauth2.NewPostOauth2TokenOK().WithPayload(resp)
 }
 
-func newOAuth2Token(srv *utils.MindwellServer) func(oauth2.PostOauth2TokenParams) middleware.Responder {
+func newOAuth2Token(srv *server.MindwellServer) func(oauth2.PostOauth2TokenParams) middleware.Responder {
 	return func(params oauth2.PostOauth2TokenParams) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			if params.GrantType == "password" {
 				if params.Username == nil || params.Password == nil {
 					return postTokenBadRequest(models.OAuth2ErrorErrorInvalidRequest)
@@ -489,7 +492,7 @@ func newOAuth2Token(srv *utils.MindwellServer) func(oauth2.PostOauth2TokenParams
 	}
 }
 
-func loadApp(tx *utils.AutoTx, appID int64) (*models.App, bool) {
+func loadApp(tx *database.AutoTx, appID int64) (*models.App, bool) {
 	const query = `
 SELECT name, show_name, platform, info
 FROM apps
@@ -502,9 +505,9 @@ WHERE id = $1
 	return app, tx.Error() == nil
 }
 
-func newAppLoader(srv *utils.MindwellServer) func(oauth2.GetOauth2AppsIDParams, *models.UserID) middleware.Responder {
+func newAppLoader(srv *server.MindwellServer) func(oauth2.GetOauth2AppsIDParams, *models.UserID) middleware.Responder {
 	return func(params oauth2.GetOauth2AppsIDParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			app, ok := loadApp(tx, params.ID)
 			if !ok {
 				err := &i18n.Message{ID: "no_app", Other: "App not found."}

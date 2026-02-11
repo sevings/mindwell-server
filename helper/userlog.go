@@ -3,8 +3,8 @@ package helper
 import (
 	"bufio"
 	"encoding/base64"
+	"github.com/sevings/mindwell-server/lib/database"
 	"encoding/json"
-	"github.com/sevings/mindwell-server/utils"
 	"hash/adler32"
 	"log"
 	"os"
@@ -38,7 +38,7 @@ func (req userRequest) key() string {
 	return str.String()
 }
 
-func ImportUserLog(tx *utils.AutoTx) {
+func ImportUserLog(tx *database.AutoTx) {
 	prev := make(map[string]userRequest)
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -99,7 +99,7 @@ func ImportUserLog(tx *utils.AutoTx) {
 	log.Printf("Found %d unique requests.\n", len(prev))
 }
 
-func saveUserRequest(tx *utils.AutoTx, req userRequest, first bool) {
+func saveUserRequest(tx *database.AutoTx, req userRequest, first bool) {
 	app, err := strconv.ParseUint(req.App[:16], 16, 64)
 	if err != nil {
 		log.Printf("Browser id is invalid: %s\n", req.App)

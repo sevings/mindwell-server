@@ -1,20 +1,23 @@
 package users
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"database/sql"
 	"math"
 	"strconv"
 
 	"github.com/go-openapi/runtime/middleware"
+	"github.com/sevings/mindwell-server/lib/helpers"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 // ConfigureAPI creates operations handlers
-func ConfigureAPI(srv *utils.MindwellServer) {
+func ConfigureAPI(srv *server.MindwellServer) {
 	srv.API.MeGetMeHandler = me.GetMeHandlerFunc(newMeLoader(srv))
 	srv.API.MePutMeHandler = me.PutMeHandlerFunc(newMeEditor(srv))
 
@@ -84,7 +87,7 @@ LEFT JOIN chats ON (chats.creator_id = users.id AND chats.partner_id = $2)
                        OR (chats.creator_id = $2 AND chats.partner_id = users.id)
 `
 
-func loadUserProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, userID *models.UserID, arg any) *models.Profile {
+func loadUserProfile(srv *server.MindwellServer, tx *database.AutoTx, query string, userID *models.UserID, arg any) *models.Profile {
 	var profile models.Profile
 	profile.Design = &models.Design{}
 	profile.Counts = &models.FriendAO1Counts{}
@@ -267,7 +270,7 @@ func isChatAllowed(shadowBan, chatExists bool, profile *models.Profile, me *mode
 	return false
 }
 
-func relationship(tx *utils.AutoTx, query string, from, to int64) string {
+func relationship(tx *database.AutoTx, query string, from, to int64) string {
 	if from == 0 || to == 0 {
 		return models.RelationshipRelationNone
 	}
@@ -302,7 +305,7 @@ AND users.chat_privacy = user_chat_privacy.id `
 const usersQueryEnd = `
  AND relations.type = relation.id AND relation.type = $2` + usersQueryJoins
 
-func loadUserList(srv *utils.MindwellServer, tx *utils.AutoTx, reverse bool) ([]*models.Friend, float64, float64) {
+func loadUserList(srv *server.MindwellServer, tx *database.AutoTx, reverse bool) ([]*models.Friend, float64, float64) {
 	list := make([]*models.Friend, 0, 50)
 
 	var nextBefore, nextAfter float64
@@ -348,18 +351,18 @@ func loadUserList(srv *utils.MindwellServer, tx *utils.AutoTx, reverse bool) ([]
 	return list, nextBefore, nextAfter
 }
 
-func loadRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, queryWhere, related, name,
+func loadRelatedUsers(srv *server.MindwellServer, userID *models.UserID, query, queryWhere, related, name,
 	relation, afterS, beforeS string, limit int64) *models.FriendList {
-	tx := utils.NewAutoTx(srv.DB)
+	tx := database.NewAutoTx(srv.DB)
 	defer tx.Finish()
 
-	open := utils.CanViewTlogName(tx, userID, name)
+	open := userutil.CanViewTlogName(tx, userID, name)
 	if !open {
 		return nil
 	}
 
-	before := utils.ParseFloat(beforeS)
-	after := utils.ParseFloat(afterS)
+	before := helpers.ParseFloat(beforeS)
+	after := helpers.ParseFloat(afterS)
 
 	if after > 0 {
 		q := query + " AND relations.changed_at > to_timestamp($3) ORDER BY relations.changed_at ASC LIMIT $4"
@@ -392,7 +395,7 @@ func loadRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 		FROM users, relation, relations, gender, user_privacy, user_chat_privacy
 		WHERE ` + queryWhere + " AND relations.changed_at < to_timestamp($3))"
 
-	list.NextBefore = utils.FormatFloat(nextBefore)
+	list.NextBefore = helpers.FormatFloat(nextBefore)
 	list.HasBefore = tx.QueryBool(beforeQuery, name, related, nextBefore)
 
 	afterQuery := `SELECT EXISTS(
@@ -400,13 +403,13 @@ func loadRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, q
 		FROM users, relation, relations, gender, user_privacy, user_chat_privacy
 		WHERE ` + queryWhere + " AND relations.changed_at > to_timestamp($3))"
 
-	list.NextAfter = utils.FormatFloat(nextAfter)
+	list.NextAfter = helpers.FormatFloat(nextAfter)
 	list.HasAfter = tx.QueryBool(afterQuery, name, related, nextAfter)
 
 	return &list
 }
 
-func loadTlogRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, query, queryWhere, related, name,
+func loadTlogRelatedUsers(srv *server.MindwellServer, userID *models.UserID, query, queryWhere, related, name,
 	relation, afterS, beforeS string, limit int64) middleware.Responder {
 	list := loadRelatedUsers(srv, userID, query, queryWhere, related, name, relation, afterS, beforeS, limit)
 	if list == nil {
@@ -417,10 +420,10 @@ func loadTlogRelatedUsers(srv *utils.MindwellServer, userID *models.UserID, quer
 	return users.NewGetUsersNameFollowersOK().WithPayload(list)
 }
 
-func loadInvitedUsers(srv *utils.MindwellServer, userID *models.UserID, query, queryWhere, name,
+func loadInvitedUsers(srv *server.MindwellServer, userID *models.UserID, query, queryWhere, name,
 	afterS, beforeS string, limit int64) middleware.Responder {
-	return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-		open := utils.CanViewTlogName(tx, userID, name)
+	return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+		open := userutil.CanViewTlogName(tx, userID, name)
 		if !open {
 			err := srv.StandardError("no_tlog")
 			return users.NewGetUsersNameFollowersForbidden().WithPayload(err)
@@ -492,7 +495,7 @@ WHERE `
 const loadUserQueryID = loadUserQuery + "id = $1"
 const loadUserQueryName = loadUserQuery + "lower(name) = lower($1)"
 
-func loadUser(srv *utils.MindwellServer, tx *utils.AutoTx, query string, arg any) *models.User {
+func loadUser(srv *server.MindwellServer, tx *database.AutoTx, query string, arg any) *models.User {
 	var user models.User
 	var avatar string
 
@@ -505,11 +508,11 @@ func loadUser(srv *utils.MindwellServer, tx *utils.AutoTx, query string, arg any
 }
 
 // LoadUserByID returns short user profile by its ID.
-func LoadUserByID(srv *utils.MindwellServer, tx *utils.AutoTx, id int64) *models.User {
+func LoadUserByID(srv *server.MindwellServer, tx *database.AutoTx, id int64) *models.User {
 	return loadUser(srv, tx, loadUserQueryID, id)
 }
 
 // LoadUserByName returns short user profile by its name.
-func LoadUserByName(srv *utils.MindwellServer, tx *utils.AutoTx, name string) *models.User {
+func LoadUserByName(srv *server.MindwellServer, tx *database.AutoTx, name string) *models.User {
 	return loadUser(srv, tx, loadUserQueryName, name)
 }

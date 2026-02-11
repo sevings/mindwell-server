@@ -1,9 +1,10 @@
 package relations
 
 import (
+	"time"
+
 	"github.com/patrickmn/go-cache"
 	"github.com/sevings/mindwell-server/models"
-	"time"
 )
 
 var prevFollowings *cache.Cache

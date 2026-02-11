@@ -1,18 +1,20 @@
 package badges
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/leporo/sqlf"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 var baseURL string
 
 // ConfigureAPI creates operations handlers
-func ConfigureAPI(srv *utils.MindwellServer) {
+func ConfigureAPI(srv *server.MindwellServer) {
 	srv.API.MeGetMeBadgesHandler = me.GetMeBadgesHandlerFunc(newMyBadgesLoader(srv))
 	srv.API.UsersGetUsersNameBadgesHandler = users.GetUsersNameBadgesHandlerFunc(newUserBadgesLoader(srv))
 
@@ -44,7 +46,7 @@ func idBadgeQuery(id int64) *sqlf.Stmt {
 		Where("badges.id = ?", id)
 }
 
-func loadBadges(tx *utils.AutoTx) *models.BadgeList {
+func loadBadges(tx *database.AutoTx) *models.BadgeList {
 	list := &models.BadgeList{}
 
 	var code, title, desc, icon string
@@ -68,7 +70,7 @@ func loadBadges(tx *utils.AutoTx) *models.BadgeList {
 	return list
 }
 
-func LoadBadgeByID(tx *utils.AutoTx, id int64) *models.Badge {
+func LoadBadgeByID(tx *database.AutoTx, id int64) *models.Badge {
 	q := idBadgeQuery(id)
 	tx.QueryStmt(q)
 	list := loadBadges(tx)
@@ -79,9 +81,9 @@ func LoadBadgeByID(tx *utils.AutoTx, id int64) *models.Badge {
 	return list.Data[0]
 }
 
-func newMyBadgesLoader(srv *utils.MindwellServer) func(me.GetMeBadgesParams, *models.UserID) middleware.Responder {
+func newMyBadgesLoader(srv *server.MindwellServer) func(me.GetMeBadgesParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeBadgesParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			q := myBadgesQuery(userID, *params.Limit)
 			tx.QueryStmt(q)
 			if tx.HasQueryError() {
@@ -94,10 +96,10 @@ func newMyBadgesLoader(srv *utils.MindwellServer) func(me.GetMeBadgesParams, *mo
 	}
 }
 
-func newUserBadgesLoader(srv *utils.MindwellServer) func(users.GetUsersNameBadgesParams, *models.UserID) middleware.Responder {
+func newUserBadgesLoader(srv *server.MindwellServer) func(users.GetUsersNameBadgesParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameBadgesParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			if !utils.CanViewTlogName(tx, userID, params.Name) {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			if !userutil.CanViewTlogName(tx, userID, params.Name) {
 				err := srv.StandardError("no_tlog")
 				return users.NewGetUsersNameBadgesNotFound().WithPayload(err)
 			}

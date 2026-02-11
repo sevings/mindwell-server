@@ -1,4 +1,4 @@
-package utils
+package notifications
 
 import (
 	"database/sql"
@@ -8,6 +8,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/sevings/mindwell-server/lib/database"
+	"github.com/sevings/mindwell-server/lib/helpers"
+	"github.com/sevings/mindwell-server/lib/textutil"
+	"github.com/sevings/mindwell-server/lib/userutil"
 
 	"github.com/leporo/sqlf"
 	"go.uber.org/zap"
@@ -60,7 +65,7 @@ func extractLogin(url string) string {
 }
 
 type TelegramBot struct {
-	srv    *MindwellServer
+	srv    ServerDependencies
 	api    *tgbotapi.BotAPI
 	url    string
 	ipAPI  string
@@ -83,7 +88,7 @@ type messageID struct {
 
 type messageIDs []messageID
 
-func NewTelegramBot(srv *MindwellServer) *TelegramBot {
+func NewTelegramBot(srv ServerDependencies) *TelegramBot {
 	bot := &TelegramBot{
 		srv:    srv,
 		url:    srv.ConfigString("server.base_url"),
@@ -254,7 +259,7 @@ func (bot *TelegramBot) Stop() {
 }
 
 func (bot *TelegramBot) BuildToken(userID int64) string {
-	token := GenerateString(8)
+	token := textutil.GenerateString(8)
 	bot.logins.SetDefault(token, userID)
 	return token
 }
@@ -301,7 +306,7 @@ func (bot *TelegramBot) login(upd *tgbotapi.Update) string {
 	`
 
 	var name string
-	err := bot.srv.DB.QueryRow(q, userID, upd.Message.Chat.ID).Scan(&name)
+	err := bot.srv.GetDB().QueryRow(q, userID, upd.Message.Chat.ID).Scan(&name)
 	if err != nil {
 		bot.log.Error(err.Error())
 		return errorText
@@ -322,7 +327,7 @@ func (bot *TelegramBot) logout(upd *tgbotapi.Update) string {
 	`
 
 	var name string
-	err := bot.srv.DB.QueryRow(q, from).Scan(&name)
+	err := bot.srv.GetDB().QueryRow(q, from).Scan(&name)
 	if err == nil {
 		return "Я больше не буду беспокоить тебя, " + name + "."
 	} else if err == sql.ErrNoRows {
@@ -393,7 +398,7 @@ func (bot *TelegramBot) hide(upd *tgbotapi.Update) string {
 		return errStr
 	}
 
-	atx := NewAutoTx(bot.srv.DB)
+	atx := database.NewAutoTx(bot.srv.GetDB())
 	defer atx.Finish()
 
 	const q = "UPDATE entries SET visible_for = (SELECT id FROM entry_privacy WHERE type = 'me') WHERE id = $1"
@@ -411,7 +416,7 @@ func (bot *TelegramBot) unlive(upd *tgbotapi.Update) string {
 		return errStr
 	}
 
-	atx := NewAutoTx(bot.srv.DB)
+	atx := database.NewAutoTx(bot.srv.GetDB())
 	defer atx.Finish()
 
 	const q = "UPDATE entries SET in_live = FALSE WHERE id = $1"
@@ -429,7 +434,7 @@ func (bot *TelegramBot) shut(upd *tgbotapi.Update) string {
 		return errStr
 	}
 
-	atx := NewAutoTx(bot.srv.DB)
+	atx := database.NewAutoTx(bot.srv.GetDB())
 	defer atx.Finish()
 
 	const q = "UPDATE entries SET is_commentable = FALSE WHERE id = $1"
@@ -495,7 +500,7 @@ func (bot *TelegramBot) ban(upd *tgbotapi.Update) string {
 		}
 	}
 
-	atx := NewAutoTx(bot.srv.DB)
+	atx := database.NewAutoTx(bot.srv.GetDB())
 	defer atx.Finish()
 
 	atx.ExecStmt(q)
@@ -517,7 +522,7 @@ func (bot *TelegramBot) unban(upd *tgbotapi.Update) string {
 		return "Укажи логин пользователя."
 	}
 
-	atx := NewAutoTx(bot.srv.DB)
+	atx := database.NewAutoTx(bot.srv.GetDB())
 	defer atx.Finish()
 
 	const q = "UPDATE users SET user_ban = CURRENT_DATE WHERE lower(name) = lower($1) RETURNING id"
@@ -554,7 +559,7 @@ func (bot *TelegramBot) createApp(args []string) string {
 		return "Укажи необходимые аргументы."
 	}
 
-	app := CreateAppParameters{
+	app := helpers.CreateAppParameters{
 		DevName:     strings.TrimSpace(args[0]),
 		Type:        strings.TrimSpace(args[1]),
 		Flow:        strings.TrimSpace(args[2]),
@@ -565,10 +570,10 @@ func (bot *TelegramBot) createApp(args []string) string {
 		Info:        strings.TrimSpace(args[7]),
 	}
 
-	tx := NewAutoTx(bot.srv.DB)
+	tx := database.NewAutoTx(bot.srv.GetDB())
 	defer tx.Finish()
 
-	appID, secret, err := CreateApp(tx, bot.srv.TokenHash(), app)
+	appID, secret, err := helpers.CreateApp(tx, bot.srv.TokenHash(), app)
 	if err != nil {
 		return "Не удалось создать приложение: " + err.Error()
 	}
@@ -595,7 +600,7 @@ func (bot *TelegramBot) createTheme(args []string) string {
 	name := strings.TrimSpace(args[0])
 	creator := strings.TrimSpace(args[1])
 
-	tx := NewAutoTx(bot.srv.DB)
+	tx := database.NewAutoTx(bot.srv.GetDB())
 	defer tx.Finish()
 
 	const rankQ = "SELECT COUNT(*) + 1 FROM users WHERE creator_id IS NOT NULL AND karma >= 0"
@@ -626,7 +631,7 @@ func (bot *TelegramBot) info(upd *tgbotapi.Update) string {
 		return "Укажи логин или адрес почты."
 	}
 
-	atx := NewAutoTx(bot.srv.DB)
+	atx := database.NewAutoTx(bot.srv.GetDB())
 	defer atx.Finish()
 
 	const q = `
@@ -662,7 +667,7 @@ WHERE lower(users.email) = lower($1) OR lower(users.name) = lower($1)`
 		return "Пользователь с логином или адресом почты " + arg + " не найден."
 	}
 
-	altQ := NewUserAltQuery(atx, 10, bot.url, bot.ipAPI)
+	altQ := userutil.NewUserAltQuery(atx, 10, bot.url, bot.ipAPI)
 	ips := altQ.GetUserIPs(name).String()
 	apps := altQ.GetUserApps(name).String()
 
@@ -738,9 +743,9 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 		return "Укажи не более двух аккаунтов."
 	}
 
-	emails := make([]string, 2, 2)
+	emails := make([]string, 2)
 
-	atx := NewAutoTx(bot.srv.DB)
+	atx := database.NewAutoTx(bot.srv.GetDB())
 	defer atx.Finish()
 
 	q := `SELECT email FROM users WHERE lower(name) = lower($1)`
@@ -761,8 +766,8 @@ func (bot *TelegramBot) alts(upd *tgbotapi.Update) string {
 	return bot.compareUsers(atx, users[0], users[1], emails[0], emails[1], limit)
 }
 
-func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string, limit int) string {
-	q := NewUserAltQuery(atx, limit, bot.url, bot.ipAPI)
+func (bot *TelegramBot) possibleAlts(atx *database.AutoTx, user, email string, limit int) string {
+	q := userutil.NewUserAltQuery(atx, limit, bot.url, bot.ipAPI)
 
 	alt, conf := q.GetSuspectedAlt(user)
 	confAlt := "Suspected"
@@ -786,8 +791,8 @@ func (bot *TelegramBot) possibleAlts(atx *AutoTx, user, email string, limit int)
 	return text
 }
 
-func (bot *TelegramBot) compareUsers(atx *AutoTx, userA, userB, emailA, emailB string, limit int) string {
-	q := NewUserAltQuery(atx, limit, bot.url, bot.ipAPI)
+func (bot *TelegramBot) compareUsers(atx *database.AutoTx, userA, userB, emailA, emailB string, limit int) string {
+	q := userutil.NewUserAltQuery(atx, limit, bot.url, bot.ipAPI)
 
 	text := fmt.Sprintf(`Comparison of %s and %s`,
 		bot.userNameLink(userA, userA), bot.userNameLink(userB, userB))
@@ -827,7 +832,7 @@ func (bot *TelegramBot) confirmAlt(upd *tgbotapi.Update) string {
 		return "Укажи не более двух аккаунтов."
 	}
 
-	atx := NewAutoTx(bot.srv.DB)
+	atx := database.NewAutoTx(bot.srv.GetDB())
 	defer atx.Finish()
 
 	var msg string
@@ -879,7 +884,7 @@ func (bot *TelegramBot) votes(upd *tgbotapi.Update) string {
 		return errStr
 	}
 
-	atx := NewAutoTx(bot.srv.DB)
+	atx := database.NewAutoTx(bot.srv.GetDB())
 	defer atx.Finish()
 
 	const entryQuery = `SELECT name
@@ -948,16 +953,16 @@ func (bot *TelegramBot) crossVotes(upd *tgbotapi.Update) string {
 		return "Укажи двух пользователей."
 	}
 
-	atx := NewAutoTx(bot.srv.DB)
+	atx := database.NewAutoTx(bot.srv.GetDB())
 	defer atx.Finish()
 
 	var users []*models.User
-	users = append(users, LoadUserByName(atx, logins[0]))
+	users = append(users, userutil.LoadUserByName(atx, logins[0]))
 	if users[0].ID == 0 {
 		return fmt.Sprintf("Пользователь %s не найден.", logins[0])
 	}
 
-	users = append(users, LoadUserByName(atx, logins[1]))
+	users = append(users, userutil.LoadUserByName(atx, logins[1]))
 	if users[1].ID == 0 {
 		return fmt.Sprintf("Пользователь %s не найден.", logins[1])
 	}
@@ -1120,7 +1125,7 @@ func (bot *TelegramBot) stat(upd *tgbotapi.Update) string {
 		return unrecognisedText
 	}
 
-	atx := NewAutoTx(bot.srv.DB)
+	atx := database.NewAutoTx(bot.srv.GetDB())
 	defer atx.Finish()
 
 	var text string
@@ -1246,7 +1251,7 @@ func (bot *TelegramBot) notify(upd *tgbotapi.Update) string {
 		return "Укажи необходимые аргументы."
 	}
 
-	atx := NewAutoTx(bot.srv.DB)
+	atx := database.NewAutoTx(bot.srv.GetDB())
 	defer atx.Finish()
 
 	infoQuery := sqlf.InsertInto("info").
@@ -1303,7 +1308,7 @@ func (bot *TelegramBot) giveBadge(upd *tgbotapi.Update) string {
 		return "Укажи логины или ссылки пользователей."
 	}
 
-	atx := NewAutoTx(bot.srv.DB)
+	atx := database.NewAutoTx(bot.srv.GetDB())
 	defer atx.Finish()
 
 	badgeID := atx.QueryInt64("SELECT id FROM badges WHERE code = $1 AND level = $2", code, level)
@@ -1714,7 +1719,7 @@ func (bot *TelegramBot) SendCommentComplain(from, against *models.User, content,
 }
 
 func (bot *TelegramBot) SendEntryComplain(from, against *models.User, content, entry string, entryID int64) {
-	entry, _ = CutText(entry, 2048)
+	entry, _ = textutil.CutText(entry, 2048)
 
 	text := "Пользователь " + bot.userLink(from) + " пожаловался на запись " +
 		strconv.FormatInt(entryID, 10) + " от " + bot.userLink(against) + ". " +
@@ -1780,7 +1785,7 @@ func (bot *TelegramBot) SendWishComplain(from, against *models.User, wish string
 	bot.sendMessage(bot.group, text)
 }
 
-func (bot *TelegramBot) SendPossibleAlts(atx *AutoTx, user string) {
+func (bot *TelegramBot) SendPossibleAlts(atx *database.AutoTx, user string) {
 	emailQ := sqlf.Select("email").From("users").Where("lower(name) = lower(?)", user)
 	email := atx.QueryStmt(emailQ).ScanString()
 

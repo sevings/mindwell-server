@@ -1,4 +1,4 @@
-package utils
+package notifications
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/centrifugal/gocent"
+	"github.com/sevings/mindwell-server/lib/database"
 )
 
 type message struct {
@@ -28,19 +29,19 @@ const (
 	stateRemoved = "removed"
 	stateRead    = "read"
 
-	typeAdmReceived  = "adm_received"
-	typeAdmSent      = "adm_sent"
-	typeInvited      = "invited"
-	typeAccept       = "accept"
-	typeComment      = "comment"
-	typeRequest      = "request"
-	typeFollower     = "follower"
-	typeInvite       = "invite"
-	typeMessage      = "message"
-	typeWishReceived = "wish_received"
-	typeWishCreated  = "wish_created"
-	typeEntryMoved   = "entry_moved"
-	typeBadge        = "badge"
+	TypeAdmReceived  = "adm_received"
+	TypeAdmSent      = "adm_sent"
+	TypeInvited      = "invited"
+	TypeAccept       = "accept"
+	TypeComment      = "comment"
+	TypeRequest      = "request"
+	TypeFollower     = "follower"
+	TypeInvite       = "invite"
+	TypeMessage      = "message"
+	TypeWishReceived = "wish_received"
+	TypeWishCreated  = "wish_created"
+	TypeEntryMoved   = "entry_moved"
+	TypeBadge        = "badge"
 )
 
 func NewNotifier(apiURL, apiKey string) *Notifier {
@@ -94,7 +95,7 @@ func notificationsChannel(userName string) string {
 	return "notifications#" + userName
 }
 
-func (ntf *Notifier) Notify(tx *AutoTx, subjectID int64, tpe, user string) {
+func (ntf *Notifier) Notify(tx *database.AutoTx, subjectID int64, tpe, user string) {
 	const q = `
 		INSERT INTO notifications(user_id, subject_id, type)
 		VALUES((SELECT id from users WHERE lower(name) = lower($1)),
@@ -116,7 +117,7 @@ func (ntf *Notifier) Notify(tx *AutoTx, subjectID int64, tpe, user string) {
 	}
 }
 
-func (ntf *Notifier) NotifyUpdate(tx *AutoTx, subjectID int64, tpe string) {
+func (ntf *Notifier) NotifyUpdate(tx *database.AutoTx, subjectID int64, tpe string) {
 	if ntf.ch == nil {
 		return
 	}
@@ -146,7 +147,7 @@ func (ntf *Notifier) NotifyUpdate(tx *AutoTx, subjectID int64, tpe string) {
 	}
 }
 
-func (ntf *Notifier) NotifyRemove(tx *AutoTx, subjectID int64, tpe string) {
+func (ntf *Notifier) NotifyRemove(tx *database.AutoTx, subjectID int64, tpe string) {
 	const q = `
 		DELETE FROM notifications
 		WHERE subject_id = $1 AND type = (SELECT id FROM notification_type WHERE type = $2)
@@ -187,16 +188,16 @@ func (ntf *Notifier) NotifyRead(user string, ntfID int64) {
 	}
 }
 
-func (ntf *Notifier) NotifyNewFollower(tx *AutoTx, fromID int64, to string, isPrivate bool) {
-	tpe := typeFollower
+func (ntf *Notifier) NotifyNewFollower(tx *database.AutoTx, fromID int64, to string, isPrivate bool) {
+	tpe := TypeFollower
 	if isPrivate {
-		tpe = typeRequest
+		tpe = TypeRequest
 	}
 
 	ntf.Notify(tx, fromID, tpe, to)
 }
 
-func (ntf *Notifier) NotifyRemoveFollower(tx *AutoTx, fromID, toID int64, to string) {
+func (ntf *Notifier) NotifyRemoveFollower(tx *database.AutoTx, fromID, toID int64, to string) {
 	const q = `
 		DELETE FROM notifications
 	    WHERE id = (SELECT MAX(id) FROM notifications
@@ -207,7 +208,7 @@ func (ntf *Notifier) NotifyRemoveFollower(tx *AutoTx, fromID, toID int64, to str
 		RETURNING id
 	`
 
-	ntfID := tx.QueryInt64(q, fromID, toID, typeFollower, typeRequest)
+	ntfID := tx.QueryInt64(q, fromID, toID, TypeFollower, TypeRequest)
 
 	if ntf.ch != nil {
 		ntf.ch <- &message{
@@ -228,7 +229,7 @@ func (ntf *Notifier) NotifyMessage(chatID, msgID int64, user string) {
 			ID:    chatID,
 			Subj:  msgID,
 			State: stateNew,
-			Type:  typeMessage,
+			Type:  TypeMessage,
 			ch:    messagesChannel(user),
 		}
 	}
@@ -240,7 +241,7 @@ func (ntf *Notifier) NotifyMessageUpdate(chatID, msgID int64, user string) {
 			ID:    chatID,
 			Subj:  msgID,
 			State: stateUpdated,
-			Type:  typeMessage,
+			Type:  TypeMessage,
 			ch:    messagesChannel(user),
 		}
 	}
@@ -252,7 +253,7 @@ func (ntf *Notifier) NotifyMessageRemove(chatID, msgID int64, user string) {
 			ID:    chatID,
 			Subj:  msgID,
 			State: stateRemoved,
-			Type:  typeMessage,
+			Type:  TypeMessage,
 			ch:    messagesChannel(user),
 		}
 	}
@@ -264,7 +265,7 @@ func (ntf *Notifier) NotifyMessageRead(chatID, msgID int64, user string) {
 			ID:    chatID,
 			Subj:  msgID,
 			State: stateRead,
-			Type:  typeMessage,
+			Type:  TypeMessage,
 			ch:    messagesChannel(user),
 		}
 	}

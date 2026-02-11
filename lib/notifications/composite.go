@@ -1,23 +1,43 @@
-package utils
+package notifications
 
 import (
 	"database/sql"
 	"encoding/json"
 
 	"github.com/leporo/sqlf"
+	"github.com/sevings/mindwell-server/lib/auth"
+	"github.com/sevings/mindwell-server/lib/database"
+	"github.com/sevings/mindwell-server/lib/pubsub"
+	"github.com/sevings/mindwell-server/lib/textutil"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/models"
 	"gitlab.com/golang-commonmark/markdown"
+	"go.uber.org/zap"
 )
 
+// ServerDependencies provides the server dependencies needed by CompositeNotifier and TelegramBot
+type ServerDependencies interface {
+	ConfigString(key string) string
+	ConfigOptString(key string) string
+	ConfigInt(key string) int
+	ConfigInt64(key string) int64
+	ConfigInt64s(key string) []int64
+	ConfigStrings(key string) []string
+	LogSystem() *zap.Logger
+	LogTelegram() *zap.Logger
+	TokenHash() auth.TokenHash
+	GetDB() *sql.DB
+}
+
 type CompositeNotifier struct {
-	srv  *MindwellServer
+	srv  ServerDependencies
 	md   *markdown.Markdown
 	Mail MailSender
 	Ntf  *Notifier
 	Tg   *TelegramBot
 }
 
-func NewCompositeNotifier(srv *MindwellServer) *CompositeNotifier {
+func NewCompositeNotifier(srv ServerDependencies, ps *pubsub.PubSub) *CompositeNotifier {
 	ntfURL := srv.ConfigString("centrifugo.api_url")
 	ntfKey := srv.ConfigString("centrifugo.api_key")
 
@@ -28,8 +48,8 @@ func NewCompositeNotifier(srv *MindwellServer) *CompositeNotifier {
 		Tg:  NewTelegramBot(srv),
 	}
 
-	srv.PS.Subscribe("moved_entries", ntf.notifyMovedEntry)
-	srv.PS.Subscribe("user_badges", ntf.notifyBadge)
+	ps.Subscribe("moved_entries", ntf.notifyMovedEntry)
+	ps.Subscribe("user_badges", ntf.notifyBadge)
 
 	return ntf
 }
@@ -40,7 +60,7 @@ func (ntf *CompositeNotifier) Stop() {
 	ntf.Ntf.Stop()
 }
 
-func (ntf *CompositeNotifier) SendNewInvite(tx *AutoTx, userID int) {
+func (ntf *CompositeNotifier) SendNewInvite(tx *database.AutoTx, userID int) {
 	var email, name, showName string
 	var sendEmail, sendTg bool
 	var tg sql.NullInt64
@@ -53,7 +73,7 @@ func (ntf *CompositeNotifier) SendNewInvite(tx *AutoTx, userID int) {
 	tx.Query(q, userID)
 	tx.Scan(&email, &name, &showName, &sendEmail, &tg, &sendTg)
 
-	ntf.Ntf.Notify(tx, 0, typeInvite, name)
+	ntf.Ntf.Notify(tx, 0, TypeInvite, name)
 
 	if tg.Valid && sendTg {
 		ntf.Tg.SendNewInvite(tg.Int64)
@@ -64,7 +84,7 @@ func (ntf *CompositeNotifier) SendNewInvite(tx *AutoTx, userID int) {
 	}
 }
 
-func (ntf *CompositeNotifier) SendEmailChanged(tx *AutoTx, userID *models.UserID, oldEmail, newEmail string) {
+func (ntf *CompositeNotifier) SendEmailChanged(tx *database.AutoTx, userID *models.UserID, oldEmail, newEmail string) {
 	const q = `
 		SELECT show_name, telegram
 		FROM users
@@ -94,7 +114,7 @@ func (ntf *CompositeNotifier) SendEmailChanged(tx *AutoTx, userID *models.UserID
 	}
 }
 
-func (ntf *CompositeNotifier) SendPasswordChanged(tx *AutoTx, userID *models.UserID) {
+func (ntf *CompositeNotifier) SendPasswordChanged(tx *database.AutoTx, userID *models.UserID) {
 	const q = `
 		SELECT email, verified, show_name, telegram
 		FROM users
@@ -132,7 +152,7 @@ func (ntf *CompositeNotifier) SendResetPassword(email, showName, gender string) 
 	ntf.Mail.SendResetPassword(email, showName, gender, code, date)
 }
 
-func (ntf *CompositeNotifier) entryTitle(tx *AutoTx, entryID int64) string {
+func (ntf *CompositeNotifier) entryTitle(tx *database.AutoTx, entryID int64) string {
 	var title, content string
 	tx.Query("SELECT title, edit_content FROM entries WHERE id = $1", entryID)
 	tx.Scan(&title, &content)
@@ -142,13 +162,13 @@ func (ntf *CompositeNotifier) entryTitle(tx *AutoTx, entryID int64) string {
 	}
 
 	content = ntf.md.RenderToString([]byte(content))
-	content = RemoveHTML(content)
-	content, _ = CutText(content, 100)
+	content = textutil.RemoveHTML(content)
+	content, _ = textutil.CutText(content, 100)
 
 	return content
 }
 
-func (ntf *CompositeNotifier) SendNewComment(tx *AutoTx, cmt *models.Comment) {
+func (ntf *CompositeNotifier) SendNewComment(tx *database.AutoTx, cmt *models.Comment) {
 	title := ntf.entryTitle(tx, cmt.EntryID)
 
 	fromQ := sqlf.Select("gender.type, shadow_ban").
@@ -199,14 +219,14 @@ func (ntf *CompositeNotifier) SendNewComment(tx *AutoTx, cmt *models.Comment) {
 	}
 
 	for _, user := range toUsers {
-		userID, _ := LoadUserIDByID(tx, user.id)
-		user.canView = CanViewEntry(tx, userID, cmt.EntryID)
+		userID, _ := auth.LoadUserIDByID(tx, user.id)
+		user.canView = userutil.CanViewEntry(tx, userID, cmt.EntryID)
 		if !user.canView {
 			continue
 		}
 
 		viewQ := sqlf.Select("TRUE").From("comments").Where("comments.id = ?", cmt.ID)
-		AddViewCommentQuery(viewQ, userID)
+		userutil.AddViewCommentQuery(viewQ, userID)
 		user.canView = tx.QueryStmt(viewQ).ScanBool()
 	}
 
@@ -223,27 +243,27 @@ func (ntf *CompositeNotifier) SendNewComment(tx *AutoTx, cmt *models.Comment) {
 			ntf.Tg.SendNewComment(user.tg.Int64, title, cmt)
 		}
 
-		ntf.Ntf.Notify(tx, cmt.ID, typeComment, user.name)
+		ntf.Ntf.Notify(tx, cmt.ID, TypeComment, user.name)
 	}
 }
 
-func (ntf *CompositeNotifier) SendUpdateComment(tx *AutoTx, cmt *models.Comment) {
+func (ntf *CompositeNotifier) SendUpdateComment(tx *database.AutoTx, cmt *models.Comment) {
 	title := ntf.entryTitle(tx, cmt.EntryID)
 
 	ntf.Tg.SendUpdateComment(title, cmt)
-	ntf.Ntf.NotifyUpdate(tx, cmt.ID, typeComment)
+	ntf.Ntf.NotifyUpdate(tx, cmt.ID, TypeComment)
 }
 
-func (ntf *CompositeNotifier) SendRemoveComment(tx *AutoTx, commentID int64) {
+func (ntf *CompositeNotifier) SendRemoveComment(tx *database.AutoTx, commentID int64) {
 	ntf.Tg.SendRemoveComment(commentID)
-	ntf.Ntf.NotifyRemove(tx, commentID, typeComment)
+	ntf.Ntf.NotifyRemove(tx, commentID, TypeComment)
 }
 
 func (ntf *CompositeNotifier) SendRead(name string, id int64) {
 	ntf.Ntf.NotifyRead(name, id)
 }
 
-func (ntf *CompositeNotifier) SendInvited(tx *AutoTx, from, to string) {
+func (ntf *CompositeNotifier) SendInvited(tx *database.AutoTx, from, to string) {
 	const toQ = `
 		SELECT show_name, email, verified, telegram
 		FROM users
@@ -272,10 +292,10 @@ func (ntf *CompositeNotifier) SendInvited(tx *AutoTx, from, to string) {
 		ntf.Tg.SendInvited(tg.Int64, from, fromShowName, fromGender)
 	}
 
-	ntf.Ntf.Notify(tx, fromID, typeInvited, to)
+	ntf.Ntf.Notify(tx, fromID, TypeInvited, to)
 }
 
-func (ntf *CompositeNotifier) SendNewFollower(tx *AutoTx, toPrivate bool, from, to string) {
+func (ntf *CompositeNotifier) SendNewFollower(tx *database.AutoTx, toPrivate bool, from, to string) {
 	const toQ = `
 		SELECT show_name, email, verified AND email_followers, telegram, telegram_followers, shadow_ban
 		FROM users
@@ -312,7 +332,7 @@ func (ntf *CompositeNotifier) SendNewFollower(tx *AutoTx, toPrivate bool, from, 
 	ntf.Ntf.NotifyNewFollower(tx, fromID, to, toPrivate)
 }
 
-func (ntf *CompositeNotifier) SendRemoveFollower(tx *AutoTx, fromID int64, toName string) {
+func (ntf *CompositeNotifier) SendRemoveFollower(tx *database.AutoTx, fromID int64, toName string) {
 	const toQ = `
 		SELECT id, telegram, telegram_followers
 		FROM users
@@ -334,7 +354,7 @@ func (ntf *CompositeNotifier) SendRemoveFollower(tx *AutoTx, fromID int64, toNam
 	ntf.Ntf.NotifyRemoveFollower(tx, fromID, toID, toName)
 }
 
-func (ntf *CompositeNotifier) SendNewAccept(tx *AutoTx, from, to string) {
+func (ntf *CompositeNotifier) SendNewAccept(tx *database.AutoTx, from, to string) {
 	const toQ = `
 		SELECT show_name, email, verified AND email_followers, telegram, telegram_followers
 		FROM users
@@ -363,10 +383,10 @@ func (ntf *CompositeNotifier) SendNewAccept(tx *AutoTx, from, to string) {
 		ntf.Tg.SendNewAccept(tg.Int64, from, fromShowName, fromGender)
 	}
 
-	ntf.Ntf.Notify(tx, fromID, typeAccept, to)
+	ntf.Ntf.Notify(tx, fromID, TypeAccept, to)
 }
 
-func (ntf *CompositeNotifier) SendNewCommentComplain(tx *AutoTx, commentID, fromID int64, content string) {
+func (ntf *CompositeNotifier) SendNewCommentComplain(tx *database.AutoTx, commentID, fromID int64, content string) {
 	const q = `
 		SELECT entry_id, edit_content, author_id
 		FROM comments
@@ -376,13 +396,13 @@ func (ntf *CompositeNotifier) SendNewCommentComplain(tx *AutoTx, commentID, from
 	var comment string
 	tx.Query(q, commentID).Scan(&entryID, &comment, &authorID)
 
-	from := LoadUser(tx, fromID)
-	against := LoadUser(tx, authorID)
+	from := userutil.LoadUser(tx, fromID)
+	against := userutil.LoadUser(tx, authorID)
 
 	ntf.Tg.SendCommentComplain(from, against, content, comment, commentID, entryID)
 }
 
-func (ntf *CompositeNotifier) SendNewEntryComplain(tx *AutoTx, entryID, fromID int64, content string) {
+func (ntf *CompositeNotifier) SendNewEntryComplain(tx *database.AutoTx, entryID, fromID int64, content string) {
 	const q = `
 		SELECT edit_content, author_id
 		FROM entries
@@ -392,13 +412,13 @@ func (ntf *CompositeNotifier) SendNewEntryComplain(tx *AutoTx, entryID, fromID i
 	var authorID int64
 	tx.Query(q, entryID).Scan(&entry, &authorID)
 
-	from := LoadUser(tx, fromID)
-	against := LoadUser(tx, authorID)
+	from := userutil.LoadUser(tx, fromID)
+	against := userutil.LoadUser(tx, authorID)
 
 	ntf.Tg.SendEntryComplain(from, against, content, entry, entryID)
 }
 
-func (ntf *CompositeNotifier) SendNewMessageComplain(tx *AutoTx, msgID, fromID int64, content string) {
+func (ntf *CompositeNotifier) SendNewMessageComplain(tx *database.AutoTx, msgID, fromID int64, content string) {
 	const q = `
 		SELECT edit_content, author_id
 		FROM messages
@@ -408,37 +428,37 @@ func (ntf *CompositeNotifier) SendNewMessageComplain(tx *AutoTx, msgID, fromID i
 	var authorID int64
 	tx.Query(q, msgID).Scan(&msg, &authorID)
 
-	from := LoadUser(tx, fromID)
-	against := LoadUser(tx, authorID)
+	from := userutil.LoadUser(tx, fromID)
+	against := userutil.LoadUser(tx, authorID)
 
 	ntf.Tg.SendMessageComplain(from, against, content, msg, msgID)
 }
 
-func (ntf *CompositeNotifier) SendNewUserComplain(tx *AutoTx, against *models.User, fromID int64, content string) {
+func (ntf *CompositeNotifier) SendNewUserComplain(tx *database.AutoTx, against *models.User, fromID int64, content string) {
 	const q = `
 		SELECT title
 		FROM users
 		WHERE users.id = $1`
 
 	title := tx.QueryString(q, against.ID)
-	from := LoadUser(tx, fromID)
+	from := userutil.LoadUser(tx, fromID)
 
 	ntf.Tg.SendUserComplain(from, against, content, title)
 }
 
-func (ntf *CompositeNotifier) SendNewThemeComplain(tx *AutoTx, against *models.User, fromID int64, content string) {
+func (ntf *CompositeNotifier) SendNewThemeComplain(tx *database.AutoTx, against *models.User, fromID int64, content string) {
 	const q = `
 		SELECT title
 		FROM users
 		WHERE users.id = $1`
 
 	title := tx.QueryString(q, against.ID)
-	from := LoadUser(tx, fromID)
+	from := userutil.LoadUser(tx, fromID)
 
 	ntf.Tg.SendThemeComplain(from, against, content, title)
 }
 
-func (ntf *CompositeNotifier) SendNewWishComplain(tx *AutoTx, wishID, fromID int64) {
+func (ntf *CompositeNotifier) SendNewWishComplain(tx *database.AutoTx, wishID, fromID int64) {
 	const q = `
 		SELECT content, from_id
 		FROM wishes
@@ -448,8 +468,8 @@ func (ntf *CompositeNotifier) SendNewWishComplain(tx *AutoTx, wishID, fromID int
 	var authorID int64
 	tx.Query(q, wishID).Scan(&wish, &authorID)
 
-	from := LoadUser(tx, fromID)
-	against := LoadUser(tx, authorID)
+	from := userutil.LoadUser(tx, fromID)
+	against := userutil.LoadUser(tx, authorID)
 
 	ntf.Tg.SendWishComplain(from, against, wish, wishID)
 }
@@ -462,7 +482,7 @@ SELECT EXISTS(SELECT 1
 	WHERE users.name = $1 AND notification_type.type = $2 AND age(notifications.created_at) < interval '6 month')
 `
 
-func (ntf *CompositeNotifier) SendAdmSent(tx *AutoTx, grandson string) {
+func (ntf *CompositeNotifier) SendAdmSent(tx *database.AutoTx, grandson string) {
 	if tx.QueryBool(retryQuery, grandson, "adm_sent") {
 		return
 	}
@@ -486,10 +506,10 @@ func (ntf *CompositeNotifier) SendAdmSent(tx *AutoTx, grandson string) {
 		ntf.Tg.SendAdmSent(tg.Int64)
 	}
 
-	ntf.Ntf.Notify(tx, 0, typeAdmSent, grandson)
+	ntf.Ntf.Notify(tx, 0, TypeAdmSent, grandson)
 }
 
-func (ntf *CompositeNotifier) SendAdmReceived(tx *AutoTx, grandfather string) {
+func (ntf *CompositeNotifier) SendAdmReceived(tx *database.AutoTx, grandfather string) {
 	if tx.QueryBool(retryQuery, grandfather, "adm_received") {
 		return
 	}
@@ -513,18 +533,18 @@ func (ntf *CompositeNotifier) SendAdmReceived(tx *AutoTx, grandfather string) {
 		ntf.Tg.SendAdmReceived(tg.Int64)
 	}
 
-	ntf.Ntf.Notify(tx, 0, typeAdmReceived, grandfather)
+	ntf.Ntf.Notify(tx, 0, TypeAdmReceived, grandfather)
 }
 
-func (ntf *CompositeNotifier) SendWishReceived(tx *AutoTx, wishID int64, user string) {
-	ntf.Ntf.Notify(tx, wishID, typeWishReceived, user)
+func (ntf *CompositeNotifier) SendWishReceived(tx *database.AutoTx, wishID int64, user string) {
+	ntf.Ntf.Notify(tx, wishID, TypeWishReceived, user)
 }
 
-func (ntf *CompositeNotifier) SendWishCreated(tx *AutoTx, wishID int64, user string) {
-	ntf.Ntf.Notify(tx, wishID, typeWishCreated, user)
+func (ntf *CompositeNotifier) SendWishCreated(tx *database.AutoTx, wishID int64, user string) {
+	ntf.Ntf.Notify(tx, wishID, TypeWishCreated, user)
 }
 
-func (ntf *CompositeNotifier) NotifyMessage(tx *AutoTx, msg *models.Message, user string) {
+func (ntf *CompositeNotifier) NotifyMessage(tx *database.AutoTx, msg *models.Message, user string) {
 	const q = "SELECT telegram, telegram_messages FROM users WHERE lower(name) = lower($1)"
 
 	var tg sql.NullInt64
@@ -560,7 +580,7 @@ func (ntf *CompositeNotifier) notifyMovedEntry(entryData []byte) {
 		return
 	}
 
-	tx := NewAutoTx(ntf.srv.DB)
+	tx := database.NewAutoTx(ntf.srv.GetDB())
 	defer tx.Finish()
 
 	const toQ = `
@@ -585,7 +605,7 @@ func (ntf *CompositeNotifier) notifyMovedEntry(entryData []byte) {
 		ntf.Tg.SendEntryMoved(tg.Int64, entry.Title, entry.ID)
 	}
 
-	ntf.Ntf.Notify(tx, entry.ID, typeEntryMoved, toName)
+	ntf.Ntf.Notify(tx, entry.ID, TypeEntryMoved, toName)
 }
 
 func (ntf *CompositeNotifier) notifyBadge(badgeData []byte) {
@@ -599,7 +619,7 @@ func (ntf *CompositeNotifier) notifyBadge(badgeData []byte) {
 		return
 	}
 
-	tx := NewAutoTx(ntf.srv.DB)
+	tx := database.NewAutoTx(ntf.srv.GetDB())
 	defer tx.Finish()
 
 	var badgeTitle, badgeDesc string
@@ -632,5 +652,5 @@ func (ntf *CompositeNotifier) notifyBadge(badgeData []byte) {
 		ntf.Tg.SendBadge(tg.Int64, toName, badgeTitle, badgeDesc)
 	}
 
-	ntf.Ntf.Notify(tx, badgeId.BadgeID, typeBadge, toName)
+	ntf.Ntf.Notify(tx, badgeId.BadgeID, TypeBadge, toName)
 }

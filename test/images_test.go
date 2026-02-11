@@ -1,11 +1,11 @@
 package test
 
 import (
+	libauth "github.com/sevings/mindwell-server/lib/auth"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
-	"github.com/sevings/mindwell-server/utils"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
@@ -82,7 +82,7 @@ func TestLoadTlogImages(t *testing.T) {
 	setUserPrivacy(t, userIDs[0], "registered")
 	checkLoadTlogImages(t, userIDs[0], userIDs[1], true)
 	checkLoadTlogImages(t, userIDs[0], userIDs[3], true)
-	checkLoadTlogImages(t, userIDs[0], utils.NoAuthUser(), false)
+	checkLoadTlogImages(t, userIDs[0], libauth.NoAuthUser(), false)
 
 	setUserPrivacy(t, userIDs[0], "all")
 }
@@ -127,7 +127,7 @@ func TestLoadThemeImages(t *testing.T) {
 	setThemePrivacy(t, userIDs[0], theme, "registered")
 	checkLoadThemeImages(t, userIDs[1], theme.Name, true)
 	checkLoadThemeImages(t, userIDs[3], theme.Name, true)
-	checkLoadThemeImages(t, utils.NoAuthUser(), theme.Name, false)
+	checkLoadThemeImages(t, libauth.NoAuthUser(), theme.Name, false)
 
 	deleteTheme(t, theme)
 }

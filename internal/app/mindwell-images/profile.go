@@ -5,8 +5,8 @@ import (
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi_images/operations/me"
 	"github.com/sevings/mindwell-server/restapi_images/operations/themes"
-	"github.com/sevings/mindwell-server/utils"
 	"io"
+	"github.com/sevings/mindwell-server/lib/database"
 )
 
 func updateProfilePhoto(mi *MindwellImages, profileID int64, file io.ReadCloser, action string) bool {
@@ -45,7 +45,7 @@ func NewCoverUpdater(mi *MindwellImages) func(me.PutMeCoverParams, *models.UserI
 	}
 }
 
-func checkThemeAdmin(tx *utils.AutoTx, userID *models.UserID, name string) (int64, bool) {
+func checkThemeAdmin(tx *database.AutoTx, userID *models.UserID, name string) (int64, bool) {
 	const q = `SELECT id, creator_id FROM users WHERE lower(name) = lower($1)`
 
 	var themeID, creatorID int64
@@ -56,7 +56,7 @@ func checkThemeAdmin(tx *utils.AutoTx, userID *models.UserID, name string) (int6
 
 func NewThemeAvatarUpdater(mi *MindwellImages) func(themes.PutThemesNameAvatarParams, *models.UserID) middleware.Responder {
 	return func(params themes.PutThemesNameAvatarParams, userID *models.UserID) middleware.Responder {
-		tx := utils.NewAutoTx(mi.DB())
+		tx := database.NewAutoTx(mi.DB())
 		defer tx.Finish()
 
 		themeID, allowed := checkThemeAdmin(tx, userID, params.Name)
@@ -75,7 +75,7 @@ func NewThemeAvatarUpdater(mi *MindwellImages) func(themes.PutThemesNameAvatarPa
 
 func NewThemeCoverUpdater(mi *MindwellImages) func(themes.PutThemesNameCoverParams, *models.UserID) middleware.Responder {
 	return func(params themes.PutThemesNameCoverParams, userID *models.UserID) middleware.Responder {
-		tx := utils.NewAutoTx(mi.DB())
+		tx := database.NewAutoTx(mi.DB())
 		defer tx.Finish()
 
 		themeID, allowed := checkThemeAdmin(tx, userID, params.Name)

@@ -1,6 +1,8 @@
 package notifications
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"time"
 
 	"github.com/go-openapi/runtime/middleware"
@@ -11,9 +13,9 @@ import (
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/entries"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/users"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/wishes"
+	"github.com/sevings/mindwell-server/lib/helpers"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/notifications"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 var infoCache *cache.Cache
@@ -23,20 +25,20 @@ func init() {
 }
 
 // ConfigureAPI creates operations handlers
-func ConfigureAPI(srv *utils.MindwellServer) {
+func ConfigureAPI(srv *server.MindwellServer) {
 	srv.API.NotificationsPutNotificationsReadHandler = notifications.PutNotificationsReadHandlerFunc(newNotificationsReader(srv))
 	srv.API.NotificationsGetNotificationsHandler = notifications.GetNotificationsHandlerFunc(newNotificationsLoader(srv))
 	srv.API.NotificationsGetNotificationsIDHandler = notifications.GetNotificationsIDHandlerFunc(newSingleNotificationLoader(srv))
 }
 
-func unreadCount(tx *utils.AutoTx, userID int64) int64 {
+func unreadCount(tx *database.AutoTx, userID int64) int64 {
 	const q = "SELECT count(*) FROM notifications WHERE user_id = $1 AND NOT read"
 	return tx.QueryInt64(q, userID)
 }
 
-func newNotificationsReader(srv *utils.MindwellServer) func(notifications.PutNotificationsReadParams, *models.UserID) middleware.Responder {
+func newNotificationsReader(srv *server.MindwellServer) func(notifications.PutNotificationsReadParams, *models.UserID) middleware.Responder {
 	return func(params notifications.PutNotificationsReadParams, uID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 
 			q := `UPDATE notifications
 				SET read = true
@@ -76,8 +78,8 @@ type notice struct {
 	read bool
 }
 
-func loadInfo(tx *utils.AutoTx, id int64) *models.NotificationInfo {
-	key := utils.FormatInt64(id)
+func loadInfo(tx *database.AutoTx, id int64) *models.NotificationInfo {
+	key := helpers.FormatInt64(id)
 
 	i, found := infoCache.Get(key)
 	if found {
@@ -98,7 +100,7 @@ func loadInfo(tx *utils.AutoTx, id int64) *models.NotificationInfo {
 	return info
 }
 
-func loadNotification(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, not *notice) *models.Notification {
+func loadNotification(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, not *notice) *models.Notification {
 	notif := models.Notification{
 		ID:        not.id,
 		CreatedAt: not.at,
@@ -153,7 +155,7 @@ func loadNotification(srv *utils.MindwellServer, tx *utils.AutoTx, userID *model
 	return &notif
 }
 
-func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, reverse bool) *models.NotificationList {
+func loadFeed(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, reverse bool) *models.NotificationList {
 	var notices []notice
 	for {
 		var not notice
@@ -185,9 +187,9 @@ func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID
 	return &feed
 }
 
-func newNotificationsLoader(srv *utils.MindwellServer) func(notifications.GetNotificationsParams, *models.UserID) middleware.Responder {
+func newNotificationsLoader(srv *server.MindwellServer) func(notifications.GetNotificationsParams, *models.UserID) middleware.Responder {
 	return func(params notifications.GetNotificationsParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			var q = `SELECT notifications.id, extract(epoch from created_at), notification_type.type, subject_id, read
 				FROM notifications, notification_type
 				WHERE user_id = $1 AND notifications.type = notification_type.id
@@ -197,8 +199,8 @@ func newNotificationsLoader(srv *utils.MindwellServer) func(notifications.GetNot
 				q = q + "AND NOT read "
 			}
 
-			before := utils.ParseFloat(*params.Before)
-			after := utils.ParseFloat(*params.After)
+			before := helpers.ParseFloat(*params.Before)
+			after := helpers.ParseFloat(*params.After)
 
 			if after > 0 {
 				q := q + " AND created_at > to_timestamp($2) ORDER BY created_at ASC LIMIT $3"
@@ -218,7 +220,7 @@ func newNotificationsLoader(srv *utils.MindwellServer) func(notifications.GetNot
 			}
 
 			nextBefore := feed.Notifications[len(feed.Notifications)-1].CreatedAt
-			feed.NextBefore = utils.FormatFloat(nextBefore)
+			feed.NextBefore = helpers.FormatFloat(nextBefore)
 
 			const beforeQuery = `SELECT EXISTS(
 				SELECT 1
@@ -234,7 +236,7 @@ func newNotificationsLoader(srv *utils.MindwellServer) func(notifications.GetNot
 				WHERE user_id = $1 AND created_at > to_timestamp($2))`
 
 			nextAfter := feed.Notifications[0].CreatedAt
-			feed.NextAfter = utils.FormatFloat(nextAfter)
+			feed.NextAfter = helpers.FormatFloat(nextAfter)
 			tx.Query(afterQuery, userID.ID, nextAfter)
 			tx.Scan(&feed.HasAfter)
 
@@ -243,9 +245,9 @@ func newNotificationsLoader(srv *utils.MindwellServer) func(notifications.GetNot
 	}
 }
 
-func newSingleNotificationLoader(srv *utils.MindwellServer) func(notifications.GetNotificationsIDParams, *models.UserID) middleware.Responder {
+func newSingleNotificationLoader(srv *server.MindwellServer) func(notifications.GetNotificationsIDParams, *models.UserID) middleware.Responder {
 	return func(params notifications.GetNotificationsIDParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			var q = `SELECT notifications.id, extract(epoch from created_at), notification_type.type, subject_id, read
 				FROM notifications, notification_type
 				WHERE notifications.id = $1 AND user_id = $2 AND notifications.type = notification_type.id

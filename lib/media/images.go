@@ -1,14 +1,18 @@
-package utils
+package media
 
 import (
 	"strconv"
 
 	cache "github.com/patrickmn/go-cache"
+	"github.com/sevings/mindwell-server/lib/database"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/models"
 )
 
-const imageExtensionJpg = "jpg"
-const imageExtensionGif = "gif"
+// ConfigProvider provides configuration access for image URLs
+type ConfigProvider interface {
+	ConfigString(key string) string
+}
 
 func setProcessingImage(baseURL string, img *models.Image) {
 	img.Thumbnail = &models.ImageSize{
@@ -36,7 +40,7 @@ func setProcessingImage(baseURL string, img *models.Image) {
 	}
 }
 
-func loadImageNotCached(srv *MindwellServer, tx *AutoTx, imageID int64) *models.Image {
+func loadImageNotCached(srv ConfigProvider, tx *database.AutoTx, imageID int64) *models.Image {
 	baseURL := srv.ConfigString("images.base_url")
 
 	var authorID int64
@@ -124,10 +128,11 @@ func loadImageNotCached(srv *MindwellServer, tx *AutoTx, imageID int64) *models.
 	return img
 }
 
-func LoadImage(srv *MindwellServer, tx *AutoTx, imageID int64) *models.Image {
+// LoadImage loads an image by ID with caching support
+func LoadImage(srv ConfigProvider, imgCache *cache.Cache, tx *database.AutoTx, imageID int64) *models.Image {
 	var img models.Image
 	idStr := strconv.FormatInt(imageID, 10)
-	oldImg, found := srv.Imgs.Get(idStr)
+	oldImg, found := imgCache.Get(idStr)
 	if found {
 		img = *oldImg.(*models.Image)
 	} else {
@@ -136,13 +141,13 @@ func LoadImage(srv *MindwellServer, tx *AutoTx, imageID int64) *models.Image {
 			return newImg
 		}
 		if !newImg.Processing {
-			srv.Imgs.Set(idStr, newImg, cache.DefaultExpiration)
+			imgCache.Set(idStr, newImg, cache.DefaultExpiration)
 		}
 
 		img = *newImg
 	}
 
-	img.Author = LoadUser(tx, img.Author.ID)
+	img.Author = userutil.LoadUser(tx, img.Author.ID)
 
 	return &img
 }

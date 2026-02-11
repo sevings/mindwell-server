@@ -1,6 +1,9 @@
 package test
 
 import (
+	libauth "github.com/sevings/mindwell-server/lib/auth"
+	"github.com/sevings/mindwell-server/lib/database"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"strings"
 	"testing"
 
@@ -10,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/sevings/mindwell-server/models"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 func TestGetMe(t *testing.T) {
@@ -126,7 +128,7 @@ func TestGetUser(t *testing.T) {
 	_, ok := resp.(*users.GetUsersNameNotFound)
 	require.True(t, ok)
 
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 	params.Name = userIDs[0].Name
 
 	setUserPrivacy(t, userIDs[0], "registered")
@@ -221,12 +223,12 @@ func TestIsOpenForMe(t *testing.T) {
 	req := require.New(t)
 
 	check := func(userID *models.UserID, name string, res bool) {
-		tx := utils.NewAutoTx(db)
+		tx := database.NewAutoTx(db)
 		defer tx.Finish()
-		req.Equal(res, utils.CanViewTlogName(tx, userID, name))
+		req.Equal(res, userutil.CanViewTlogName(tx, userID, name))
 	}
 
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 
 	check(userIDs[0], userIDs[0].Name, true)
 	check(userIDs[1], userIDs[0].Name, true)
@@ -327,7 +329,7 @@ func TestIsChatAllowed(t *testing.T) {
 		req.Equal(res, body.Payload.Rights.Chat)
 	}
 
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 
 	check(userIDs[0], userIDs[0], true)
 	check(userIDs[1], userIDs[0], true)

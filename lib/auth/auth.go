@@ -1,22 +1,24 @@
-package utils
+package auth
 
 import (
 	"database/sql"
-	"github.com/go-openapi/errors"
-	"github.com/sevings/mindwell-server/models"
 	"strings"
 	"time"
+
+	"github.com/go-openapi/errors"
+	"github.com/sevings/mindwell-server/models"
+	"github.com/sevings/mindwell-server/lib/database"
 )
 
-var errUnauthorized = errors.New(401, "Invalid or expired API key")
-var errAccessToken = errors.New(401, "Invalid access token")
-var errAppToken = errors.New(401, "Invalid app token")
-var errAccessDenied = errors.New(403, "Access denied")
+var ErrUnauthorized = errors.New(401, "Invalid or expired API key")
+var ErrAccessToken = errors.New(401, "Invalid access token")
+var ErrAppToken = errors.New(401, "Invalid app token")
+var ErrAccessDenied = errors.New(403, "Access denied")
 
 const userIDQuery = `
-			SELECT users.id, name, followers_count, 
+			SELECT users.id, name, followers_count,
 				invited_by is not null, karma < -1, verified,
-				invite_ban > CURRENT_DATE, vote_ban > CURRENT_DATE, 
+				invite_ban > CURRENT_DATE, vote_ban > CURRENT_DATE,
 				comment_ban > CURRENT_DATE, live_ban > CURRENT_DATE,
 				complain_ban > CURRENT_DATE,
 				user_ban > CURRENT_DATE, shadow_ban,
@@ -24,19 +26,19 @@ const userIDQuery = `
 			FROM users
 			JOIN authority ON users.authority = authority.id `
 
-func LoadUserIDByID(tx *AutoTx, id int64) (*models.UserID, error) {
+func LoadUserIDByID(tx *database.AutoTx, id int64) (*models.UserID, error) {
 	const q = userIDQuery + "WHERE users.id = $1"
 	tx.Query(q, id)
 	return scanUserID(tx)
 }
 
-func LoadUserIDByName(tx *AutoTx, name string) (*models.UserID, error) {
+func LoadUserIDByName(tx *database.AutoTx, name string) (*models.UserID, error) {
 	const q = userIDQuery + "WHERE lower(name) = lower($1)"
 	tx.Query(q, name)
 	return scanUserID(tx)
 }
 
-func scanUserID(tx *AutoTx) (*models.UserID, error) {
+func scanUserID(tx *database.AutoTx) (*models.UserID, error) {
 	var user models.UserID
 	user.Ban = &models.UserIDBan{}
 	tx.Scan(&user.ID, &user.Name, &user.FollowersCount,
@@ -47,7 +49,7 @@ func scanUserID(tx *AutoTx) (*models.UserID, error) {
 		&user.Ban.Account, &user.Ban.Shadow,
 		&user.Authority)
 	if tx.Error() != nil {
-		return nil, errUnauthorized
+		return nil, ErrUnauthorized
 	}
 
 	user.Ban.Invite = user.Ban.Invite || user.Ban.Shadow || !user.IsInvited || !user.Verified
@@ -145,7 +147,7 @@ SELECT scope, flow, ban, user_ban > CURRENT_DATE
 FROM sessions
 JOIN users ON users.id = user_id
 JOIN apps ON apps.id = app_id
-WHERE lower(users.name) = lower($1) 
+WHERE lower(users.name) = lower($1)
 	AND access_hash = $2
 	AND access_thru > $3
 `
@@ -158,19 +160,19 @@ WHERE lower(users.name) = lower($1)
 
 		nameToken := strings.Split(token, ".")
 		if len(nameToken) < 2 {
-			return nil, errAccessToken
+			return nil, ErrAccessToken
 		}
 
 		accessToken := nameToken[1]
 		if len(accessToken) != AccessTokenLength {
-			return nil, errAccessToken
+			return nil, ErrAccessToken
 		}
 
 		name := nameToken[0]
 		hash := h.AccessTokenHash(token)
 		now := time.Now()
 
-		tx := NewAutoTx(db)
+		tx := database.NewAutoTx(db)
 		defer tx.Finish()
 
 		var scopeEx uint32
@@ -178,16 +180,16 @@ WHERE lower(users.name) = lower($1)
 		var appBan, userBan bool
 		tx.Query(query, name, hash[:], now).Scan(&scopeEx, &flowEx, &appBan, &userBan)
 		if tx.Error() != nil || userBan {
-			return nil, errAccessToken
+			return nil, ErrAccessToken
 		}
 
 		if appBan || scopeEx&scopeReq != scopeReq || flowEx&flowReq != flowReq {
-			return nil, errAccessDenied
+			return nil, ErrAccessDenied
 		}
 
 		userID, err := LoadUserIDByName(tx, name)
 		if userID != nil && userID.Ban.Account {
-			return nil, errUnauthorized
+			return nil, ErrUnauthorized
 		}
 
 		return userID, err
@@ -211,7 +213,7 @@ func NewOAuth2App(h TokenHash, db *sql.DB) func(string, []string) (*models.UserI
 SELECT ban, flow
 FROM app_tokens
 JOIN apps ON apps.id = app_id
-WHERE lower(apps.name) = lower($1) 
+WHERE lower(apps.name) = lower($1)
 	AND token_hash = $2
 	AND valid_thru > $3
 `
@@ -219,30 +221,30 @@ WHERE lower(apps.name) = lower($1)
 	return func(token string, scopes []string) (*models.UserID, error) {
 		nameToken := strings.Split(token, "+")
 		if len(nameToken) < 2 {
-			return nil, errAppToken
+			return nil, ErrAppToken
 		}
 
 		appToken := nameToken[1]
 		if len(appToken) != AppTokenLength {
-			return nil, errAppToken
+			return nil, ErrAppToken
 		}
 
 		name := nameToken[0]
 		hash := h.AppTokenHash(token)
 		now := time.Now()
 
-		tx := NewAutoTx(db)
+		tx := database.NewAutoTx(db)
 		defer tx.Finish()
 
 		var ban bool
 		var flowEx AuthFlow
 		tx.Query(query, name, hash, now).Scan(&ban, &flowEx)
 		if tx.Error() != nil {
-			return nil, errAppToken
+			return nil, ErrAppToken
 		}
 
 		if ban || flowEx&AppFlow != AppFlow {
-			return nil, errAccessDenied
+			return nil, ErrAccessDenied
 		}
 
 		return NoAuthUser(), nil

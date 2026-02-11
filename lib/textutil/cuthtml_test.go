@@ -1,4 +1,4 @@
-package utils
+package textutil
 
 import (
 	"github.com/stretchr/testify/require"

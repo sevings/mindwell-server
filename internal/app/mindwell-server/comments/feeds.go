@@ -1,10 +1,14 @@
 package comments
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"database/sql"
+
 	"github.com/leporo/sqlf"
+	"github.com/sevings/mindwell-server/lib/helpers"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/models"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 func baseFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
@@ -23,7 +27,7 @@ func baseFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
 }
 
 func addEntryQuery(q *sqlf.Stmt, userID *models.UserID, entryID int64) *sqlf.Stmt {
-	utils.AddViewCommentQuery(q, userID)
+	userutil.AddViewCommentQuery(q, userID)
 
 	return q.Where("entry_id = ?", entryID).
 		Where("(? OR NOT users.shadow_ban OR entries.user_id = comments.user_id)", userID.Ban.Shadow)
@@ -40,7 +44,7 @@ func addCanViewEntryQuery(q *sqlf.Stmt, userID *models.UserID) *sqlf.Stmt {
 		Join("users AS entry_users", "entries.user_id = entry_users.id").
 		Join("entry_privacy", "entries.visible_for = entry_privacy.id").
 		Join("user_privacy", "authors.privacy = user_privacy.id")
-	return utils.AddCanViewEntryQuery(q, userID)
+	return userutil.AddCanViewEntryQuery(q, userID)
 }
 
 func allFeedQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
@@ -87,7 +91,7 @@ func addBordersQuery(q *sqlf.Stmt, before, after int64) *sqlf.Stmt {
 	}
 }
 
-func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, reverse bool) *models.CommentList {
+func loadFeed(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, reverse bool) *models.CommentList {
 	var list []*models.Comment
 	var cmtUserIDs []int64
 
@@ -159,7 +163,7 @@ func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID
 	return &models.CommentList{Data: list}
 }
 
-func loadNext(tx *utils.AutoTx, cmts *models.CommentList, scrollQ *sqlf.Stmt, before, after int64) {
+func loadNext(tx *database.AutoTx, cmts *models.CommentList, scrollQ *sqlf.Stmt, before, after int64) {
 	if len(cmts.Data) == 0 {
 		scrollQ.Select("comments.id")
 
@@ -168,7 +172,7 @@ func loadNext(tx *utils.AutoTx, cmts *models.CommentList, scrollQ *sqlf.Stmt, be
 				Where("comments.id > ?", before).
 				OrderBy("comments.id ASC")
 			nextAfter := tx.QueryStmt(query).ScanInt64()
-			cmts.NextAfter = utils.FormatInt64(nextAfter)
+			cmts.NextAfter = helpers.FormatInt64(nextAfter)
 		}
 
 		if after > 0 {
@@ -176,7 +180,7 @@ func loadNext(tx *utils.AutoTx, cmts *models.CommentList, scrollQ *sqlf.Stmt, be
 				Where("comments.id < ?", after).
 				OrderBy("comments.id DESC")
 			nextBefore := tx.QueryStmt(query).ScanInt64()
-			cmts.NextBefore = utils.FormatInt64(nextBefore)
+			cmts.NextBefore = helpers.FormatInt64(nextBefore)
 		}
 	} else {
 		scrollQ.Select("TRUE")
@@ -190,18 +194,18 @@ func loadNext(tx *utils.AutoTx, cmts *models.CommentList, scrollQ *sqlf.Stmt, be
 
 		beforeQ := scrollQ.Clone().Where("comments.id < ?", oldest)
 		cmts.HasBefore = tx.QueryStmt(beforeQ).ScanBool()
-		cmts.NextBefore = utils.FormatInt64(oldest)
+		cmts.NextBefore = helpers.FormatInt64(oldest)
 
 		afterQ := scrollQ.Clone().Where("comments.id > ?", newest)
 		cmts.HasAfter = tx.QueryStmt(afterQ).ScanBool()
-		cmts.NextAfter = utils.FormatInt64(newest)
+		cmts.NextAfter = helpers.FormatInt64(newest)
 	}
 }
 
 // LoadEntryComments loads comments for entry.
-func LoadEntryComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entryID, limit int64, afterS, beforeS string) *models.CommentList {
-	before := utils.ParseInt64(beforeS)
-	after := utils.ParseInt64(afterS)
+func LoadEntryComments(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, entryID, limit int64, afterS, beforeS string) *models.CommentList {
+	before := helpers.ParseInt64(beforeS)
+	after := helpers.ParseInt64(afterS)
 
 	query := entryFeedQuery(userID, entryID, limit)
 	addBordersQuery(query, before, after)
@@ -218,9 +222,9 @@ func LoadEntryComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *mode
 	return cmts
 }
 
-func loadUserComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, limit int64, author, afterS, beforeS string) *models.CommentList {
-	before := utils.ParseInt64(beforeS)
-	after := utils.ParseInt64(afterS)
+func loadUserComments(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, limit int64, author, afterS, beforeS string) *models.CommentList {
+	before := helpers.ParseInt64(beforeS)
+	after := helpers.ParseInt64(afterS)
 
 	query := userFeedQuery(userID, author, limit)
 	addBordersQuery(query, before, after)
@@ -237,9 +241,9 @@ func loadUserComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *model
 	return cmts
 }
 
-func loadThemeComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, limit int64, author, afterS, beforeS string) *models.CommentList {
-	before := utils.ParseInt64(beforeS)
-	after := utils.ParseInt64(afterS)
+func loadThemeComments(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, limit int64, author, afterS, beforeS string) *models.CommentList {
+	before := helpers.ParseInt64(beforeS)
+	after := helpers.ParseInt64(afterS)
 
 	query := themeFeedQuery(userID, author, limit)
 	addBordersQuery(query, before, after)
@@ -256,9 +260,9 @@ func loadThemeComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *mode
 	return cmts
 }
 
-func loadAllComments(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, limit int64, afterS, beforeS string) *models.CommentList {
-	before := utils.ParseInt64(beforeS)
-	after := utils.ParseInt64(afterS)
+func loadAllComments(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, limit int64, afterS, beforeS string) *models.CommentList {
+	before := helpers.ParseInt64(beforeS)
+	after := helpers.ParseInt64(afterS)
 
 	query := allFeedQuery(userID, limit)
 	addBordersQuery(query, before, after)

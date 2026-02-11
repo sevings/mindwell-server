@@ -1,6 +1,8 @@
 package account
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"database/sql"
 	"fmt"
 	"image"
@@ -11,6 +13,8 @@ import (
 	"time"
 
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/chats"
+	"github.com/sevings/mindwell-server/lib/helpers"
+	"github.com/sevings/mindwell-server/lib/textutil"
 
 	"github.com/golang-jwt/jwt/v4"
 
@@ -22,13 +26,12 @@ import (
 
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/account"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 var centSecret []byte
 
 // ConfigureAPI creates operations handlers
-func ConfigureAPI(srv *utils.MindwellServer) {
+func ConfigureAPI(srv *server.MindwellServer) {
 	centSecret = []byte(srv.ConfigString("centrifugo.secret"))
 
 	srv.API.AccountGetAccountEmailEmailHandler = account.GetAccountEmailEmailHandlerFunc(newEmailChecker(srv))
@@ -59,7 +62,7 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 	srv.API.AccountDeleteAccountSubscribeTelegramHandler = account.DeleteAccountSubscribeTelegramHandlerFunc(newTelegramDeleter(srv))
 }
 
-func checkEmailAllowed(srv *utils.MindwellServer, email string) *models.Error {
+func checkEmailAllowed(srv *server.MindwellServer, email string) *models.Error {
 	if srv.Eac.IsAllowed(email) {
 		return nil
 	}
@@ -68,7 +71,7 @@ func checkEmailAllowed(srv *utils.MindwellServer, email string) *models.Error {
 	return srv.NewError(msg)
 }
 
-func isEmailFree(tx *utils.AutoTx, email string) bool {
+func isEmailFree(tx *database.AutoTx, email string) bool {
 	const q = `
         select id
         from users
@@ -80,9 +83,9 @@ func isEmailFree(tx *utils.AutoTx, email string) bool {
 	return tx.Error() == sql.ErrNoRows
 }
 
-func newEmailChecker(srv *utils.MindwellServer) func(account.GetAccountEmailEmailParams) middleware.Responder {
+func newEmailChecker(srv *server.MindwellServer) func(account.GetAccountEmailEmailParams) middleware.Responder {
 	return func(params account.GetAccountEmailEmailParams) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			if err := checkEmailAllowed(srv, params.Email); err != nil {
 				return account.NewPostAccountRegisterBadRequest().WithPayload(err)
 			}
@@ -94,7 +97,7 @@ func newEmailChecker(srv *utils.MindwellServer) func(account.GetAccountEmailEmai
 	}
 }
 
-func isNameFree(tx *utils.AutoTx, name string) bool {
+func isNameFree(tx *database.AutoTx, name string) bool {
 	const q = `
         select id
         from users
@@ -106,9 +109,9 @@ func isNameFree(tx *utils.AutoTx, name string) bool {
 	return tx.Error() == sql.ErrNoRows
 }
 
-func newNameChecker(srv *utils.MindwellServer) func(account.GetAccountNameNameParams) middleware.Responder {
+func newNameChecker(srv *server.MindwellServer) func(account.GetAccountNameNameParams) middleware.Responder {
 	return func(params account.GetAccountNameNameParams) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			free := isNameFree(tx, params.Name)
 			data := account.GetAccountNameNameOKBody{Name: params.Name, IsFree: free}
 			return account.NewGetAccountNameNameOK().WithPayload(&data)
@@ -116,7 +119,7 @@ func newNameChecker(srv *utils.MindwellServer) func(account.GetAccountNameNamePa
 	}
 }
 
-func saveAvatar(srv *utils.MindwellServer, img image.Image, size int, folder, name string) {
+func saveAvatar(srv *server.MindwellServer, img image.Image, size int, folder, name string) {
 	path := srv.ImagesFolder() + "avatars/" + strconv.Itoa(size) + "/" + folder
 	err := os.MkdirAll(path, 0777)
 	if err != nil {
@@ -134,7 +137,7 @@ func saveAvatar(srv *utils.MindwellServer, img image.Image, size int, folder, na
 	}
 }
 
-func generateAvatar(srv *utils.MindwellServer, name, gender string) string {
+func generateAvatar(srv *server.MindwellServer, name, gender string) string {
 	var g govatar.Gender
 	if gender == "male" {
 		g = govatar.MALE
@@ -152,7 +155,7 @@ func generateAvatar(srv *utils.MindwellServer, name, gender string) string {
 	}
 
 	folder := name[:1] + "/"
-	fileName := utils.GenerateString(5) + ".jpg"
+	fileName := textutil.GenerateString(5) + ".jpg"
 
 	saveAvatar(srv, img, 124, folder, fileName)
 	saveAvatar(srv, img, 92, folder, fileName)
@@ -161,7 +164,7 @@ func generateAvatar(srv *utils.MindwellServer, name, gender string) string {
 	return folder + fileName
 }
 
-func createUser(srv *utils.MindwellServer, tx *utils.AutoTx, params account.PostAccountRegisterParams) int64 {
+func createUser(srv *server.MindwellServer, tx *database.AutoTx, params account.PostAccountRegisterParams) int64 {
 	hash := srv.TokenHash().PasswordHash(params.Password)
 
 	const rankQ = "SELECT COUNT(*) + 1 FROM users WHERE creator_id IS NULL AND karma >= 0"
@@ -239,7 +242,7 @@ INNER JOIN alignment ON users.text_alignment = alignment.id
 LEFT JOIN users AS invited_by ON users.invited_by = invited_by.id
 `
 
-func loadAuthProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, args ...any) *models.AuthProfile {
+func loadAuthProfile(srv *server.MindwellServer, tx *database.AutoTx, query string, args ...any) *models.AuthProfile {
 	var profile models.AuthProfile
 	profile.Design = &models.Design{}
 	profile.Counts = &models.FriendAO1Counts{}
@@ -333,9 +336,9 @@ func loadAuthProfile(srv *utils.MindwellServer, tx *utils.AutoTx, query string, 
 
 const authProfileQueryByID = authProfileQuery + "WHERE users.id = $1"
 
-func newRegistrator(srv *utils.MindwellServer) func(account.PostAccountRegisterParams) middleware.Responder {
+func newRegistrator(srv *server.MindwellServer) func(account.PostAccountRegisterParams) middleware.Responder {
 	return func(params account.PostAccountRegisterParams) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			params.Name = strings.TrimSpace(params.Name)
 			params.Password = strings.TrimSpace(params.Password)
 			params.Email = strings.TrimSpace(params.Email)
@@ -369,14 +372,14 @@ func newRegistrator(srv *utils.MindwellServer) func(account.PostAccountRegisterP
 			srv.Ntf.SendGreeting(user.Account.Email, user.ShowName)
 			time.AfterFunc(2*time.Minute, func() { chats.SendWelcomeMessage(srv, user) })
 
-			user.Account.Email = utils.HideEmail(user.Account.Email)
+			user.Account.Email = helpers.HideEmail(user.Account.Email)
 
 			return account.NewPostAccountRegisterCreated().WithPayload(user)
 		})
 	}
 }
 
-func setPassword(srv *utils.MindwellServer, tx *utils.AutoTx, params account.PostAccountPasswordParams, userID *models.UserID) bool {
+func setPassword(srv *server.MindwellServer, tx *database.AutoTx, params account.PostAccountPasswordParams, userID *models.UserID) bool {
 	const q = `
         update users
         set password_hash = $1
@@ -392,9 +395,9 @@ func setPassword(srv *utils.MindwellServer, tx *utils.AutoTx, params account.Pos
 	return rows == 1
 }
 
-func newPasswordUpdater(srv *utils.MindwellServer) func(account.PostAccountPasswordParams, *models.UserID) middleware.Responder {
+func newPasswordUpdater(srv *server.MindwellServer) func(account.PostAccountPasswordParams, *models.UserID) middleware.Responder {
 	return func(params account.PostAccountPasswordParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			params.NewPassword = strings.TrimSpace(params.NewPassword)
 			params.OldPassword = strings.TrimSpace(params.OldPassword)
 
@@ -416,7 +419,7 @@ func newPasswordUpdater(srv *utils.MindwellServer) func(account.PostAccountPassw
 	}
 }
 
-func setEmail(srv *utils.MindwellServer, tx *utils.AutoTx, params account.PostAccountEmailParams, userID *models.UserID) (*models.Error, string) {
+func setEmail(srv *server.MindwellServer, tx *database.AutoTx, params account.PostAccountEmailParams, userID *models.UserID) (*models.Error, string) {
 	if err := checkEmailAllowed(srv, params.Email); err != nil {
 		return err, ""
 	}
@@ -453,9 +456,9 @@ func setEmail(srv *utils.MindwellServer, tx *utils.AutoTx, params account.PostAc
 	return nil, oldEmail
 }
 
-func newEmailUpdater(srv *utils.MindwellServer) func(account.PostAccountEmailParams, *models.UserID) middleware.Responder {
+func newEmailUpdater(srv *server.MindwellServer) func(account.PostAccountEmailParams, *models.UserID) middleware.Responder {
 	return func(params account.PostAccountEmailParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			params.Email = strings.TrimSpace(params.Email)
 			params.Password = strings.TrimSpace(params.Password)
 
@@ -477,7 +480,7 @@ func newEmailUpdater(srv *utils.MindwellServer) func(account.PostAccountEmailPar
 	}
 }
 
-func loadInvites(tx *utils.AutoTx, userID *models.UserID) []string {
+func loadInvites(tx *database.AutoTx, userID *models.UserID) []string {
 	const q = `
 		SELECT one.word || ' ' || two.word || ' ' || three.word
 		FROM mindwell.invites,
@@ -505,9 +508,9 @@ func loadInvites(tx *utils.AutoTx, userID *models.UserID) []string {
 	return invites
 }
 
-func newInvitesLoader(srv *utils.MindwellServer) func(account.GetAccountInvitesParams, *models.UserID) middleware.Responder {
+func newInvitesLoader(srv *server.MindwellServer) func(account.GetAccountInvitesParams, *models.UserID) middleware.Responder {
 	return func(params account.GetAccountInvitesParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			invites := loadInvites(tx, userID)
 			if tx.Error() != nil && tx.Error() != sql.ErrNoRows {
 				err := srv.NewError(nil)
@@ -520,9 +523,9 @@ func newInvitesLoader(srv *utils.MindwellServer) func(account.GetAccountInvitesP
 	}
 }
 
-func newVerificationSender(srv *utils.MindwellServer) func(account.PostAccountVerificationParams, *models.UserID) middleware.Responder {
+func newVerificationSender(srv *server.MindwellServer) func(account.PostAccountVerificationParams, *models.UserID) middleware.Responder {
 	return func(params account.PostAccountVerificationParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			const q = "SELECT verified, email, show_name from users where id = $1"
 
 			var verified bool
@@ -546,9 +549,9 @@ func newVerificationSender(srv *utils.MindwellServer) func(account.PostAccountVe
 	}
 }
 
-func newEmailVerifier(srv *utils.MindwellServer) func(account.GetAccountVerificationEmailParams) middleware.Responder {
+func newEmailVerifier(srv *server.MindwellServer) func(account.GetAccountVerificationEmailParams) middleware.Responder {
 	return func(params account.GetAccountVerificationEmailParams) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			params.Email = strings.TrimSpace(params.Email)
 			params.Code = strings.TrimSpace(params.Code)
 
@@ -565,9 +568,9 @@ func newEmailVerifier(srv *utils.MindwellServer) func(account.GetAccountVerifica
 	}
 }
 
-func newResetPasswordSender(srv *utils.MindwellServer) func(account.PostAccountRecoverParams) middleware.Responder {
+func newResetPasswordSender(srv *server.MindwellServer) func(account.PostAccountRecoverParams) middleware.Responder {
 	return func(params account.PostAccountRecoverParams) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			params.Email = strings.TrimSpace(params.Email)
 
 			const q = `
@@ -595,7 +598,7 @@ func newResetPasswordSender(srv *utils.MindwellServer) func(account.PostAccountR
 	}
 }
 
-func resetPassword(srv *utils.MindwellServer, tx *utils.AutoTx, email, password string) bool {
+func resetPassword(srv *server.MindwellServer, tx *database.AutoTx, email, password string) bool {
 	const q = `
         update users
         set password_hash = $2
@@ -607,9 +610,9 @@ func resetPassword(srv *utils.MindwellServer, tx *utils.AutoTx, email, password 
 	return tx.RowsAffected() == 1
 }
 
-func newPasswordResetter(srv *utils.MindwellServer) func(account.PostAccountRecoverPasswordParams) middleware.Responder {
+func newPasswordResetter(srv *server.MindwellServer) func(account.PostAccountRecoverPasswordParams) middleware.Responder {
 	return func(params account.PostAccountRecoverPasswordParams) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			params.Email = strings.TrimSpace(params.Email)
 			params.Password = strings.TrimSpace(params.Password)
 			params.Code = strings.TrimSpace(params.Code)
@@ -629,9 +632,9 @@ func newPasswordResetter(srv *utils.MindwellServer) func(account.PostAccountReco
 	}
 }
 
-func newEmailSettingsLoader(srv *utils.MindwellServer) func(account.GetAccountSettingsEmailParams, *models.UserID) middleware.Responder {
+func newEmailSettingsLoader(srv *server.MindwellServer) func(account.GetAccountSettingsEmailParams, *models.UserID) middleware.Responder {
 	return func(params account.GetAccountSettingsEmailParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			settings := account.GetAccountSettingsEmailOKBody{}
 
 			const q = "SELECT email_comments, email_followers, email_invites, email_moved_entries, email_badges from users where id = $1"
@@ -642,9 +645,9 @@ func newEmailSettingsLoader(srv *utils.MindwellServer) func(account.GetAccountSe
 	}
 }
 
-func newEmailSettingsEditor(srv *utils.MindwellServer) func(account.PutAccountSettingsEmailParams, *models.UserID) middleware.Responder {
+func newEmailSettingsEditor(srv *server.MindwellServer) func(account.PutAccountSettingsEmailParams, *models.UserID) middleware.Responder {
 	return func(params account.PutAccountSettingsEmailParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			const q = `
 			UPDATE users
 			SET email_comments = $2, email_followers = $3,
@@ -658,9 +661,9 @@ func newEmailSettingsEditor(srv *utils.MindwellServer) func(account.PutAccountSe
 	}
 }
 
-func newTelegramSettingsLoader(srv *utils.MindwellServer) func(account.GetAccountSettingsTelegramParams, *models.UserID) middleware.Responder {
+func newTelegramSettingsLoader(srv *server.MindwellServer) func(account.GetAccountSettingsTelegramParams, *models.UserID) middleware.Responder {
 	return func(params account.GetAccountSettingsTelegramParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			const q = `
 				SELECT telegram_comments, telegram_followers,
 					telegram_invites, telegram_messages,
@@ -678,9 +681,9 @@ func newTelegramSettingsLoader(srv *utils.MindwellServer) func(account.GetAccoun
 	}
 }
 
-func newTelegramSettingsEditor(srv *utils.MindwellServer) func(account.PutAccountSettingsTelegramParams, *models.UserID) middleware.Responder {
+func newTelegramSettingsEditor(srv *server.MindwellServer) func(account.PutAccountSettingsTelegramParams, *models.UserID) middleware.Responder {
 	return func(params account.PutAccountSettingsTelegramParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			const q = `
 				UPDATE users
 				SET telegram_comments = $2, telegram_followers = $3,
@@ -697,9 +700,9 @@ func newTelegramSettingsEditor(srv *utils.MindwellServer) func(account.PutAccoun
 	}
 }
 
-func newOnsiteSettingsLoader(srv *utils.MindwellServer) func(account.GetAccountSettingsOnsiteParams, *models.UserID) middleware.Responder {
+func newOnsiteSettingsLoader(srv *server.MindwellServer) func(account.GetAccountSettingsOnsiteParams, *models.UserID) middleware.Responder {
 	return func(params account.GetAccountSettingsOnsiteParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			const q = `
 				SELECT send_wishes
 				FROM users
@@ -713,9 +716,9 @@ func newOnsiteSettingsLoader(srv *utils.MindwellServer) func(account.GetAccountS
 	}
 }
 
-func newOnsiteSettingsEditor(srv *utils.MindwellServer) func(account.PutAccountSettingsOnsiteParams, *models.UserID) middleware.Responder {
+func newOnsiteSettingsEditor(srv *server.MindwellServer) func(account.PutAccountSettingsOnsiteParams, *models.UserID) middleware.Responder {
 	return func(params account.PutAccountSettingsOnsiteParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			const q = `
 				UPDATE users
 				SET send_wishes = $2
@@ -752,7 +755,7 @@ func privateChannelToken(userID *models.UserID, channel string) string {
 	})
 }
 
-func newConnectionTokenGenerator(srv *utils.MindwellServer) func(account.GetAccountSubscribeTokenParams, *models.UserID) middleware.Responder {
+func newConnectionTokenGenerator(srv *server.MindwellServer) func(account.GetAccountSubscribeTokenParams, *models.UserID) middleware.Responder {
 	return func(params account.GetAccountSubscribeTokenParams, userID *models.UserID) middleware.Responder {
 		tok := connectionToken(userID)
 		res := account.GetAccountSubscribeTokenOKBody{Token: tok}
@@ -760,7 +763,7 @@ func newConnectionTokenGenerator(srv *utils.MindwellServer) func(account.GetAcco
 	}
 }
 
-func newTelegramTokenGenerator(srv *utils.MindwellServer) func(account.GetAccountSubscribeTelegramParams, *models.UserID) middleware.Responder {
+func newTelegramTokenGenerator(srv *server.MindwellServer) func(account.GetAccountSubscribeTelegramParams, *models.UserID) middleware.Responder {
 	return func(params account.GetAccountSubscribeTelegramParams, userID *models.UserID) middleware.Responder {
 		tok := srv.Ntf.Tg.BuildToken(userID.ID)
 		res := account.GetAccountSubscribeTelegramOKBody{Token: tok}
@@ -768,9 +771,9 @@ func newTelegramTokenGenerator(srv *utils.MindwellServer) func(account.GetAccoun
 	}
 }
 
-func newTelegramDeleter(srv *utils.MindwellServer) func(account.DeleteAccountSubscribeTelegramParams, *models.UserID) middleware.Responder {
+func newTelegramDeleter(srv *server.MindwellServer) func(account.DeleteAccountSubscribeTelegramParams, *models.UserID) middleware.Responder {
 	return func(params account.DeleteAccountSubscribeTelegramParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			const q = "UPDATE users SET telegram = NULL WHERE id = $1"
 			tx.Exec(q, userID.ID)
 

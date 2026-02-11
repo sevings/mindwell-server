@@ -14,11 +14,13 @@ import (
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/runtime"
 	imagesImpl "github.com/sevings/mindwell-server/internal/app/mindwell-images"
+	libauth "github.com/sevings/mindwell-server/lib/auth"
+	"github.com/sevings/mindwell-server/lib/helpers"
+	"github.com/sevings/mindwell-server/lib/middleware"
 	"github.com/sevings/mindwell-server/restapi_images/operations"
 	"github.com/sevings/mindwell-server/restapi_images/operations/images"
 	"github.com/sevings/mindwell-server/restapi_images/operations/me"
 	"github.com/sevings/mindwell-server/restapi_images/operations/themes"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 // This file is safe to edit. Once it exists it will not be overwritten
@@ -32,7 +34,7 @@ func configureFlags(api *operations.MindwellImagesAPI) {
 func configureAPI(api *operations.MindwellImagesAPI) http.Handler {
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	config := utils.LoadConfig("configs/images")
+	config := helpers.LoadConfig("configs/images")
 	mi := imagesImpl.NewMindwellImages(config)
 
 	// configure the api here
@@ -42,9 +44,9 @@ func configureAPI(api *operations.MindwellImagesAPI) http.Handler {
 	api.MultipartformConsumer = runtime.DiscardConsumer
 	api.JSONProducer = runtime.JSONProducer()
 
-	api.OAuth2AppAuth = utils.NewOAuth2App(mi.TokenHash(), mi.DB())
-	api.OAuth2PasswordAuth = utils.NewOAuth2User(mi.TokenHash(), mi.DB(), utils.PasswordFlow)
-	api.OAuth2CodeAuth = utils.NewOAuth2User(mi.TokenHash(), mi.DB(), utils.CodeFlow)
+	api.OAuth2AppAuth = libauth.NewOAuth2App(mi.TokenHash(), mi.DB())
+	api.OAuth2PasswordAuth = libauth.NewOAuth2User(mi.TokenHash(), mi.DB(), libauth.PasswordFlow)
+	api.OAuth2CodeAuth = libauth.NewOAuth2User(mi.TokenHash(), mi.DB(), libauth.CodeFlow)
 
 	api.MePutMeAvatarHandler = me.PutMeAvatarHandlerFunc(imagesImpl.NewAvatarUpdater(mi))
 	api.MePutMeCoverHandler = me.PutMeCoverHandlerFunc(imagesImpl.NewCoverUpdater(mi))
@@ -125,7 +127,7 @@ func setupMiddlewares(handler http.Handler) http.Handler {
 // The middleware configuration happens before anything, this middleware also applies to serving the swagger.json document.
 // So this is a good place to plug in a panic handling middleware, logging and metrics
 func setupGlobalMiddleware(handler http.Handler) http.Handler {
-	logger, err := utils.LogHandler("api", handler)
+	logger, err := middleware.LogHandler("api", handler)
 	if err != nil {
 		log.Println(err)
 	}

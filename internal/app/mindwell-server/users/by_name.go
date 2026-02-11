@@ -1,17 +1,18 @@
 package users
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
-	"github.com/sevings/mindwell-server/utils"
 )
 
-func newUserLoader(srv *utils.MindwellServer) func(users.GetUsersNameParams, *models.UserID) middleware.Responder {
+func newUserLoader(srv *server.MindwellServer) func(users.GetUsersNameParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameParams, userID *models.UserID) middleware.Responder {
 		const query = profileQuery + "WHERE lower(users.name) = lower($1) AND users.creator_id IS NULL"
 
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			profile := loadUserProfile(srv, tx, query, userID, params.Name)
 			if profile.ID == 0 {
 				return users.NewGetUsersNameNotFound()
@@ -30,7 +31,7 @@ const usersQueryFromName = usersQueryStart + usersFromNameQueryWhere
 const invitedByQueryWhere = "invited_by = " + idFromName + usersQueryJoins
 const invitedUsersQuery = usersQuerySelect + `, users.id::float FROM users, gender, user_privacy, user_chat_privacy WHERE ` + invitedByQueryWhere
 
-func newFollowersLoader(srv *utils.MindwellServer) func(users.GetUsersNameFollowersParams, *models.UserID) middleware.Responder {
+func newFollowersLoader(srv *server.MindwellServer) func(users.GetUsersNameFollowersParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameFollowersParams, userID *models.UserID) middleware.Responder {
 		return loadTlogRelatedUsers(srv, userID, usersQueryToName, usersToNameQueryWhere,
 			models.RelationshipRelationFollowed, params.Name, models.FriendListRelationFollowers,
@@ -38,7 +39,7 @@ func newFollowersLoader(srv *utils.MindwellServer) func(users.GetUsersNameFollow
 	}
 }
 
-func newFollowingsLoader(srv *utils.MindwellServer) func(users.GetUsersNameFollowingsParams, *models.UserID) middleware.Responder {
+func newFollowingsLoader(srv *server.MindwellServer) func(users.GetUsersNameFollowingsParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameFollowingsParams, userID *models.UserID) middleware.Responder {
 		return loadTlogRelatedUsers(srv, userID, usersQueryFromName, usersFromNameQueryWhere,
 			models.RelationshipRelationFollowed, params.Name, models.FriendListRelationFollowings,
@@ -46,7 +47,7 @@ func newFollowingsLoader(srv *utils.MindwellServer) func(users.GetUsersNameFollo
 	}
 }
 
-func newInvitedLoader(srv *utils.MindwellServer) func(users.GetUsersNameInvitedParams, *models.UserID) middleware.Responder {
+func newInvitedLoader(srv *server.MindwellServer) func(users.GetUsersNameInvitedParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameInvitedParams, userID *models.UserID) middleware.Responder {
 		return loadInvitedUsers(srv, userID, invitedUsersQuery, invitedByQueryWhere,
 			params.Name, *params.After, *params.Before, *params.Limit)

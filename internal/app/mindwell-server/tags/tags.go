@@ -1,20 +1,23 @@
 package tags
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
+	"strings"
+
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/leporo/sqlf"
 	entriesImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/entries"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/entries"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
-	"github.com/sevings/mindwell-server/utils"
-	"strings"
 )
 
 // ConfigureAPI creates operations handlers
-func ConfigureAPI(srv *utils.MindwellServer) {
+func ConfigureAPI(srv *server.MindwellServer) {
 	srv.API.MeGetMeTagsHandler = me.GetMeTagsHandlerFunc(newMyTagsLoader(srv))
 	srv.API.UsersGetUsersNameTagsHandler = users.GetUsersNameTagsHandlerFunc(newUserTagsLoader(srv))
 	srv.API.ThemesGetThemesNameTagsHandler = themes.GetThemesNameTagsHandlerFunc(newThemeTagsLoader(srv))
@@ -46,7 +49,7 @@ func tlogTagsQuery(userID *models.UserID, limit int64, tlog string) *sqlf.Stmt {
 		OrderBy("max(entries.created_at) DESC").
 		OrderBy("cnt DESC")
 	entriesImpl.AddRelationToTlogQuery(q, userID, tlog)
-	return utils.AddEntryOpenQuery(q, userID, false)
+	return userutil.AddEntryOpenQuery(q, userID, false)
 }
 
 func liveTagsQuery(userID *models.UserID, limit int64) *sqlf.Stmt {
@@ -81,7 +84,7 @@ func addSearchQuery(q *sqlf.Stmt, searchQuery *string) *sqlf.Stmt {
 		From("").SubQuery("(", ") as tags", q)
 }
 
-func loadTags(tx *utils.AutoTx) *models.TagList {
+func loadTags(tx *database.AutoTx) *models.TagList {
 	tags := &models.TagList{}
 
 	var tag string
@@ -98,9 +101,9 @@ func loadTags(tx *utils.AutoTx) *models.TagList {
 	return tags
 }
 
-func newMyTagsLoader(srv *utils.MindwellServer) func(me.GetMeTagsParams, *models.UserID) middleware.Responder {
+func newMyTagsLoader(srv *server.MindwellServer) func(me.GetMeTagsParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeTagsParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			query := myTagsQuery(userID, *params.Limit)
 			query = addSearchQuery(query, params.Query)
 
@@ -112,15 +115,15 @@ func newMyTagsLoader(srv *utils.MindwellServer) func(me.GetMeTagsParams, *models
 	}
 }
 
-func newUserTagsLoader(srv *utils.MindwellServer) func(users.GetUsersNameTagsParams, *models.UserID) middleware.Responder {
+func newUserTagsLoader(srv *server.MindwellServer) func(users.GetUsersNameTagsParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameTagsParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			var query *sqlf.Stmt
 
 			if userID.Name == params.Name {
 				query = myTagsQuery(userID, *params.Limit)
 			} else {
-				if !utils.CanViewTlogName(tx, userID, params.Name) {
+				if !userutil.CanViewTlogName(tx, userID, params.Name) {
 					err := srv.StandardError("no_tlog")
 					return users.NewGetUsersNameTagsNotFound().WithPayload(err)
 				}
@@ -138,10 +141,10 @@ func newUserTagsLoader(srv *utils.MindwellServer) func(users.GetUsersNameTagsPar
 	}
 }
 
-func newThemeTagsLoader(srv *utils.MindwellServer) func(themes.GetThemesNameTagsParams, *models.UserID) middleware.Responder {
+func newThemeTagsLoader(srv *server.MindwellServer) func(themes.GetThemesNameTagsParams, *models.UserID) middleware.Responder {
 	return func(params themes.GetThemesNameTagsParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			if !utils.CanViewTlogName(tx, userID, params.Name) {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			if !userutil.CanViewTlogName(tx, userID, params.Name) {
 				err := srv.StandardError("no_theme")
 				return themes.NewGetThemesNameTagsNotFound().WithPayload(err)
 			}
@@ -157,9 +160,9 @@ func newThemeTagsLoader(srv *utils.MindwellServer) func(themes.GetThemesNameTags
 	}
 }
 
-func newLiveTagsLoader(srv *utils.MindwellServer) func(entries.GetEntriesTagsParams, *models.UserID) middleware.Responder {
+func newLiveTagsLoader(srv *server.MindwellServer) func(entries.GetEntriesTagsParams, *models.UserID) middleware.Responder {
 	return func(params entries.GetEntriesTagsParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			query := liveTagsQuery(userID, *params.Limit)
 			query = addSearchQuery(query, params.Query)
 

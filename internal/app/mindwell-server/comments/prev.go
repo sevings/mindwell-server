@@ -1,9 +1,10 @@
 package comments
 
 import (
-	"github.com/sevings/mindwell-server/restapi/operations/comments"
 	"strings"
 	"time"
+
+	"github.com/sevings/mindwell-server/restapi/operations/comments"
 
 	"github.com/patrickmn/go-cache"
 	"github.com/sevings/mindwell-server/models"

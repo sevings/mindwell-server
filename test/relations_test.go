@@ -3,9 +3,9 @@ package test
 import (
 	"testing"
 
+	"github.com/sevings/mindwell-server/lib/database"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/relations"
-	"github.com/sevings/mindwell-server/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -141,7 +141,7 @@ func checkCancelFollow(t *testing.T, user, from *models.UserID, success bool) {
 }
 
 func TestRelationship(t *testing.T) {
-	utils.ClearDatabase(db)
+	database.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)
 	esm.Clear()
 
@@ -262,7 +262,7 @@ func TestInvite(t *testing.T) {
 		req.Empty(esm.Emails)
 	}
 
-	utils.ClearDatabase(db)
+	database.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)
 	esm.Clear()
 }

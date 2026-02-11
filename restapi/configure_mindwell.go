@@ -3,6 +3,7 @@
 package restapi
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
 	"crypto/tls"
 	"log"
 	"math/rand"
@@ -34,8 +35,9 @@ import (
 	watchingsImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/watchings"
 	wishesImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/wishes"
 
+	"github.com/sevings/mindwell-server/lib/middleware"
+	"github.com/sevings/mindwell-server/lib/notifications"
 	"github.com/sevings/mindwell-server/restapi/operations"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 //go:generate swagger generate server --target .. --name  --spec ../web/swagger.yaml --principal models.UserID
@@ -59,10 +61,10 @@ func configureAPI(api *operations.MindwellAPI) http.Handler {
 		systemLogger.Error(err.Error())
 	}
 
-	srv := utils.NewMindwellServer(api, "configs/server")
-	srv.Eac = utils.NewEmailChecker(srv)
+	srv := server.NewMindwellServer(api, "configs/server")
+	
 
-	pm := &utils.Postman{
+	pm := &notifications.Postman{
 		BaseUrl:   srv.ConfigString("server.base_url"),
 		Support:   srv.ConfigString("server.support"),
 		Moderator: srv.ConfigString("server.moderator"),
@@ -112,7 +114,7 @@ func configureAPI(api *operations.MindwellAPI) http.Handler {
 		srv.Ntf.Stop()
 	}
 
-	api.AddMiddlewareFor("GET", "/me", utils.CreateUserLog(srv.DB, srv.LogRequest()))
+	api.AddMiddlewareFor("GET", "/me", middleware.CreateUserLog(srv.DB, srv.LogRequest()))
 
 	regLmt := tollbooth.NewLimiter(1/3600.0, &limiter.ExpirableOptions{DefaultExpirationTTL: time.Hour})
 	regLmt.SetIPLookups([]string{"X-Forwarded-For"})
@@ -155,7 +157,7 @@ func setupMiddlewares(handler http.Handler) http.Handler {
 // The middleware configuration happens before anything, this middleware also applies to serving the swagger.json document.
 // So this is a good place to plug in a panic handling middleware, logging and metrics
 func setupGlobalMiddleware(handler http.Handler) http.Handler {
-	logger, err := utils.LogHandler("api", handler)
+	logger, err := middleware.LogHandler("api", handler)
 	if err != nil {
 		log.Println(err)
 	}

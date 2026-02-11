@@ -1,4 +1,4 @@
-package utils
+package pubsub
 
 import (
 	"sync"
@@ -8,12 +8,10 @@ import (
 	"go.uber.org/zap"
 )
 
-type HandlerFunc func([]byte)
-
 type PubSub struct {
 	lsn  *pq.Listener
 	log  *zap.Logger
-	fns  map[string][]HandlerFunc
+	fns  map[string][]func([]byte)
 	mu   sync.RWMutex
 	done chan struct{}
 }
@@ -31,12 +29,12 @@ func NewPubSub(connString string, logger *zap.Logger) *PubSub {
 	return &PubSub{
 		lsn:  listener,
 		log:  logger,
-		fns:  make(map[string][]HandlerFunc),
+		fns:  make(map[string][]func([]byte)),
 		done: make(chan struct{}),
 	}
 }
 
-func (p *PubSub) Subscribe(topic string, handler HandlerFunc) {
+func (p *PubSub) Subscribe(topic string, handler func([]byte)) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -82,7 +80,7 @@ func (p *PubSub) Start() {
 				p.mu.RUnlock()
 
 				for _, handler := range handlers {
-					go func(fn HandlerFunc, payload []byte) {
+					go func(fn func([]byte), payload []byte) {
 						defer func() {
 							if r := recover(); r != nil {
 								p.log.Error("handler panic",

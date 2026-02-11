@@ -1,14 +1,14 @@
 package relations
 
 import (
+	"github.com/sevings/mindwell-server/lib/database"
 	"database/sql"
 	"strings"
 
 	"github.com/sevings/mindwell-server/models"
-	"github.com/sevings/mindwell-server/utils"
 )
 
-func relationship(tx *utils.AutoTx, from, to string) *models.Relationship {
+func relationship(tx *database.AutoTx, from, to string) *models.Relationship {
 	const q = `
 		SELECT relation.type
 		FROM relation, relations
@@ -29,7 +29,7 @@ func relationship(tx *utils.AutoTx, from, to string) *models.Relationship {
 	return &relation
 }
 
-func setRelationship(tx *utils.AutoTx, relation *models.Relationship) bool {
+func setRelationship(tx *database.AutoTx, relation *models.Relationship) bool {
 	const q = `
 		INSERT INTO relations (from_id, to_id, type)
 		VALUES ((SELECT id FROM users where lower(name) = lower($1)), 
@@ -43,7 +43,7 @@ func setRelationship(tx *utils.AutoTx, relation *models.Relationship) bool {
 	return tx.RowsAffected() == 1
 }
 
-func removeRelationship(tx *utils.AutoTx, from, to string) *models.Relationship {
+func removeRelationship(tx *database.AutoTx, from, to string) *models.Relationship {
 	const q = `
 		DELETE FROM relations
 		WHERE from_id = (SELECT id FROM users where lower(name) = lower($1)) 
@@ -58,7 +58,7 @@ func removeRelationship(tx *utils.AutoTx, from, to string) *models.Relationship 
 	}
 }
 
-func isAdminOrPrivate(tx *utils.AutoTx, name string) (bool, bool) {
+func isAdminOrPrivate(tx *database.AutoTx, name string) (bool, bool) {
 	const q = `
 		SELECT user_privacy.type = 'followers',
 		       authority.type = 'admin' OR authority.type = 'moderator'
@@ -74,7 +74,7 @@ func isAdminOrPrivate(tx *utils.AutoTx, name string) (bool, bool) {
 	return admin, private
 }
 
-func removeInvite(tx *utils.AutoTx, invite string, userID int64) bool {
+func removeInvite(tx *database.AutoTx, invite string, userID int64) bool {
 	words := strings.Fields(invite)
 	if len(words) != 3 {
 		return false
@@ -96,13 +96,13 @@ func removeInvite(tx *utils.AutoTx, invite string, userID int64) bool {
 	return tx.RowsAffected() == 1
 }
 
-func isTlogExistsAndInvited(tx *utils.AutoTx, name string) (bool, bool) {
+func isTlogExistsAndInvited(tx *database.AutoTx, name string) (bool, bool) {
 	var exists, invited bool
 	tx.Query("SELECT true, invited_by IS NOT NULL FROM users WHERE lower(name) = lower($1)", name).Scan(&exists, &invited)
 	return exists, invited
 }
 
-func canInvite(tx *utils.AutoTx, name string) bool {
+func canInvite(tx *database.AutoTx, name string) bool {
 	q := `
 		WITH tlog AS (
 			SELECT id, up_votes, down_votes
@@ -128,6 +128,6 @@ func canInvite(tx *utils.AutoTx, name string) bool {
 	return allowed
 }
 
-func setInvited(tx *utils.AutoTx, from int64, to string) {
+func setInvited(tx *database.AutoTx, from int64, to string) {
 	tx.Query("UPDATE users SET invited_by = $1 WHERE name = $2", from, to)
 }

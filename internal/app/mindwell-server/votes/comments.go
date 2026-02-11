@@ -1,16 +1,18 @@
 package votes
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"database/sql"
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/votes"
-	"github.com/sevings/mindwell-server/utils"
 )
 
-func commentRating(tx *utils.AutoTx, userID, commentID int64) *models.Rating {
+func commentRating(tx *database.AutoTx, userID, commentID int64) *models.Rating {
 	const q = `
 		WITH votes AS (
 			SELECT comment_id, vote
@@ -45,7 +47,7 @@ func commentRating(tx *utils.AutoTx, userID, commentID int64) *models.Rating {
 	return &status
 }
 
-func canVoteForComment(tx *utils.AutoTx, userID *models.UserID, commentID int64) bool {
+func canVoteForComment(tx *database.AutoTx, userID *models.UserID, commentID int64) bool {
 	if userID.Ban.Vote {
 		return false
 	}
@@ -62,14 +64,14 @@ func canVoteForComment(tx *utils.AutoTx, userID *models.UserID, commentID int64)
 		return false
 	}
 
-	return utils.CanViewEntry(tx, userID, entryID)
+	return userutil.CanViewEntry(tx, userID, entryID)
 }
 
-func newCommentVoteLoader(srv *utils.MindwellServer) func(votes.GetCommentsIDVoteParams, *models.UserID) middleware.Responder {
+func newCommentVoteLoader(srv *server.MindwellServer) func(votes.GetCommentsIDVoteParams, *models.UserID) middleware.Responder {
 	return func(params votes.GetCommentsIDVoteParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			entryID := tx.QueryInt64("SELECT entry_id FROM comments WHERE id = $1", params.ID)
-			canView := utils.CanViewEntry(tx, userID, entryID)
+			canView := userutil.CanViewEntry(tx, userID, entryID)
 			if !canView {
 				err := srv.StandardError("no_entry")
 				return votes.NewGetCommentsIDVoteNotFound().WithPayload(err)
@@ -81,7 +83,7 @@ func newCommentVoteLoader(srv *utils.MindwellServer) func(votes.GetCommentsIDVot
 	}
 }
 
-func loadCommentRating(tx *utils.AutoTx, commentID int64) *models.Rating {
+func loadCommentRating(tx *database.AutoTx, commentID int64) *models.Rating {
 	const q = `
 		SELECT up_votes, down_votes, rating
 		FROM comments
@@ -96,7 +98,7 @@ func loadCommentRating(tx *utils.AutoTx, commentID int64) *models.Rating {
 	return rating
 }
 
-func voteForComment(tx *utils.AutoTx, userID *models.UserID, commentID int64, positive bool) *models.Rating {
+func voteForComment(tx *database.AutoTx, userID *models.UserID, commentID int64, positive bool) *models.Rating {
 	const q = `
 		INSERT INTO comment_votes (user_id, comment_id, vote)
 		VALUES ($1, $2, CASE
@@ -130,9 +132,9 @@ func voteForComment(tx *utils.AutoTx, userID *models.UserID, commentID int64, po
 	return rating
 }
 
-func newCommentVoter(srv *utils.MindwellServer) func(votes.PutCommentsIDVoteParams, *models.UserID) middleware.Responder {
+func newCommentVoter(srv *server.MindwellServer) func(votes.PutCommentsIDVoteParams, *models.UserID) middleware.Responder {
 	return func(params votes.PutCommentsIDVoteParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			canVote := canVoteForComment(tx, userID, params.ID)
 			if !canVote {
 				err := srv.NewError(&i18n.Message{ID: "cant_vote", Other: "You are not allowed to vote for this comment."})
@@ -150,7 +152,7 @@ func newCommentVoter(srv *utils.MindwellServer) func(votes.PutCommentsIDVotePara
 	}
 }
 
-func unvoteComment(tx *utils.AutoTx, userID, commentID int64) (*models.Rating, bool) {
+func unvoteComment(tx *database.AutoTx, userID, commentID int64) (*models.Rating, bool) {
 	const q = `
 		DELETE FROM comment_votes
 		WHERE user_id = $1 AND comment_id = $2`
@@ -166,9 +168,9 @@ func unvoteComment(tx *utils.AutoTx, userID, commentID int64) (*models.Rating, b
 	return rating, true
 }
 
-func newCommentUnvoter(srv *utils.MindwellServer) func(votes.DeleteCommentsIDVoteParams, *models.UserID) middleware.Responder {
+func newCommentUnvoter(srv *server.MindwellServer) func(votes.DeleteCommentsIDVoteParams, *models.UserID) middleware.Responder {
 	return func(params votes.DeleteCommentsIDVoteParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			status, ok := unvoteComment(tx, userID.ID, params.ID)
 			if !ok {
 				err := srv.NewError(nil)

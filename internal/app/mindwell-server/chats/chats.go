@@ -1,16 +1,19 @@
 package chats
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"database/sql"
+
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/users"
+	"github.com/sevings/mindwell-server/lib/helpers"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/chats"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 // ConfigureAPI creates operations handlers
-func ConfigureAPI(srv *utils.MindwellServer) {
+func ConfigureAPI(srv *server.MindwellServer) {
 	srv.API.ChatsGetChatsHandler = chats.GetChatsHandlerFunc(newChatsListLoader(srv))
 	srv.API.ChatsGetChatsNameHandler = chats.GetChatsNameHandlerFunc(newChatLoader(srv))
 	srv.API.ChatsPutChatsNameReadHandler = chats.PutChatsNameReadHandlerFunc(newChatReader(srv))
@@ -40,7 +43,7 @@ const unreadChatsQuery = `
     WHERE user_id = $1 AND unread_count > 0
 `
 
-func loadChatList(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, reverse bool) *models.ChatList {
+func loadChatList(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, reverse bool) *models.ChatList {
 	var result models.ChatList
 
 	for {
@@ -113,13 +116,13 @@ func loadChatList(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 	return &result
 }
 
-func newChatsListLoader(srv *utils.MindwellServer) func(chats.GetChatsParams, *models.UserID) middleware.Responder {
+func newChatsListLoader(srv *server.MindwellServer) func(chats.GetChatsParams, *models.UserID) middleware.Responder {
 	return func(params chats.GetChatsParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			var q = loadChatsQuery
 
-			before := utils.ParseInt64(*params.Before)
-			after := utils.ParseInt64(*params.After)
+			before := helpers.ParseInt64(*params.Before)
+			after := helpers.ParseInt64(*params.After)
 
 			if after > 0 {
 				q := q + " AND last_message > $2 ORDER BY last_message ASC LIMIT $3"
@@ -139,7 +142,7 @@ func newChatsListLoader(srv *utils.MindwellServer) func(chats.GetChatsParams, *m
 			}
 
 			nextBefore := list.Data[len(list.Data)-1].LastMessage.ID
-			list.NextBefore = utils.FormatInt64(nextBefore)
+			list.NextBefore = helpers.FormatInt64(nextBefore)
 
 			const beforeQuery = `SELECT EXISTS(
 				SELECT 1 
@@ -157,7 +160,7 @@ func newChatsListLoader(srv *utils.MindwellServer) func(chats.GetChatsParams, *m
 				WHERE user_id = $1 AND last_message > $2)`
 
 			nextAfter := list.Data[0].LastMessage.ID
-			list.NextAfter = utils.FormatInt64(nextAfter)
+			list.NextAfter = helpers.FormatInt64(nextAfter)
 			tx.Query(afterQuery, userID.ID, nextAfter)
 			tx.Scan(&list.HasAfter)
 
@@ -176,7 +179,7 @@ const loadChatQuery = `
     WHERE chats.id = $2
 `
 
-func loadChat(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, partnerID, chatID int64) *models.Chat {
+func loadChat(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, partnerID, chatID int64) *models.Chat {
 	tx.Query(loadChatQuery, userID.ID, chatID)
 
 	chat := models.Chat{
@@ -242,7 +245,7 @@ const createTalkerQuery = `
     VALUES($1, $2)
 `
 
-func createChat(srv *utils.MindwellServer, tx *utils.AutoTx, userID, otherID int64) *models.Chat {
+func createChat(srv *server.MindwellServer, tx *database.AutoTx, userID, otherID int64) *models.Chat {
 	chat := models.Chat{
 		Rights: &models.ChatRights{
 			Send: true,
@@ -275,9 +278,9 @@ func createChat(srv *utils.MindwellServer, tx *utils.AutoTx, userID, otherID int
 	return &chat
 }
 
-func newChatLoader(srv *utils.MindwellServer) func(chats.GetChatsNameParams, *models.UserID) middleware.Responder {
+func newChatLoader(srv *server.MindwellServer) func(chats.GetChatsNameParams, *models.UserID) middleware.Responder {
 	return func(params chats.GetChatsNameParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			var chat *models.Chat
 
 			chatID, partnerID := findDialog(tx, userID.ID, params.Name)
@@ -302,7 +305,7 @@ func newChatLoader(srv *utils.MindwellServer) func(chats.GetChatsNameParams, *mo
 	}
 }
 
-func loadReadMessages(tx *utils.AutoTx, chatID, userID, lastRead int64) []int64 {
+func loadReadMessages(tx *database.AutoTx, chatID, userID, lastRead int64) []int64 {
 	const q = `
 		SELECT id
 		FROM messages 
@@ -325,9 +328,9 @@ const readChatQuery = `
     RETURNING cnt.unread
 `
 
-func newChatReader(srv *utils.MindwellServer) func(chats.PutChatsNameReadParams, *models.UserID) middleware.Responder {
+func newChatReader(srv *server.MindwellServer) func(chats.PutChatsNameReadParams, *models.UserID) middleware.Responder {
 	return func(params chats.PutChatsNameReadParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			chatID, partnerID := findDialog(tx, userID.ID, params.Name)
 			if partnerID == 0 {
 				err := srv.StandardError("no_chat")

@@ -1,14 +1,18 @@
 package chats
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
+	"time"
+
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/comments"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/users"
+	"github.com/sevings/mindwell-server/lib/helpers"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/chats"
-	"github.com/sevings/mindwell-server/utils"
-	"time"
 )
 
 const loadMessagesQuery = `
@@ -18,7 +22,7 @@ const loadMessagesQuery = `
     WHERE chat_id = $1
 `
 
-func loadMessageList(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, chatID int64, reverse bool) *models.MessageList {
+func loadMessageList(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, chatID int64, reverse bool) *models.MessageList {
 	var result models.MessageList
 
 	for {
@@ -76,7 +80,7 @@ const partnerLastReadQuery = `
 		12147483647
 	)`
 
-func setMessagesRead(tx *utils.AutoTx, list *models.MessageList, userID int64) {
+func setMessagesRead(tx *database.AutoTx, list *models.MessageList, userID int64) {
 	chatID := list.Data[0].ChatID
 	userLastRead := tx.QueryInt64(userLastReadQuery, chatID, userID)
 	partnerLastRead := tx.QueryInt64(partnerLastReadQuery, chatID, userID)
@@ -89,9 +93,9 @@ func setMessagesRead(tx *utils.AutoTx, list *models.MessageList, userID int64) {
 	}
 }
 
-func newMessageListLoader(srv *utils.MindwellServer) func(chats.GetChatsNameMessagesParams, *models.UserID) middleware.Responder {
+func newMessageListLoader(srv *server.MindwellServer) func(chats.GetChatsNameMessagesParams, *models.UserID) middleware.Responder {
 	return func(params chats.GetChatsNameMessagesParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			chatID, partnerID := findDialog(tx, userID.ID, params.Name)
 			if partnerID == 0 {
 				err := srv.StandardError("no_chat")
@@ -103,8 +107,8 @@ func newMessageListLoader(srv *utils.MindwellServer) func(chats.GetChatsNameMess
 
 			var q = loadMessagesQuery
 
-			before := utils.ParseInt64(*params.Before)
-			after := utils.ParseInt64(*params.After)
+			before := helpers.ParseInt64(*params.Before)
+			after := helpers.ParseInt64(*params.After)
 
 			if after > 0 {
 				q := q + " AND messages.id > $2 ORDER BY messages.id ASC LIMIT $3"
@@ -134,7 +138,7 @@ func newMessageListLoader(srv *utils.MindwellServer) func(chats.GetChatsNameMess
                 WHERE chat_id = $1 AND id < $2)`
 
 			nextBefore := list.Data[0].ID
-			list.NextBefore = utils.FormatInt64(nextBefore)
+			list.NextBefore = helpers.FormatInt64(nextBefore)
 			tx.Query(beforeQuery, chatID, nextBefore)
 			tx.Scan(&list.HasBefore)
 
@@ -144,7 +148,7 @@ func newMessageListLoader(srv *utils.MindwellServer) func(chats.GetChatsNameMess
                 WHERE chat_id = $1 AND id > $2)`
 
 			nextAfter := list.Data[len(list.Data)-1].ID
-			list.NextAfter = utils.FormatInt64(nextAfter)
+			list.NextAfter = helpers.FormatInt64(nextAfter)
 			tx.Query(afterQuery, chatID, nextAfter)
 			tx.Scan(&list.HasAfter)
 
@@ -153,12 +157,12 @@ func newMessageListLoader(srv *utils.MindwellServer) func(chats.GetChatsNameMess
 	}
 }
 
-func canSendMessage(tx *utils.AutoTx, userID *models.UserID, partnerID, chatID int64) bool {
+func canSendMessage(tx *database.AutoTx, userID *models.UserID, partnerID, chatID int64) bool {
 	if userID.ID == partnerID {
 		return true
 	}
 
-	toMe := utils.LoadRelation(tx, partnerID, userID.ID)
+	toMe := userutil.LoadRelation(tx, partnerID, userID.ID)
 	if toMe == models.RelationshipRelationIgnored {
 		return false
 	}
@@ -183,10 +187,10 @@ WHERE users.id = $1`
 		return userID.IsInvited && (!userID.Ban.Shadow || partnerShadowBan)
 	case "followers":
 		return userID.IsInvited && (!userID.Ban.Shadow || partnerShadowBan) &&
-			utils.LoadRelation(tx, userID.ID, partnerID) == models.RelationshipRelationFollowed
+			userutil.LoadRelation(tx, userID.ID, partnerID) == models.RelationshipRelationFollowed
 	case "friends":
 		return toMe == models.RelationshipRelationFollowed &&
-			utils.LoadRelation(tx, userID.ID, partnerID) == models.RelationshipRelationFollowed
+			userutil.LoadRelation(tx, userID.ID, partnerID) == models.RelationshipRelationFollowed
 	case "me":
 		return false
 	}
@@ -200,7 +204,7 @@ const createMessageQuery = `
     RETURNING id, extract(epoch from created_at)
 `
 
-func createMessage(srv *utils.MindwellServer, tx *utils.AutoTx, userID, chatID int64, content string) *models.Message {
+func createMessage(srv *server.MindwellServer, tx *database.AutoTx, userID, chatID int64, content string) *models.Message {
 	msg := &models.Message{
 		ChatID:      chatID,
 		Author:      users.LoadUserByID(srv, tx, userID),
@@ -220,14 +224,14 @@ func createMessage(srv *utils.MindwellServer, tx *utils.AutoTx, userID, chatID i
 	return msg
 }
 
-func newMessageCreator(srv *utils.MindwellServer) func(chats.PostChatsNameMessagesParams, *models.UserID) middleware.Responder {
+func newMessageCreator(srv *server.MindwellServer) func(chats.PostChatsNameMessagesParams, *models.UserID) middleware.Responder {
 	cantChatErr := srv.NewError(&i18n.Message{ID: "cant_chat", Other: "You are not allowed to send messages to this chat."})
 	return func(params chats.PostChatsNameMessagesParams, userID *models.UserID) middleware.Responder {
 		if userID.ID == 0 {
 			return chats.NewPostChatsNameMessagesForbidden().WithPayload(cantChatErr)
 		}
 
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			msg := getCachedMessage(userID.ID, params.UID, params.Name)
 			if msg != nil {
 				return chats.NewPostChatsNameMessagesCreated().WithPayload(msg)
@@ -273,7 +277,7 @@ const loadMessageQuery = `
     WHERE messages.id = $1
 `
 
-func loadMessage(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, msgID int64) *models.Message {
+func loadMessage(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, msgID int64) *models.Message {
 	var avatar string
 	msg := &models.Message{
 		ID:     msgID,
@@ -303,12 +307,12 @@ func loadMessage(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 	return msg
 }
 
-func canViewChat(tx *utils.AutoTx, userID, chatID int64) bool {
+func canViewChat(tx *database.AutoTx, userID, chatID int64) bool {
 	const q = "SELECT true FROM talkers WHERE user_id = $1 AND chat_id = $2"
 	return tx.QueryBool(q, userID, chatID)
 }
 
-func setMessageRead(tx *utils.AutoTx, msg *models.Message, userID int64) {
+func setMessageRead(tx *database.AutoTx, msg *models.Message, userID int64) {
 	var lastRead int64
 	if msg.Author.ID == userID {
 		lastRead = tx.QueryInt64(partnerLastReadQuery, msg.ChatID, userID)
@@ -319,9 +323,9 @@ func setMessageRead(tx *utils.AutoTx, msg *models.Message, userID int64) {
 	msg.Read = msg.ID <= lastRead
 }
 
-func newMessageLoader(srv *utils.MindwellServer) func(chats.GetMessagesIDParams, *models.UserID) middleware.Responder {
+func newMessageLoader(srv *server.MindwellServer) func(chats.GetMessagesIDParams, *models.UserID) middleware.Responder {
 	return func(params chats.GetMessagesIDParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			msg := loadMessage(srv, tx, userID, params.ID)
 			if msg.CreatedAt == 0 {
 				err := srv.StandardError("no_message")
@@ -340,7 +344,7 @@ func newMessageLoader(srv *utils.MindwellServer) func(chats.GetMessagesIDParams,
 	}
 }
 
-func canEditMessage(tx *utils.AutoTx, userID, msgID int64) bool {
+func canEditMessage(tx *database.AutoTx, userID, msgID int64) bool {
 	const q = "SELECT author_id = $1 FROM messages WHERE id = $2"
 	return tx.QueryBool(q, userID, msgID)
 }
@@ -352,7 +356,7 @@ const editMessageQuery = `
     RETURNING chat_id, extract(epoch from created_at)
 `
 
-func editMessage(srv *utils.MindwellServer, tx *utils.AutoTx, userID, msgID int64, content string) *models.Message {
+func editMessage(srv *server.MindwellServer, tx *database.AutoTx, userID, msgID int64, content string) *models.Message {
 	msg := &models.Message{
 		ID:          msgID,
 		Author:      users.LoadUserByID(srv, tx, userID),
@@ -370,9 +374,9 @@ func editMessage(srv *utils.MindwellServer, tx *utils.AutoTx, userID, msgID int6
 	return msg
 }
 
-func newMessageEditor(srv *utils.MindwellServer) func(chats.PutMessagesIDParams, *models.UserID) middleware.Responder {
+func newMessageEditor(srv *server.MindwellServer) func(chats.PutMessagesIDParams, *models.UserID) middleware.Responder {
 	return func(params chats.PutMessagesIDParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			if !canEditMessage(tx, userID.ID, params.ID) {
 				err := srv.StandardError("no_message")
 				return chats.NewPutMessagesIDForbidden().WithPayload(err)
@@ -396,14 +400,14 @@ func newMessageEditor(srv *utils.MindwellServer) func(chats.PutMessagesIDParams,
 	}
 }
 
-func deleteMessage(tx *utils.AutoTx, msgID int64) int64 {
+func deleteMessage(tx *database.AutoTx, msgID int64) int64 {
 	const q = "DELETE FROM messages WHERE id = $1 RETURNING chat_id"
 	return tx.QueryInt64(q, msgID)
 }
 
-func newMessageDeleter(srv *utils.MindwellServer) func(chats.DeleteMessagesIDParams, *models.UserID) middleware.Responder {
+func newMessageDeleter(srv *server.MindwellServer) func(chats.DeleteMessagesIDParams, *models.UserID) middleware.Responder {
 	return func(params chats.DeleteMessagesIDParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			if !canEditMessage(tx, userID.ID, params.ID) {
 				err := srv.StandardError("no_message")
 				return chats.NewDeleteMessagesIDForbidden().WithPayload(err)
@@ -421,7 +425,7 @@ func newMessageDeleter(srv *utils.MindwellServer) func(chats.DeleteMessagesIDPar
 	}
 }
 
-func SendWelcomeMessage(srv *utils.MindwellServer, user *models.AuthProfile) {
+func SendWelcomeMessage(srv *server.MindwellServer, user *models.AuthProfile) {
 	helpURL := srv.ConfigString("server.base_url") + "help/faq"
 
 	text := `Привет, друг! Мы рады видеть тебя с нами!
@@ -431,7 +435,7 @@ func SendWelcomeMessage(srv *utils.MindwellServer, user *models.AuthProfile) {
 Если в разделе ответа не нашлось, спрашивай у меня. 
 Чувствуй себя как дома 😌`
 
-	tx := utils.NewAutoTx(srv.DB)
+	tx := database.NewAutoTx(srv.DB)
 	defer tx.Finish()
 
 	chat := createChat(srv, tx, 1, user.ID)

@@ -1,12 +1,13 @@
 package helper
 
 import (
+	"github.com/sevings/mindwell-server/lib/notifications"
 	"database/sql"
 	"log"
+	"github.com/sevings/mindwell-server/lib/database"
 	"math/rand"
 	"time"
 
-	"github.com/sevings/mindwell-server/utils"
 )
 
 type user struct {
@@ -16,7 +17,7 @@ type user struct {
 	at     time.Time // used in mailing
 }
 
-func genderNames(tx *utils.AutoTx) [][]string {
+func genderNames(tx *database.AutoTx) [][]string {
 	names := make([][]string, 3)
 
 	tx.Query("SELECT users.name, users.gender FROM users, adm " +
@@ -36,7 +37,7 @@ func genderNames(tx *utils.AutoTx) [][]string {
 	return names
 }
 
-func loadIgnored(genderNames [][]string, tx *utils.AutoTx) map[string][]string {
+func loadIgnored(genderNames [][]string, tx *database.AutoTx) map[string][]string {
 	const q = `
 SELECT t.name
 FROM relations
@@ -110,7 +111,7 @@ remix:
 	return adm
 }
 
-func setAdm(adm []string, tx *utils.AutoTx) {
+func setAdm(adm []string, tx *database.AutoTx) {
 	for i := 0; i < len(adm)-1; i++ {
 		gs := adm[i]
 		gf := adm[i+1]
@@ -123,7 +124,7 @@ func setAdm(adm []string, tx *utils.AutoTx) {
 	}
 }
 
-func loadUsers(adm []string, tx *utils.AutoTx) []user {
+func loadUsers(adm []string, tx *database.AutoTx) []user {
 	var users []user
 
 	for _, name := range adm {
@@ -152,7 +153,7 @@ func takeRandom(s []string) (string, []string) {
 	return result, s[:len(s)-1]
 }
 
-func UpdateAdm(tx *utils.AutoTx, mail *utils.Postman) {
+func UpdateAdm(tx *database.AutoTx, mail *notifications.Postman) {
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	names := genderNames(tx)

@@ -1,19 +1,23 @@
 package wishes
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"encoding/json"
+	"strings"
+
 	"github.com/go-openapi/runtime/middleware"
+	"github.com/sevings/mindwell-server/lib/helpers"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/wishes"
-	"github.com/sevings/mindwell-server/utils"
 	"go.uber.org/zap"
-	"strings"
 )
 
 var wishesEnabled bool
 
 // ConfigureAPI creates operations handlers
-func ConfigureAPI(srv *utils.MindwellServer) {
+func ConfigureAPI(srv *server.MindwellServer) {
 	srv.API.WishesGetWishesIDHandler = wishes.GetWishesIDHandlerFunc(newWishLoader(srv))
 	srv.API.WishesPutWishesIDHandler = wishes.PutWishesIDHandlerFunc(newWishSender(srv))
 	srv.API.WishesDeleteWishesIDHandler = wishes.DeleteWishesIDHandlerFunc(newWishDecliner(srv))
@@ -25,7 +29,7 @@ func ConfigureAPI(srv *utils.MindwellServer) {
 	}
 }
 
-func createWishFromUserData(srv *utils.MindwellServer) func(userData []byte) {
+func createWishFromUserData(srv *server.MindwellServer) func(userData []byte) {
 	return func(userData []byte) {
 		var user models.User
 		err := json.Unmarshal(userData, &user)
@@ -38,9 +42,9 @@ func createWishFromUserData(srv *utils.MindwellServer) func(userData []byte) {
 	}
 }
 
-func newWishLoader(srv *utils.MindwellServer) func(wishes.GetWishesIDParams, *models.UserID) middleware.Responder {
+func newWishLoader(srv *server.MindwellServer) func(wishes.GetWishesIDParams, *models.UserID) middleware.Responder {
 	return func(params wishes.GetWishesIDParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			wish, found := LoadWish(tx, userID, params.ID)
 			if !found {
 				err := srv.StandardError("no_wish")
@@ -52,18 +56,18 @@ func newWishLoader(srv *utils.MindwellServer) func(wishes.GetWishesIDParams, *mo
 	}
 }
 
-func newWishSender(srv *utils.MindwellServer) func(wishes.PutWishesIDParams, *models.UserID) middleware.Responder {
+func newWishSender(srv *server.MindwellServer) func(wishes.PutWishesIDParams, *models.UserID) middleware.Responder {
 	return func(params wishes.PutWishesIDParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			content := strings.TrimSpace(params.Content)
-			content = utils.ReplaceToHtml(content)
+			content = helpers.ReplaceToHtml(content)
 			toID, found := saveWish(tx, userID, params.ID, content)
 			if !found {
 				err := srv.StandardError("no_wish")
 				return wishes.NewPutWishesIDNotFound().WithPayload(err)
 			}
 
-			receiver := utils.LoadUser(tx, toID)
+			receiver := userutil.LoadUser(tx, toID)
 			srv.Ntf.SendWishReceived(tx, params.ID, receiver.Name)
 
 			return wishes.NewPutWishesIDOK()
@@ -71,9 +75,9 @@ func newWishSender(srv *utils.MindwellServer) func(wishes.PutWishesIDParams, *mo
 	}
 }
 
-func newWishDecliner(srv *utils.MindwellServer) func(wishes.DeleteWishesIDParams, *models.UserID) middleware.Responder {
+func newWishDecliner(srv *server.MindwellServer) func(wishes.DeleteWishesIDParams, *models.UserID) middleware.Responder {
 	return func(params wishes.DeleteWishesIDParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			ok := declineWish(tx, userID, params.ID)
 			if !ok {
 				err := srv.StandardError("no_wish")
@@ -85,8 +89,8 @@ func newWishDecliner(srv *utils.MindwellServer) func(wishes.DeleteWishesIDParams
 	}
 }
 
-func createWishFromUser(srv *utils.MindwellServer, id int64, name string) {
-	tx := utils.NewAutoTx(srv.DB)
+func createWishFromUser(srv *server.MindwellServer, id int64, name string) {
+	tx := database.NewAutoTx(srv.DB)
 	defer tx.Finish()
 
 	logger := srv.Log("wishes")
@@ -102,9 +106,9 @@ func createWishFromUser(srv *utils.MindwellServer, id int64, name string) {
 	}
 }
 
-func newWishThanker(srv *utils.MindwellServer) func(wishes.PostWishesIDThankParams, *models.UserID) middleware.Responder {
+func newWishThanker(srv *server.MindwellServer) func(wishes.PostWishesIDThankParams, *models.UserID) middleware.Responder {
 	return func(params wishes.PostWishesIDThankParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			ok := thankWish(tx, userID, params.ID)
 			if !ok {
 				err := srv.StandardError("no_wish")

@@ -1,6 +1,8 @@
 package test
 
 import (
+	"github.com/sevings/mindwell-server/lib/validation"
+	"github.com/sevings/mindwell-server/lib/server"
 	"database/sql"
 	"log"
 	"os"
@@ -25,7 +27,8 @@ import (
 	votesImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/votes"
 	watchingsImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/watchings"
 	wishesImpl "github.com/sevings/mindwell-server/internal/app/mindwell-server/wishes"
-	"github.com/sevings/mindwell-server/utils"
+	"github.com/sevings/mindwell-server/lib/database"
+	"github.com/sevings/mindwell-server/lib/textutil"
 
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations"
@@ -33,7 +36,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var srv *utils.MindwellServer
+var srv *server.MindwellServer
 var api *operations.MindwellAPI
 var db *sql.DB
 var userIDs []*models.UserID
@@ -43,14 +46,14 @@ var ecm EmailCheckerMock
 
 func TestMain(m *testing.M) {
 	api = &operations.MindwellAPI{}
-	srv = utils.NewMindwellServer(api, "../configs/server")
+	srv = server.NewMindwellServer(api, "../configs/server")
 	db = srv.DB
 
 	ecm.Trusted = []string{"example.com"}
 	srv.Eac = &ecm
 	srv.Ntf.Mail = &esm
 
-	utils.ClearDatabase(db)
+	database.ClearDatabase(db)
 
 	accountImpl.ConfigureAPI(srv)
 	admImpl.ConfigureAPI(srv)
@@ -247,7 +250,7 @@ func checkResetPassword(t *testing.T, email string) {
 }
 
 func TestInvites(t *testing.T) {
-	utils.ClearDatabase(db)
+	database.ClearDatabase(db)
 
 	inviter := &models.UserID{
 		ID:   1,
@@ -309,7 +312,7 @@ func TestRegister(t *testing.T) {
 	changeEmail(t, userID, "testemail@example.com", "test", "new123", false)
 	changeEmail(t, userID, "testemail@example.com", "testemail0@test.com", "new123", false)
 	changeEmail(t, userID, "testemail@example.com", "testemail0@example.com", "new123", true)
-	user.Account.Email = utils.HideEmail("testemail0@example.com")
+	user.Account.Email = textutil.HideEmail("testemail0@example.com")
 	user.Account.Verified = false
 	checkLogin(t, user, "testemail0@example.com", "new123")
 	checkVerify(t, userID, "testemail0@example.com")
@@ -431,7 +434,7 @@ func TestRegister(t *testing.T) {
 	changePassword(t, userID, "test123", "new123", "", false)
 	checkLogin(t, user, params.Name, "new123")
 
-	utils.ClearDatabase(db)
+	database.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)
 	esm.Clear()
 }
@@ -587,7 +590,7 @@ func TestTelegramLogout(t *testing.T) {
 }
 
 func TestHideEmail(t *testing.T) {
-	he := utils.HideEmail
+	he := textutil.HideEmail
 	req := require.New(t)
 
 	req.Equal("", he(""))
@@ -598,7 +601,7 @@ func TestHideEmail(t *testing.T) {
 }
 
 func TestCheckEmailAllowed(t *testing.T) {
-	ec := utils.NewEmailChecker(srv)
+	ec := validation.NewEmailChecker(srv)
 	req := require.New(t)
 
 	req.True(ec.IsAllowed("test@ya.ru"))

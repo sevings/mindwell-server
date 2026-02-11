@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/leporo/sqlf"
-	"github.com/sevings/mindwell-server/utils"
+	"github.com/sevings/mindwell-server/lib/database"
 	"github.com/zpatrick/go-config"
 )
 
@@ -49,7 +49,7 @@ var (
 	coverPathRe  = regexp.MustCompile(`^covers/(1920|318)/(.+)$`)
 )
 
-func CleanupOrphanedImages(tx *utils.AutoTx, cfg *config.Config) {
+func CleanupOrphanedImages(tx *database.AutoTx, cfg *config.Config) {
 	log.Println("Starting image cleanup...")
 
 	// Parse command-line flags
@@ -162,7 +162,7 @@ func CleanupOrphanedImages(tx *utils.AutoTx, cfg *config.Config) {
 	}
 }
 
-func loadValidPaths(tx *utils.AutoTx) validPathSet {
+func loadValidPaths(tx *database.AutoTx) validPathSet {
 	validPaths := validPathSet{
 		albumPaths:         make(map[string]bool),
 		avatarPaths:        make(map[string]bool),
@@ -459,7 +459,7 @@ func formatBytes(bytes int64) string {
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
-func findUnusedDatabaseImages(tx *utils.AutoTx, imageFolder string) []unusedImage {
+func findUnusedDatabaseImages(tx *database.AutoTx, imageFolder string) []unusedImage {
 	// Find images that are:
 	// 1. In the images table
 	// 2. NOT in entry_images table (not attached to any entry)
@@ -576,7 +576,7 @@ func confirmUnusedDeletion(unused []unusedImage) bool {
 	return response == "y" || response == "yes"
 }
 
-func deleteUnusedImages(tx *utils.AutoTx, unused []unusedImage) {
+func deleteUnusedImages(tx *database.AutoTx, unused []unusedImage) {
 	log.Printf("\nDeleting %d unused images...\n", len(unused))
 
 	deletedFiles := 0

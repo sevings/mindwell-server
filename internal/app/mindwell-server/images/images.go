@@ -1,20 +1,25 @@
 package images
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"database/sql"
 	"errors"
+
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/leporo/sqlf"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/entries"
+	"github.com/sevings/mindwell-server/lib/helpers"
+	"github.com/sevings/mindwell-server/lib/media"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 // ConfigureAPI creates operations handlers
-func ConfigureAPI(srv *utils.MindwellServer) {
+func ConfigureAPI(srv *server.MindwellServer) {
 	srv.API.MeGetMeImagesHandler = me.GetMeImagesHandlerFunc(newMyImagesLoader(srv))
 	srv.API.UsersGetUsersNameImagesHandler = users.GetUsersNameImagesHandlerFunc(newTlogImagesLoader(srv))
 	srv.API.ThemesGetThemesNameImagesHandler = themes.GetThemesNameImagesHandlerFunc(newThemeImagesLoader(srv))
@@ -42,14 +47,14 @@ func tlogFeedQuery(userID *models.UserID, limit int64, tlog string) *sqlf.Stmt {
 		Where(`(entries.user_id = entries.author_id OR NOT entry_users.shadow_ban OR ?)`, userID.Ban.Shadow)
 
 	entries.AddRelationToTlogQuery(q, userID, tlog)
-	return utils.AddEntryOpenQuery(q, userID, false)
+	return userutil.AddEntryOpenQuery(q, userID, false)
 }
 
-func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx,
+func loadFeed(srv *server.MindwellServer, tx *database.AutoTx,
 	query, scrollQ *sqlf.Stmt, afterS, beforeS string) *models.ImageList {
 	defer scrollQ.Close()
-	after := utils.ParseInt64(afterS)
-	before := utils.ParseInt64(beforeS)
+	after := helpers.ParseInt64(afterS)
+	before := helpers.ParseInt64(beforeS)
 	reverse := false
 	if after > 0 {
 		reverse = true
@@ -76,7 +81,7 @@ func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx,
 
 	feed := &models.ImageList{}
 	for _, imageID := range imageIDs {
-		img := utils.LoadImage(srv, tx, imageID)
+		img := media.LoadImage(srv, srv.Imgs, tx, imageID)
 		if img != nil {
 			feed.Data = append(feed.Data, img)
 		}
@@ -90,7 +95,7 @@ func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx,
 			tx.QueryStmt(afterQuery)
 			var nextAfter int64
 			tx.Scan(&nextAfter)
-			feed.NextAfter = utils.FormatInt64(nextAfter)
+			feed.NextAfter = helpers.FormatInt64(nextAfter)
 		}
 
 		if after > 0 {
@@ -100,20 +105,20 @@ func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx,
 			tx.QueryStmt(beforeQuery)
 			var nextBefore int64
 			tx.Scan(&nextBefore)
-			feed.NextBefore = utils.FormatInt64(nextBefore)
+			feed.NextBefore = helpers.FormatInt64(nextBefore)
 		}
 	} else {
 		oldest := feed.Data[len(feed.Data)-1].ID
 		newest := feed.Data[0].ID
 		var id int64
 
-		feed.NextBefore = utils.FormatInt64(oldest)
+		feed.NextBefore = helpers.FormatInt64(oldest)
 		beforeQuery := scrollQ.Clone().Where("images.id < ?", oldest)
 		tx.QueryStmt(beforeQuery)
 		tx.Scan(&id)
 		feed.HasBefore = id > 0
 
-		feed.NextAfter = utils.FormatInt64(newest)
+		feed.NextAfter = helpers.FormatInt64(newest)
 		afterQuery := scrollQ.Clone().Where("images.id > ?", newest)
 		tx.QueryStmt(afterQuery)
 		tx.Scan(&id)
@@ -123,9 +128,9 @@ func loadFeed(srv *utils.MindwellServer, tx *utils.AutoTx,
 	return feed
 }
 
-func newMyImagesLoader(srv *utils.MindwellServer) func(me.GetMeImagesParams, *models.UserID) middleware.Responder {
+func newMyImagesLoader(srv *server.MindwellServer) func(me.GetMeImagesParams, *models.UserID) middleware.Responder {
 	return func(params me.GetMeImagesParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			query := myFeedQuery(userID, *params.Limit)
 			scrollQ := myFeedQuery(userID, 1)
 			feed := loadFeed(srv, tx, query, scrollQ, *params.After, *params.Before)
@@ -138,10 +143,10 @@ func newMyImagesLoader(srv *utils.MindwellServer) func(me.GetMeImagesParams, *mo
 	}
 }
 
-func newTlogImagesLoader(srv *utils.MindwellServer) func(users.GetUsersNameImagesParams, *models.UserID) middleware.Responder {
+func newTlogImagesLoader(srv *server.MindwellServer) func(users.GetUsersNameImagesParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersNameImagesParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.CanViewTlogName(tx, userID, params.Name)
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			canView := userutil.CanViewTlogName(tx, userID, params.Name)
 			if !canView {
 				err := srv.StandardError("no_tlog")
 				return users.NewGetUsersNameImagesNotFound().WithPayload(err)
@@ -159,10 +164,10 @@ func newTlogImagesLoader(srv *utils.MindwellServer) func(users.GetUsersNameImage
 	}
 }
 
-func newThemeImagesLoader(srv *utils.MindwellServer) func(themes.GetThemesNameImagesParams, *models.UserID) middleware.Responder {
+func newThemeImagesLoader(srv *server.MindwellServer) func(themes.GetThemesNameImagesParams, *models.UserID) middleware.Responder {
 	return func(params themes.GetThemesNameImagesParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			canView := utils.CanViewTlogName(tx, userID, params.Name)
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			canView := userutil.CanViewTlogName(tx, userID, params.Name)
 			if !canView {
 				err := srv.StandardError("no_theme")
 				return themes.NewGetThemesNameImagesNotFound().WithPayload(err)

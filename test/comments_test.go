@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sevings/mindwell-server/lib/textutil"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/comments"
-	"github.com/sevings/mindwell-server/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -238,7 +238,7 @@ func TestAnonymousComments(t *testing.T) {
 func postComment(id *models.UserID, entryID int64) int64 {
 	params := comments.PostEntriesIDCommentsParams{
 		ID:      entryID,
-		Content: "test comment" + utils.GenerateString(5),
+		Content: "test comment" + textutil.GenerateString(5),
 	}
 
 	post := api.CommentsPostEntriesIDCommentsHandler.Handle

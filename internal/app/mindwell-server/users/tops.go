@@ -1,15 +1,16 @@
 package users
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"fmt"
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
-	"github.com/sevings/mindwell-server/utils"
 )
 
-func searchUsers(srv *utils.MindwellServer, tx *utils.AutoTx, queryWhere, searchQuery string, shadowBan bool) []*models.Friend {
+func searchUsers(srv *server.MindwellServer, tx *database.AutoTx, queryWhere, searchQuery string, shadowBan bool) []*models.Friend {
 	query := usersQuerySelect + `, 0 
 					FROM (
 						SELECT *, $1 <<-> to_search_string(name, show_name, country, city) AS trgm_dist 
@@ -24,7 +25,7 @@ func searchUsers(srv *utils.MindwellServer, tx *utils.AutoTx, queryWhere, search
 	return list
 }
 
-func loadTopUsers(srv *utils.MindwellServer, tx *utils.AutoTx, top string, userID *models.UserID) []*models.Friend {
+func loadTopUsers(srv *server.MindwellServer, tx *database.AutoTx, top string, userID *models.UserID) []*models.Friend {
 	query := usersQuerySelect + ", 0 "
 
 	if top == "rank" {
@@ -87,9 +88,9 @@ func loadTopUsers(srv *utils.MindwellServer, tx *utils.AutoTx, top string, userI
 	return list
 }
 
-func newUsersLoader(srv *utils.MindwellServer) func(users.GetUsersParams, *models.UserID) middleware.Responder {
+func newUsersLoader(srv *server.MindwellServer) func(users.GetUsersParams, *models.UserID) middleware.Responder {
 	return func(params users.GetUsersParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			body := &users.GetUsersOKBody{}
 
 			if params.Query != nil {

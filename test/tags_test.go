@@ -1,11 +1,12 @@
 package test
 
 import (
+	libauth "github.com/sevings/mindwell-server/lib/auth"
+	"github.com/sevings/mindwell-server/lib/textutil"
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/entries"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
-	"github.com/sevings/mindwell-server/utils"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
@@ -18,7 +19,7 @@ func postTaggedEntry(t *testing.T, user *models.UserID, privacy string, tags []s
 	shared := false
 	draft := false
 	params := me.PostMeTlogParams{
-		Content:       "test tagged " + utils.GenerateString(8),
+		Content:       "test tagged " + textutil.GenerateString(8),
 		Title:         &title,
 		Privacy:       privacy,
 		IsCommentable: &commentable,
@@ -149,7 +150,7 @@ func TestUserTags(t *testing.T) {
 		return search(userID, tlog, limit, "", success, exp)
 	}
 
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 
 	load(userIDs[0], userIDs[1].Name, 10, true, nil)
 	load(userIDs[1], userIDs[0].Name, 10, true, []*models.TagListDataItems0{aaa, bbb, ccc})

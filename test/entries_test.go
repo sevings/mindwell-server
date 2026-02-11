@@ -2,7 +2,10 @@ package test
 
 import (
 	"fmt"
-	"github.com/sevings/mindwell-server/restapi/operations/themes"
+	libauth "github.com/sevings/mindwell-server/lib/auth"
+	"github.com/sevings/mindwell-server/lib/database"
+	"github.com/sevings/mindwell-server/lib/textutil"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"log"
 	"regexp"
 	"strings"
@@ -13,8 +16,8 @@ import (
 	"github.com/sevings/mindwell-server/restapi/operations/entries"
 	"github.com/sevings/mindwell-server/restapi/operations/favorites"
 	"github.com/sevings/mindwell-server/restapi/operations/me"
+	"github.com/sevings/mindwell-server/restapi/operations/themes"
 	"github.com/sevings/mindwell-server/restapi/operations/users"
-	"github.com/sevings/mindwell-server/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -474,7 +477,7 @@ func TestPostToTheme(t *testing.T) {
 }
 
 func TestLiveRestrictions(t *testing.T) {
-	utils.ClearDatabase(db)
+	database.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)
 
 	userIDs[0].FollowersCount = 4
@@ -555,12 +558,12 @@ func TestLiveRestrictions(t *testing.T) {
 	checkPostEntry(t, postParams, nil, &profiles[0].Profile, userIDs[0], false, 3)
 	checkEditEntry(t, editParams, nil, &profiles[0].Profile, userIDs[0], false, 1)
 
-	utils.ClearDatabase(db)
+	database.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)
 }
 
 func TestThemeLiveRestrictions(t *testing.T) {
-	utils.ClearDatabase(db)
+	database.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)
 
 	userIDs[0].FollowersCount = 4
@@ -603,7 +606,7 @@ func TestThemeLiveRestrictions(t *testing.T) {
 	banLive(db, userIDs[0])
 	checkPostThemeEntry(t, postParams, &profiles[0].Profile, theme, userIDs[0], false, 3)
 
-	utils.ClearDatabase(db)
+	database.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)
 }
 
@@ -614,7 +617,7 @@ func postEntry(id *models.UserID, privacy string, live bool) *models.Entry {
 	draft := false
 	title := ""
 	params := me.PostMeTlogParams{
-		Content:       "test test test" + utils.GenerateString(6),
+		Content:       "test test test" + textutil.GenerateString(6),
 		Title:         &title,
 		Privacy:       privacy,
 		IsCommentable: &commentable,
@@ -642,7 +645,7 @@ func postThemeEntry(id *models.UserID, themeName, privacy string, isAnonymous bo
 	title := ""
 	params := themes.PostThemesNameTlogParams{
 		Name:          themeName,
-		Content:       "test test test" + utils.GenerateString(6),
+		Content:       "test test test" + textutil.GenerateString(6),
 		Title:         &title,
 		Privacy:       privacy,
 		IsCommentable: &commentable,
@@ -725,7 +728,7 @@ func checkLoadLiveSource(t *testing.T, id *models.UserID, limit int64, section, 
 }
 
 func TestLoadLive(t *testing.T) {
-	utils.ClearDatabase(db)
+	database.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)
 	esm.Clear()
 
@@ -745,7 +748,7 @@ func TestLoadLive(t *testing.T) {
 	compareEntries(t, e1, feed.Entries[1], userIDs[0])
 	compareEntries(t, e2, feed.Entries[2], userIDs[0])
 
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 	feed = checkLoadLive(t, noAuthUser, 10, "entries", "", "", 1)
 	compareEntries(t, e2, feed.Entries[0], noAuthUser)
 
@@ -984,7 +987,7 @@ func checkUnpinEntry(t *testing.T, user *models.UserID, entryID int64, success b
 }
 
 func TestLoadTlog(t *testing.T) {
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 
 	e3 := postEntry(userIDs[0], models.EntryPrivacyAll, true)
 	e2 := postEntry(userIDs[0], models.EntryPrivacyRegistered, true)
@@ -1178,7 +1181,7 @@ func checkLoadThemeTlog(t *testing.T, user *models.UserID, name string, success 
 }
 
 func TestLoadThemeTlog(t *testing.T) {
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 
 	theme := createTestTheme(t, userIDs[0])
 	toTheme := &models.AuthProfile{Profile: *theme}
@@ -1325,7 +1328,7 @@ func checkLoadMyTlogSort(t *testing.T, user *models.UserID, limit int64, before,
 }
 
 func TestLoadMyTlog(t *testing.T) {
-	utils.ClearDatabase(db)
+	database.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)
 
 	e3 := postEntry(userIDs[0], models.EntryPrivacyAll, true)
@@ -1728,7 +1731,7 @@ func TestLoadLiveComments(t *testing.T) {
 	req.False(feed.HasBefore)
 	req.False(feed.HasAfter)
 
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 	feed = checkLoadLive(t, noAuthUser, 10, "comments", "", "", 1)
 	compareEntries(t, es[5], feed.Entries[0], noAuthUser)
 
@@ -1840,7 +1843,7 @@ func TestLoadWatching(t *testing.T) {
 }
 
 func TestRandomEntry(t *testing.T) {
-	utils.ClearDatabase(db)
+	database.ClearDatabase(db)
 	userIDs, profiles = registerTestUsers(db)
 	esm.Clear()
 
@@ -1956,9 +1959,9 @@ func TestEntryHTML(t *testing.T) {
 }
 
 func checkCanViewEntry(t *testing.T, userID *models.UserID, entryID int64, res bool) {
-	tx := utils.NewAutoTx(db)
+	tx := database.NewAutoTx(db)
 	defer tx.Finish()
-	require.Equal(t, res, utils.CanViewEntry(tx, userID, entryID))
+	require.Equal(t, res, userutil.CanViewEntry(tx, userID, entryID))
 }
 
 func TestCanViewEntry(t *testing.T) {
@@ -1966,7 +1969,7 @@ func TestCanViewEntry(t *testing.T) {
 		checkCanViewEntry(t, userID, entryID, res)
 	}
 
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 
 	e1 := createTlogEntry(t, userIDs[0], models.EntryPrivacyAll, true, true, true)
 	e2 := createTlogEntry(t, userIDs[0], models.EntryPrivacyMe, true, true, true)
@@ -2122,7 +2125,7 @@ func TestCanViewThemeEntry(t *testing.T) {
 		checkCanViewEntry(t, userID, entryID, res)
 	}
 
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 
 	theme := createTestTheme(t, userIDs[0])
 	toTheme := &models.AuthProfile{Profile: *theme}
@@ -2434,7 +2437,7 @@ func TestLoadTlogCalendar(t *testing.T) {
 		return cal.Entries
 	}
 
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 
 	now := time.Now().Unix()
 	load(userIDs[0], profiles[0], 0, now-10, 0)
@@ -2531,7 +2534,7 @@ func TestLoadThemeCalendar(t *testing.T) {
 		return cal.Entries
 	}
 
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 
 	now := time.Now().Unix()
 	load(userIDs[0], 0, now-10, 0)
@@ -2649,7 +2652,7 @@ func TestLoadAdjacentEntries(t *testing.T) {
 	req.Equal(e1, adj.Older.ID)
 	req.Nil(adj.Newer)
 
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 
 	adj = load(noAuthUser, e1)
 	req.Nil(adj.Older)
@@ -2759,7 +2762,7 @@ func TestLoadAdjacentThemeEntries(t *testing.T) {
 	adj = load(userIDs[3], e3)
 	req.Nil(adj)
 
-	noAuthUser := utils.NoAuthUser()
+	noAuthUser := libauth.NoAuthUser()
 
 	adj = load(noAuthUser, e1)
 	req.Nil(adj.Older)

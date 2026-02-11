@@ -1,6 +1,8 @@
 package entries
 
 import (
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/database"
 	"database/sql"
 	"errors"
 	"log"
@@ -13,6 +15,9 @@ import (
 	"github.com/Workiva/go-datastructures/bitarray"
 	"github.com/leporo/sqlf"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/comments"
+	"github.com/sevings/mindwell-server/lib/media"
+	"github.com/sevings/mindwell-server/lib/textutil"
+	"github.com/sevings/mindwell-server/lib/userutil"
 	"github.com/sevings/mindwell-server/restapi/operations/themes"
 
 	"github.com/microcosm-cc/bluemonday"
@@ -27,11 +32,10 @@ import (
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/users"
 	"github.com/sevings/mindwell-server/internal/app/mindwell-server/watchings"
 	"github.com/sevings/mindwell-server/models"
-	"github.com/sevings/mindwell-server/utils"
 )
 
 // ConfigureAPI creates operations handlers
-func ConfigureAPI(srv *utils.MindwellServer) {
+func ConfigureAPI(srv *server.MindwellServer) {
 	srv.API.MePostMeTlogHandler = me.PostMeTlogHandlerFunc(newMyTlogPoster(srv))
 	srv.API.ThemesPostThemesNameTlogHandler = themes.PostThemesNameTlogHandlerFunc(newThemePoster(srv))
 
@@ -132,7 +136,7 @@ func setEntryTexts(entry *models.Entry, hasAttach bool) {
 	title := strings.TrimSpace(entry.Title)
 	title = bluemonday.StrictPolicy().Sanitize(title)
 
-	cutTitle, isTitleCut := utils.CutText(title, 100)
+	cutTitle, isTitleCut := textutil.CutText(title, 100)
 
 	lineCount := 15
 	imgCount := 1
@@ -143,7 +147,7 @@ func setEntryTexts(entry *models.Entry, hasAttach bool) {
 
 	editContent := strings.TrimSpace(entry.EditContent)
 	content := md.RenderToString([]byte(editContent))
-	cutContent, isContentCut := utils.CutHtml(content, lineCount, 44, imgCount)
+	cutContent, isContentCut := textutil.CutHtml(content, lineCount, 44, imgCount)
 
 	hasCut := isTitleCut || isContentCut
 	if !hasCut {
@@ -159,7 +163,7 @@ func setEntryTexts(entry *models.Entry, hasAttach bool) {
 	entry.HasCut = hasCut
 }
 
-func initMyEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID,
+func initMyEntry(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID,
 	entry *models.Entry, images []int64) *models.Error {
 	isTheme := entry.Author.IsTheme
 
@@ -213,7 +217,7 @@ func initMyEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 	return nil
 }
 
-func createEntry(tx *utils.AutoTx, userID *models.UserID, entry *models.Entry) *models.Error {
+func createEntry(tx *database.AutoTx, userID *models.UserID, entry *models.Entry) *models.Error {
 	category := entryCategory(entry)
 
 	const q = `
@@ -239,9 +243,9 @@ func createEntry(tx *utils.AutoTx, userID *models.UserID, entry *models.Entry) *
 	return nil
 }
 
-func loadEntryImages(srv *utils.MindwellServer, tx *utils.AutoTx, entry *models.Entry, images []int64) {
+func loadEntryImages(srv *server.MindwellServer, tx *database.AutoTx, entry *models.Entry, images []int64) {
 	for _, imageID := range images {
-		img := utils.LoadImage(srv, tx, imageID)
+		img := media.LoadImage(srv, srv.Imgs, tx, imageID)
 		if img != nil {
 			if strings.Contains(entry.EditContent, img.Large.URL) {
 				entry.InsertedImages = append(entry.InsertedImages, img)
@@ -252,12 +256,12 @@ func loadEntryImages(srv *utils.MindwellServer, tx *utils.AutoTx, entry *models.
 	}
 }
 
-func loadEntryTags(tx *utils.AutoTx, entry *models.Entry) {
+func loadEntryTags(tx *database.AutoTx, entry *models.Entry) {
 	const q = `SELECT tag FROM entry_tags INNER JOIN tags ON tag_id = tags.id WHERE entry_id = $1 ORDER BY tag`
 	entry.Tags = tx.QueryStrings(q, entry.ID)
 }
 
-func attachImages(tx *utils.AutoTx, entry *models.Entry) {
+func attachImages(tx *database.AutoTx, entry *models.Entry) {
 	const q = "INSERT INTO entry_images(entry_id, image_id, image_order) VALUES($1, $2, $3)"
 	allImages := append(entry.Images, entry.InsertedImages...)
 	for i, img := range allImages {
@@ -292,7 +296,7 @@ tagLoop:
 	entry.Tags = realTags
 }
 
-func setTags(tx *utils.AutoTx, entry *models.Entry) {
+func setTags(tx *database.AutoTx, entry *models.Entry) {
 	for _, tag := range entry.Tags {
 		tagID := tx.QueryInt64("SELECT id FROM tags WHERE tag = $1", tag)
 		if tagID == 0 {
@@ -316,7 +320,7 @@ func allowedInLive(followersCount, entryCount int64) bool {
 	}
 }
 
-func allowedWithoutVoting(srv *utils.MindwellServer, userID *models.UserID) *models.Error {
+func allowedWithoutVoting(srv *server.MindwellServer, userID *models.UserID) *models.Error {
 	if userID.IsInvited {
 		return nil
 	}
@@ -324,7 +328,7 @@ func allowedWithoutVoting(srv *utils.MindwellServer, userID *models.UserID) *mod
 	return srv.NewError(&i18n.Message{ID: "post_wo_voting", Other: "You're not allowed to post without voting."})
 }
 
-func canPostInLive(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID) *models.Error {
+func canPostInLive(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID) *models.Error {
 	if userID.Ban.Live {
 		return srv.NewError(&i18n.Message{ID: "post_in_live", Other: "You're not allowed to post in live."})
 	}
@@ -346,7 +350,7 @@ func canPostInLive(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 	return nil
 }
 
-func canPostInTheme(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, theme string) *models.Error {
+func canPostInTheme(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, theme string) *models.Error {
 	if userID.Ban.Live {
 		return srv.NewError(&i18n.Message{ID: "post_in_themes", Other: "You're not allowed to post in themes."})
 	}
@@ -370,12 +374,12 @@ func canPostInTheme(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.
 	}
 
 	if creatorID != userID.ID {
-		relationTo := utils.LoadRelation(tx, userID.ID, themeID)
+		relationTo := userutil.LoadRelation(tx, userID.ID, themeID)
 		if relationTo != models.RelationshipRelationFollowed {
 			return postThemeErr
 		}
 
-		relationFrom := utils.LoadRelation(tx, themeID, userID.ID)
+		relationFrom := userutil.LoadRelation(tx, themeID, userID.ID)
 		if relationFrom == models.RelationshipRelationIgnored {
 			return postThemeErr
 		}
@@ -384,7 +388,7 @@ func canPostInTheme(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.
 	return nil
 }
 
-func postNewEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entry *models.Entry, images []int64) *models.Error {
+func postNewEntry(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, entry *models.Entry, images []int64) *models.Error {
 	prev, found, same := checkPrev(userID, entry)
 	if found {
 		if same {
@@ -445,9 +449,9 @@ func postNewEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Us
 	return nil
 }
 
-func newMyTlogPoster(srv *utils.MindwellServer) func(me.PostMeTlogParams, *models.UserID) middleware.Responder {
+func newMyTlogPoster(srv *server.MindwellServer) func(me.PostMeTlogParams, *models.UserID) middleware.Responder {
 	return func(params me.PostMeTlogParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			entry := &models.Entry{
 				Author: &models.User{
 					ID: userID.ID,
@@ -484,9 +488,9 @@ func newMyTlogPoster(srv *utils.MindwellServer) func(me.PostMeTlogParams, *model
 	}
 }
 
-func newThemePoster(srv *utils.MindwellServer) func(themes.PostThemesNameTlogParams, *models.UserID) middleware.Responder {
+func newThemePoster(srv *server.MindwellServer) func(themes.PostThemesNameTlogParams, *models.UserID) middleware.Responder {
 	return func(params themes.PostThemesNameTlogParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			entry := &models.Entry{
 				Author: &models.User{
 					Name:    params.Name,
@@ -524,7 +528,7 @@ func newThemePoster(srv *utils.MindwellServer) func(themes.PostThemesNameTlogPar
 	}
 }
 
-func updateEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entry *models.Entry) *models.Error {
+func updateEntry(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, entry *models.Entry) *models.Error {
 	category := entryCategory(entry)
 
 	const q = `
@@ -553,19 +557,19 @@ func updateEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.Use
 	return nil
 }
 
-func reattachImages(tx *utils.AutoTx, entry *models.Entry) {
+func reattachImages(tx *database.AutoTx, entry *models.Entry) {
 	tx.Exec("DELETE FROM entry_images WHERE entry_id = $1", entry.ID)
 
 	attachImages(tx, entry)
 }
 
-func resetTags(tx *utils.AutoTx, entry *models.Entry) {
+func resetTags(tx *database.AutoTx, entry *models.Entry) {
 	tx.Exec("DELETE FROM entry_tags WHERE entry_id = $1", entry.ID)
 
 	setTags(tx, entry)
 }
 
-func canEditInLive(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID, entryID int64) *models.Error {
+func canEditInLive(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID, entryID int64) *models.Error {
 	var inLive bool
 	const entryQ = "SELECT in_live FROM entries WHERE id = $1"
 	tx.Query(entryQ, entryID).Scan(&inLive)
@@ -603,7 +607,7 @@ func canEditInLive(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.U
 	return nil
 }
 
-func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, uID *models.UserID,
+func editEntry(srv *server.MindwellServer, tx *database.AutoTx, uID *models.UserID,
 	entry *models.Entry, images []int64) *models.Error {
 
 	if entry.InLive &&
@@ -649,9 +653,9 @@ func editEntry(srv *utils.MindwellServer, tx *utils.AutoTx, uID *models.UserID,
 	return nil
 }
 
-func newEntryEditor(srv *utils.MindwellServer) func(entries.PutEntriesIDParams, *models.UserID) middleware.Responder {
+func newEntryEditor(srv *server.MindwellServer) func(entries.PutEntriesIDParams, *models.UserID) middleware.Responder {
 	return func(params entries.PutEntriesIDParams, uID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			entry := &models.Entry{
 				ID:            params.ID,
 				Privacy:       params.Privacy,
@@ -705,9 +709,9 @@ func setEntryRights(entry *models.Entry, userID *models.UserID, themeCreatorID i
 	}
 }
 
-func LoadEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID int64, userID *models.UserID) *models.Entry {
+func LoadEntry(srv *server.MindwellServer, tx *database.AutoTx, entryID int64, userID *models.UserID) *models.Entry {
 	var shared bool
-	if !utils.CanViewEntry(tx, userID, entryID) {
+	if !userutil.CanViewEntry(tx, userID, entryID) {
 		q := sqlf.Select("is_shared").
 			From("entries").
 			Where("id = ?", entryID)
@@ -743,9 +747,9 @@ func LoadEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID int64, userI
 	return entry
 }
 
-func newEntryLoader(srv *utils.MindwellServer) func(entries.GetEntriesIDParams, *models.UserID) middleware.Responder {
+func newEntryLoader(srv *server.MindwellServer) func(entries.GetEntriesIDParams, *models.UserID) middleware.Responder {
 	return func(params entries.GetEntriesIDParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			entry := LoadEntry(srv, tx, params.ID, userID)
 
 			if entry.ID == 0 {
@@ -758,7 +762,7 @@ func newEntryLoader(srv *utils.MindwellServer) func(entries.GetEntriesIDParams, 
 	}
 }
 
-func unpinEntry(tx *utils.AutoTx, entryID int64) {
+func unpinEntry(tx *database.AutoTx, entryID int64) {
 	q := sqlf.Update("users").
 		Set("pinned_entry", nil).
 		Where("id = (SELECT author_id FROM entries WHERE id = ?)", entryID).
@@ -766,7 +770,7 @@ func unpinEntry(tx *utils.AutoTx, entryID int64) {
 	tx.ExecStmt(q)
 }
 
-func deleteEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID, userID int64) bool {
+func deleteEntry(srv *server.MindwellServer, tx *database.AutoTx, entryID, userID int64) bool {
 	if userID == 0 {
 		return false
 	}
@@ -801,9 +805,9 @@ func deleteEntry(srv *utils.MindwellServer, tx *utils.AutoTx, entryID, userID in
 	return true
 }
 
-func newEntryDeleter(srv *utils.MindwellServer) func(entries.DeleteEntriesIDParams, *models.UserID) middleware.Responder {
+func newEntryDeleter(srv *server.MindwellServer) func(entries.DeleteEntriesIDParams, *models.UserID) middleware.Responder {
 	return func(params entries.DeleteEntriesIDParams, uID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			ok := deleteEntry(srv, tx, params.ID, uID.ID)
 			if ok {
 				removePrev(params.ID, uID)
@@ -828,7 +832,7 @@ var (
 	randGuard sync.Mutex
 )
 
-func loadRandomEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models.UserID) *models.Entry {
+func loadRandomEntry(srv *server.MindwellServer, tx *database.AutoTx, userID *models.UserID) *models.Entry {
 	randGuard.Lock()
 	defer randGuard.Unlock()
 
@@ -885,9 +889,9 @@ func loadRandomEntry(srv *utils.MindwellServer, tx *utils.AutoTx, userID *models
 	return &models.Entry{}
 }
 
-func newRandomEntryLoader(srv *utils.MindwellServer) func(entries.GetEntriesRandomParams, *models.UserID) middleware.Responder {
+func newRandomEntryLoader(srv *server.MindwellServer) func(entries.GetEntriesRandomParams, *models.UserID) middleware.Responder {
 	return func(params entries.GetEntriesRandomParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			entry := loadRandomEntry(srv, tx, userID)
 
 			if entry.ID == 0 {
@@ -900,7 +904,7 @@ func newRandomEntryLoader(srv *utils.MindwellServer) func(entries.GetEntriesRand
 	}
 }
 
-func canPinInTlog(tx *utils.AutoTx, userID *models.UserID, entryID int64) (int64, bool) {
+func canPinInTlog(tx *database.AutoTx, userID *models.UserID, entryID int64) (int64, bool) {
 	var authorID int64
 	var creatorID sql.NullInt64
 
@@ -913,10 +917,10 @@ func canPinInTlog(tx *utils.AutoTx, userID *models.UserID, entryID int64) (int64
 	return authorID, authorID == userID.ID || creatorID.Int64 == userID.ID
 }
 
-func newEntryPinStatusLoader(srv *utils.MindwellServer) func(entries.GetEntriesIDPinParams, *models.UserID) middleware.Responder {
+func newEntryPinStatusLoader(srv *server.MindwellServer) func(entries.GetEntriesIDPinParams, *models.UserID) middleware.Responder {
 	return func(params entries.GetEntriesIDPinParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
-			if !utils.CanViewEntry(tx, userID, params.ID) {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
+			if !userutil.CanViewEntry(tx, userID, params.ID) {
 				err := srv.StandardError("no_entry")
 				return entries.NewGetEntriesIDPinNotFound().WithPayload(err)
 			}
@@ -934,9 +938,9 @@ func newEntryPinStatusLoader(srv *utils.MindwellServer) func(entries.GetEntriesI
 	}
 }
 
-func newEntryPinner(srv *utils.MindwellServer) func(entries.PutEntriesIDPinParams, *models.UserID) middleware.Responder {
+func newEntryPinner(srv *server.MindwellServer) func(entries.PutEntriesIDPinParams, *models.UserID) middleware.Responder {
 	return func(params entries.PutEntriesIDPinParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			authorID, canPin := canPinInTlog(tx, userID, params.ID)
 			if !canPin {
 				return entries.NewPutEntriesIDPinForbidden() //.WithPayload(err)
@@ -956,9 +960,9 @@ func newEntryPinner(srv *utils.MindwellServer) func(entries.PutEntriesIDPinParam
 	}
 }
 
-func newEntryUnpinner(srv *utils.MindwellServer) func(entries.DeleteEntriesIDPinParams, *models.UserID) middleware.Responder {
+func newEntryUnpinner(srv *server.MindwellServer) func(entries.DeleteEntriesIDPinParams, *models.UserID) middleware.Responder {
 	return func(params entries.DeleteEntriesIDPinParams, userID *models.UserID) middleware.Responder {
-		return srv.Transact(func(tx *utils.AutoTx) middleware.Responder {
+		return srv.Transact(func(tx *database.AutoTx) middleware.Responder {
 			_, canPin := canPinInTlog(tx, userID, params.ID)
 			if !canPin {
 				return entries.NewDeleteEntriesIDPinForbidden() //.WithPayload(err)
