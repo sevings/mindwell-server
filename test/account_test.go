@@ -1,9 +1,9 @@
 package test
 
 import (
-	"github.com/sevings/mindwell-server/lib/validation"
-	"github.com/sevings/mindwell-server/lib/server"
 	"database/sql"
+	"github.com/sevings/mindwell-server/lib/server"
+	"github.com/sevings/mindwell-server/lib/validation"
 	"log"
 	"os"
 	"strconv"
@@ -157,7 +157,7 @@ func changePassword(t *testing.T, userID *models.UserID, old, upd, email string,
 
 	update := api.AccountPostAccountPasswordHandler.Handle
 	resp := update(params, userID)
-	switch resp.(type) {
+	switch resp := resp.(type) {
 	case *account.PostAccountPasswordOK:
 		require.True(t, ok)
 		if len(email) > 0 {
@@ -165,8 +165,7 @@ func changePassword(t *testing.T, userID *models.UserID, old, upd, email string,
 		}
 		return
 	case *account.PostAccountPasswordForbidden:
-		body := resp.(*account.PostAccountPasswordForbidden)
-		require.False(t, ok, body.Payload.Message)
+		require.False(t, ok, resp.Payload.Message)
 	default:
 		t.Fatalf("set password user %d", userID.ID)
 	}
@@ -182,17 +181,15 @@ func changeEmail(t *testing.T, userID *models.UserID, oldEmail, newEmail, passwo
 
 	upd := api.AccountPostAccountEmailHandler.Handle
 	resp := upd(params, userID)
-	switch resp.(type) {
+	switch resp := resp.(type) {
 	case *account.PostAccountEmailOK:
 		req.True(ok)
 		req.Equal(1, len(esm.Codes))
 		esm.CheckEmail2(t, oldEmail, newEmail)
 	case *account.PostAccountEmailForbidden:
-		body := resp.(*account.PostAccountEmailForbidden)
-		req.False(ok, body.Payload.Message)
+		req.False(ok, resp.Payload.Message)
 	case *account.PostAccountEmailBadRequest:
-		body := resp.(*account.PostAccountEmailBadRequest)
-		req.False(ok, body.Payload.Message)
+		req.False(ok, resp.Payload.Message)
 	default:
 		t.Fatalf("set email user %s", userID.Name)
 	}

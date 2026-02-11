@@ -66,7 +66,7 @@ func TestCutHtml(t *testing.T) {
 
 func BenchmarkCutHtml(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		in := "<p>test test test</p><img src='link'><p>after image</p>"
 		CutHtml(in, 3, 40, 0)
 	}

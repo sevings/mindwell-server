@@ -58,9 +58,7 @@ func BenchmarkLoadLive(b *testing.B) {
 
 	load := api.EntriesGetEntriesLiveHandler.Handle
 
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		load(params, userIDs[1])
 	}
 }
@@ -112,9 +110,7 @@ func BenchmarkLoadFavorite(b *testing.B) {
 
 	load := api.UsersGetUsersNameFavoritesHandler.Handle
 
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		load(params, userIDs[1])
 	}
 }
