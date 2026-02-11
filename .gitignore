@@ -14,3 +14,5 @@
 /restapi_images/doc.go
 /restapi_images/embedded_spec.go
 /restapi_images/server.go
+
+/mindwell-*
