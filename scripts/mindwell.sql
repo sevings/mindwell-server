@@ -326,6 +326,11 @@ INSERT INTO mindwell.invite_words ("word") VALUES('aery');
 INSERT INTO mindwell.invite_words ("word") VALUES('affectioned');
 INSERT INTO mindwell.invite_words ("word") VALUES('agnize');
 INSERT INTO mindwell.invite_words ("word") VALUES('ambition');
+INSERT INTO mindwell.invite_words ("word") VALUES('amerce');
+INSERT INTO mindwell.invite_words ("word") VALUES('anters');
+INSERT INTO mindwell.invite_words ("word") VALUES('argal');
+INSERT INTO mindwell.invite_words ("word") VALUES('arrant');
+INSERT INTO mindwell.invite_words ("word") VALUES('arras');
 
 
 CREATE TABLE "mindwell"."invites" (
