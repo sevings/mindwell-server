@@ -248,9 +248,9 @@ func walkAndIdentifyOrphans(basePath string, validPaths validPathSet, verbose bo
 			return nil // Continue walking
 		}
 
-		// Skip directories and the badges folder
+		// Skip directories and protected folders (badges, default)
 		if info.IsDir() {
-			if strings.Contains(path, "/badges") {
+			if strings.Contains(path, "/badges") || strings.Contains(path, "/default") {
 				return filepath.SkipDir
 			}
 			return nil
