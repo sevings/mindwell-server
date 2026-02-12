@@ -1078,6 +1078,53 @@ CREATE TRIGGER last_comments_del
     BEFORE DELETE ON mindwell.comments
     FOR EACH ROW EXECUTE PROCEDURE mindwell.set_last_comment_del();
 
+-- Comment notification triggers
+CREATE OR REPLACE FUNCTION mindwell.notify_new_comment() RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM pg_notify('new_comment', json_build_object(
+        'id', NEW.id,
+        'entry_id', NEW.entry_id,
+        'author_id', NEW.author_id
+    )::text);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION mindwell.notify_update_comment() RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM pg_notify('update_comment', json_build_object(
+        'id', NEW.id,
+        'entry_id', NEW.entry_id
+    )::text);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION mindwell.notify_remove_comment() RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM pg_notify('remove_comment', json_build_object(
+        'id', OLD.id
+    )::text);
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER comment_insert_trigger
+    AFTER INSERT ON mindwell.comments
+    FOR EACH ROW
+    EXECUTE PROCEDURE mindwell.notify_new_comment();
+
+CREATE TRIGGER comment_update_trigger
+    AFTER UPDATE ON mindwell.comments
+    FOR EACH ROW
+    WHEN (OLD.edit_content IS DISTINCT FROM NEW.edit_content)
+    EXECUTE PROCEDURE mindwell.notify_update_comment();
+
+CREATE TRIGGER comment_delete_trigger
+    AFTER DELETE ON mindwell.comments
+    FOR EACH ROW
+    EXECUTE PROCEDURE mindwell.notify_remove_comment();
+
 
 CREATE TABLE "mindwell"."comment_votes" (
 	"user_id" Integer NOT NULL,

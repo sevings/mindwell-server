@@ -793,13 +793,7 @@ func deleteEntry(srv *server.MindwellServer, tx *database.AutoTx, entryID, userI
 		return true
 	}
 
-	const commentsQuery = "SELECT id FROM comments WHERE entry_id = $1"
-	commentIds := tx.QueryInt64s(commentsQuery, entryID)
-
-	for _, id := range commentIds {
-		srv.Ntf.SendRemoveComment(tx, id)
-	}
-
+	// Delete entry (CASCADE will delete comments, triggering comment_delete_trigger)
 	tx.Exec("DELETE from entries WHERE id = $1", entryID)
 
 	return true

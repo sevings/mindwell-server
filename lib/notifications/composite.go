@@ -50,6 +50,9 @@ func NewCompositeNotifier(srv ServerDependencies, ps *pubsub.PubSub) *CompositeN
 
 	ps.Subscribe("moved_entries", ntf.notifyMovedEntry)
 	ps.Subscribe("user_badges", ntf.notifyBadge)
+	ps.Subscribe("new_comment", ntf.notifyNewComment)
+	ps.Subscribe("update_comment", ntf.notifyUpdateComment)
+	ps.Subscribe("remove_comment", ntf.notifyRemoveComment)
 
 	return ntf
 }
@@ -168,7 +171,39 @@ func (ntf *CompositeNotifier) entryTitle(tx *database.AutoTx, entryID int64) str
 	return content
 }
 
-func (ntf *CompositeNotifier) SendNewComment(tx *database.AutoTx, cmt *models.Comment) {
+func (ntf *CompositeNotifier) notifyNewComment(commentData []byte) {
+	var commentInfo struct {
+		ID       int64 `json:"id"`
+		EntryID  int64 `json:"entry_id"`
+		AuthorID int64 `json:"author_id"`
+	}
+	err := json.Unmarshal(commentData, &commentInfo)
+	if err != nil {
+		ntf.srv.LogSystem().Error(err.Error())
+		return
+	}
+
+	tx := database.NewAutoTx(ntf.srv.GetDB())
+	defer tx.Finish()
+
+	// Load the comment data
+	const q = `
+		SELECT edit_content
+		FROM comments
+		WHERE id = $1
+	`
+
+	cmt := &models.Comment{
+		ID:      commentInfo.ID,
+		EntryID: commentInfo.EntryID,
+		Author:  &models.User{ID: commentInfo.AuthorID},
+	}
+
+	tx.Query(q, commentInfo.ID).Scan(&cmt.EditContent)
+	if tx.Error() != nil {
+		return
+	}
+
 	title := ntf.entryTitle(tx, cmt.EntryID)
 
 	fromQ := sqlf.Select("gender.type, shadow_ban").
@@ -247,16 +282,60 @@ func (ntf *CompositeNotifier) SendNewComment(tx *database.AutoTx, cmt *models.Co
 	}
 }
 
-func (ntf *CompositeNotifier) SendUpdateComment(tx *database.AutoTx, cmt *models.Comment) {
+func (ntf *CompositeNotifier) notifyUpdateComment(commentData []byte) {
+	var commentInfo struct {
+		ID      int64 `json:"id"`
+		EntryID int64 `json:"entry_id"`
+	}
+	err := json.Unmarshal(commentData, &commentInfo)
+	if err != nil {
+		ntf.srv.LogSystem().Error(err.Error())
+		return
+	}
+
+	tx := database.NewAutoTx(ntf.srv.GetDB())
+	defer tx.Finish()
+
+	// Load the updated comment data
+	const q = `
+		SELECT edit_content, author_id, users.show_name
+		FROM comments
+		JOIN users ON comments.author_id = users.id
+		WHERE comments.id = $1
+	`
+
+	cmt := &models.Comment{
+		ID:      commentInfo.ID,
+		EntryID: commentInfo.EntryID,
+		Author:  &models.User{},
+	}
+
+	tx.Query(q, commentInfo.ID).Scan(&cmt.EditContent, &cmt.Author.ID, &cmt.Author.ShowName)
+	if tx.Error() != nil {
+		return
+	}
+
 	title := ntf.entryTitle(tx, cmt.EntryID)
 
 	ntf.Tg.SendUpdateComment(title, cmt)
 	ntf.Ntf.NotifyUpdate(tx, cmt.ID, TypeComment)
 }
 
-func (ntf *CompositeNotifier) SendRemoveComment(tx *database.AutoTx, commentID int64) {
-	ntf.Tg.SendRemoveComment(commentID)
-	ntf.Ntf.NotifyRemove(tx, commentID, TypeComment)
+func (ntf *CompositeNotifier) notifyRemoveComment(commentData []byte) {
+	var commentInfo struct {
+		ID int64 `json:"id"`
+	}
+	err := json.Unmarshal(commentData, &commentInfo)
+	if err != nil {
+		ntf.srv.LogSystem().Error(err.Error())
+		return
+	}
+
+	tx := database.NewAutoTx(ntf.srv.GetDB())
+	defer tx.Finish()
+
+	ntf.Tg.SendRemoveComment(commentInfo.ID)
+	ntf.Ntf.NotifyRemove(tx, commentInfo.ID, TypeComment)
 }
 
 func (ntf *CompositeNotifier) SendRead(name string, id int64) {

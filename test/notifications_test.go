@@ -1,15 +1,17 @@
 package test
 
 import (
-	"github.com/sevings/mindwell-server/lib/database"
 	"testing"
+	"time"
+
+	"github.com/sevings/mindwell-server/lib/database"
 
 	"github.com/sevings/mindwell-server/models"
 	"github.com/sevings/mindwell-server/restapi/operations/notifications"
 	"github.com/stretchr/testify/require"
 )
 
-func checkLoadNotifications(t *testing.T, id *models.UserID, limit int64, before, after string, unread bool, size int) *models.NotificationList {
+func loadNotifications(id *models.UserID, limit int64, before, after string, unread bool) *models.NotificationList {
 	params := notifications.GetNotificationsParams{
 		Limit:  &limit,
 		Before: &before,
@@ -20,11 +22,28 @@ func checkLoadNotifications(t *testing.T, id *models.UserID, limit int64, before
 	get := api.NotificationsGetNotificationsHandler.Handle
 	resp := get(params, id)
 	body, ok := resp.(*notifications.GetNotificationsOK)
+	if !ok {
+		return nil
+	}
 
-	require.True(t, ok)
+	return body.Payload
+}
 
-	list := body.Payload
-	require.Equal(t, size, len(list.Notifications))
+func checkLoadNotifications(t *testing.T, id *models.UserID, limit int64, before, after string, unread bool, size int) *models.NotificationList {
+	deadline := time.Now().Add(1 * time.Second)
+	var list *models.NotificationList
+
+	for time.Now().Before(deadline) {
+		list = loadNotifications(id, limit, before, after, unread)
+		if list != nil && len(list.Notifications) >= size {
+			return list
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Final check with assertion
+	require.NotNil(t, list, "Failed to load notifications")
+	require.Equal(t, size, len(list.Notifications), "Timeout waiting for %d notifications, got %d", size, len(list.Notifications))
 
 	return list
 }
@@ -131,7 +150,7 @@ func TestNotification(t *testing.T) {
 func TestNotificationInfo(t *testing.T) {
 	tx := database.NewAutoTx(db)
 	infoID := tx.QueryInt64(`
-		INSERT INTO info(content, link) 
+		INSERT INTO info(content, link)
 		VALUES('test content', 'test link')
 		RETURNING id
 	`)

@@ -175,8 +175,6 @@ func newCommentEditor(srv *server.MindwellServer) func(comments.PutCommentsIDPar
 				return comments.NewGetCommentsIDNotFound().WithPayload(err)
 			}
 
-			srv.Ntf.SendUpdateComment(tx, comment)
-
 			updatePrev(comment, userID)
 
 			return comments.NewPutCommentsIDOK().WithPayload(comment)
@@ -228,8 +226,6 @@ func newCommentDeleter(srv *server.MindwellServer) func(comments.DeleteCommentsI
 				err := srv.NewError(nil)
 				return comments.NewDeleteCommentsIDNotFound().WithPayload(err)
 			}
-
-			srv.Ntf.SendRemoveComment(tx, params.ID)
 
 			removePrev(params.ID, userID)
 
@@ -389,8 +385,6 @@ func newCommentPoster(srv *server.MindwellServer) func(comments.PostEntriesIDCom
 				err := srv.NewError(nil)
 				return comments.NewPostEntriesIDCommentsNotFound().WithPayload(err)
 			}
-
-			srv.Ntf.SendNewComment(tx, comment)
 
 			setPrev(comment, userID)
 
