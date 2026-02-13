@@ -1501,6 +1501,98 @@ CREATE TRIGGER cnt_unread_del
     AFTER DELETE ON mindwell.messages
     FOR EACH ROW EXECUTE PROCEDURE mindwell.count_unread_del();
 
+-- Message notification triggers
+CREATE OR REPLACE FUNCTION mindwell.notify_new_message() RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM pg_notify('new_message', json_build_object(
+        'id', NEW.id,
+        'chat_id', NEW.chat_id
+    )::text);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION mindwell.notify_update_message() RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM pg_notify('update_message', json_build_object(
+        'id', NEW.id,
+        'chat_id', NEW.chat_id
+    )::text);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION mindwell.notify_remove_message() RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM pg_notify('remove_message', json_build_object(
+        'id', OLD.id,
+        'chat_id', OLD.chat_id
+    )::text);
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER message_insert_trigger
+    AFTER INSERT ON mindwell.messages
+    FOR EACH ROW
+    EXECUTE PROCEDURE mindwell.notify_new_message();
+
+CREATE TRIGGER message_update_trigger
+    AFTER UPDATE ON mindwell.messages
+    FOR EACH ROW
+    WHEN (OLD.content IS DISTINCT FROM NEW.content OR OLD.edit_content IS DISTINCT FROM NEW.edit_content)
+    EXECUTE PROCEDURE mindwell.notify_update_message();
+
+CREATE TRIGGER message_delete_trigger
+    AFTER DELETE ON mindwell.messages
+    FOR EACH ROW
+    EXECUTE PROCEDURE mindwell.notify_remove_message();
+
+-- Message read notification trigger
+CREATE OR REPLACE FUNCTION mindwell.notify_message_read() RETURNS TRIGGER AS $$
+DECLARE
+    msg_record RECORD;
+    partner_name TEXT;
+BEGIN
+    -- Only process if last_read actually changed
+    IF OLD.last_read IS DISTINCT FROM NEW.last_read THEN
+        -- Find the partner's name
+        SELECT users.name INTO partner_name
+        FROM mindwell.users
+        JOIN mindwell.talkers ON talkers.user_id = users.id
+        WHERE talkers.chat_id = NEW.chat_id AND talkers.user_id <> NEW.user_id
+        LIMIT 1;
+
+        -- Find all messages that were just marked as read
+        -- (messages sent by partner, between OLD.last_read and NEW.last_read)
+        FOR msg_record IN
+            SELECT id
+            FROM mindwell.messages
+            WHERE chat_id = NEW.chat_id
+              AND author_id <> NEW.user_id
+              AND id > OLD.last_read
+              AND id <= NEW.last_read
+            ORDER BY id
+        LOOP
+            -- Send notification for each message
+            PERFORM pg_notify('read_message', json_build_object(
+                'chat_id', NEW.chat_id,
+                'message_id', msg_record.id,
+                'user_name', partner_name
+            )::text);
+        END LOOP;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER talkers_read_trigger
+    AFTER UPDATE ON mindwell.talkers
+    FOR EACH ROW
+    WHEN (OLD.last_read IS DISTINCT FROM NEW.last_read)
+    EXECUTE PROCEDURE mindwell.notify_message_read();
+
 
 CREATE TABLE "mindwell"."badges" (
     "id" Serial NOT NULL,

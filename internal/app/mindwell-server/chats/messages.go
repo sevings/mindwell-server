@@ -1,9 +1,10 @@
 package chats
 
 import (
-	"github.com/sevings/mindwell-server/lib/server"
-	"github.com/sevings/mindwell-server/lib/database"
 	"time"
+
+	"github.com/sevings/mindwell-server/lib/database"
+	"github.com/sevings/mindwell-server/lib/server"
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -133,7 +134,7 @@ func newMessageListLoader(srv *server.MindwellServer) func(chats.GetChatsNameMes
 			list.UnreadCount = tx.QueryInt64(unreadQuery, chatID, userID.ID)
 
 			const beforeQuery = `SELECT EXISTS(
-				SELECT 1 
+				SELECT 1
 				FROM messages
                 WHERE chat_id = $1 AND id < $2)`
 
@@ -143,7 +144,7 @@ func newMessageListLoader(srv *server.MindwellServer) func(chats.GetChatsNameMes
 			tx.Scan(&list.HasBefore)
 
 			const afterQuery = `SELECT EXISTS(
-				SELECT 1 
+				SELECT 1
 				FROM messages
                 WHERE chat_id = $1 AND id > $2)`
 
@@ -253,14 +254,9 @@ func newMessageCreator(srv *server.MindwellServer) func(chats.PostChatsNameMessa
 
 			msg = createMessage(srv, tx, userID.ID, chatID, params.Content)
 
-			msgIDs := loadReadMessages(tx, chatID, userID.ID, msg.ID)
-			for _, msgID := range msgIDs {
-				srv.Ntf.NotifyMessageRead(chatID, msgID, params.Name)
-			}
 			const q = "UPDATE talkers SET last_read = $3, unread_count = 0 WHERE chat_id = $1 AND user_id = $2"
 			tx.Exec(q, chatID, userID.ID, msg.ID)
 
-			srv.Ntf.NotifyMessage(tx, msg, params.Name)
 			setCachedMessage(userID.ID, params.UID, params.Name, msg)
 			return chats.NewPostChatsNameMessagesCreated().WithPayload(msg)
 		})
@@ -268,7 +264,7 @@ func newMessageCreator(srv *server.MindwellServer) func(chats.PostChatsNameMessa
 }
 
 const loadMessageQuery = `
-    SELECT chat_id, extract(epoch from messages.created_at), 
+    SELECT chat_id, extract(epoch from messages.created_at),
         content, edit_content,
         users.id, users.name, users.show_name,
         is_online(users.last_seen_at), users.avatar
@@ -390,11 +386,6 @@ func newMessageEditor(srv *server.MindwellServer) func(chats.PutMessagesIDParams
 
 			setMessageRead(tx, msg, userID.ID)
 
-			name := findPartner(tx, msg.ChatID, userID.ID)
-			if name != "" {
-				srv.Ntf.NotifyMessageUpdate(msg, name)
-			}
-
 			return chats.NewPutMessagesIDOK().WithPayload(msg)
 		})
 	}
@@ -413,12 +404,7 @@ func newMessageDeleter(srv *server.MindwellServer) func(chats.DeleteMessagesIDPa
 				return chats.NewDeleteMessagesIDForbidden().WithPayload(err)
 			}
 
-			chatID := deleteMessage(tx, params.ID)
-
-			name := findPartner(tx, chatID, userID.ID)
-			if name != "" {
-				srv.Ntf.NotifyMessageRemove(chatID, params.ID, name)
-			}
+			deleteMessage(tx, params.ID)
 
 			return chats.NewDeleteMessagesIDOK()
 		})
@@ -432,7 +418,7 @@ func SendWelcomeMessage(srv *server.MindwellServer, user *models.AuthProfile) {
 У нас уютно. Убедись в этом лично, написав первый пост в своем дневнике.
 На данный момент тебе доступны основные функции сайта. Продолжай публиковать открытые посты, чтобы получить приглашение и иметь возможность комментировать записи других пользователей, голосовать, начинать новые беседы и многое другое. Также ты можешь обратиться за приглашением ко мне.
 Ответы на распространенные вопросы содержатся в разделе Помощь ` + helpURL + `
-Если в разделе ответа не нашлось, спрашивай у меня. 
+Если в разделе ответа не нашлось, спрашивай у меня.
 Чувствуй себя как дома 😌`
 
 	tx := database.NewAutoTx(srv.DB)
@@ -441,6 +427,5 @@ func SendWelcomeMessage(srv *server.MindwellServer, user *models.AuthProfile) {
 	chat := createChat(srv, tx, 1, user.ID)
 	msg := createMessage(srv, tx, 1, chat.ID, text)
 
-	srv.Ntf.NotifyMessage(tx, msg, user.Name)
 	setCachedMessage(1, time.Now().Unix(), user.Name, msg)
 }

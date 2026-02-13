@@ -53,6 +53,10 @@ func NewCompositeNotifier(srv ServerDependencies, ps *pubsub.PubSub) *CompositeN
 	ps.Subscribe("new_comment", ntf.notifyNewComment)
 	ps.Subscribe("update_comment", ntf.notifyUpdateComment)
 	ps.Subscribe("remove_comment", ntf.notifyRemoveComment)
+	ps.Subscribe("new_message", ntf.notifyNewMessage)
+	ps.Subscribe("update_message", ntf.notifyUpdateMessage)
+	ps.Subscribe("remove_message", ntf.notifyRemoveMessage)
+	ps.Subscribe("read_message", ntf.notifyReadMessage)
 
 	return ntf
 }
@@ -623,32 +627,148 @@ func (ntf *CompositeNotifier) SendWishCreated(tx *database.AutoTx, wishID int64,
 	ntf.Ntf.Notify(tx, wishID, TypeWishCreated, user)
 }
 
-func (ntf *CompositeNotifier) NotifyMessage(tx *database.AutoTx, msg *models.Message, user string) {
-	const q = "SELECT telegram, telegram_messages FROM users WHERE lower(name) = lower($1)"
+// loadMessage loads a message by ID with all associated data
+func (ntf *CompositeNotifier) loadMessage(tx *database.AutoTx, messageID, chatID int64) *models.Message {
+	const q = `
+		SELECT edit_content,
+			users.id, users.name, users.show_name
+		FROM messages
+		JOIN users ON users.id = messages.author_id
+		WHERE messages.id = $1
+	`
 
-	var tg sql.NullInt64
-	var sendTg bool
-	tx.Query(q, user).Scan(&tg, &sendTg)
-
-	if tg.Valid && sendTg {
-		ntf.Tg.SendNewMessage(tg.Int64, msg)
+	msg := &models.Message{
+		ID:     messageID,
+		ChatID: chatID,
+		Author: &models.User{
+			Avatar: &models.Avatar{},
+		},
 	}
 
-	ntf.Ntf.NotifyMessage(msg.ChatID, msg.ID, user)
+	tx.Query(q, messageID).Scan(
+		&msg.EditContent,
+		&msg.Author.ID, &msg.Author.Name, &msg.Author.ShowName)
+
+	return msg
 }
 
-func (ntf *CompositeNotifier) NotifyMessageUpdate(msg *models.Message, user string) {
-	ntf.Tg.SendUpdateMessage(msg)
-	ntf.Ntf.NotifyMessageUpdate(msg.ChatID, msg.ID, user)
+// loadPartnerName loads the name of the chat partner (the other user in the chat)
+func (ntf *CompositeNotifier) loadPartnerName(tx *database.AutoTx, chatID, authorID int64) string {
+	const q = `
+		SELECT name
+		FROM users
+		JOIN talkers ON talkers.user_id = users.id
+		WHERE talkers.chat_id = $1 AND talkers.user_id <> $2
+	`
+	return tx.QueryString(q, chatID, authorID)
 }
 
-func (ntf *CompositeNotifier) NotifyMessageRemove(chatID, msgID int64, user string) {
-	ntf.Tg.SendRemoveMessage(msgID)
-	ntf.Ntf.NotifyMessageRemove(chatID, msgID, user)
+// loadChatUsers loads all user names participating in a chat
+func (ntf *CompositeNotifier) loadChatUsers(tx *database.AutoTx, chatID int64) []string {
+	const q = `
+		SELECT name
+		FROM users
+		JOIN talkers ON talkers.user_id = users.id
+		WHERE talkers.chat_id = $1
+	`
+	return tx.QueryStrings(q, chatID)
 }
 
-func (ntf *CompositeNotifier) NotifyMessageRead(chatID, msgID int64, user string) {
-	ntf.Ntf.NotifyMessageRead(chatID, msgID, user)
+func (ntf *CompositeNotifier) notifyNewMessage(messageData []byte) {
+	var messageInfo struct {
+		ID     int64 `json:"id"`
+		ChatID int64 `json:"chat_id"`
+	}
+	err := json.Unmarshal(messageData, &messageInfo)
+	if err != nil {
+		ntf.srv.LogSystem().Error(err.Error())
+		return
+	}
+
+	tx := database.NewAutoTx(ntf.srv.GetDB())
+	defer tx.Finish()
+
+	msg := ntf.loadMessage(tx, messageInfo.ID, messageInfo.ChatID)
+	if tx.Error() != nil {
+		return
+	}
+
+	partnerName := ntf.loadPartnerName(tx, msg.ChatID, msg.Author.ID)
+
+	if partnerName != "" {
+		const q = "SELECT telegram, telegram_messages FROM users WHERE lower(name) = lower($1)"
+
+		var tg sql.NullInt64
+		var sendTg bool
+		tx.Query(q, partnerName).Scan(&tg, &sendTg)
+
+		if tg.Valid && sendTg {
+			ntf.Tg.SendNewMessage(tg.Int64, msg)
+		}
+
+		ntf.Ntf.NotifyMessage(msg.ChatID, msg.ID, partnerName)
+	}
+}
+
+func (ntf *CompositeNotifier) notifyUpdateMessage(messageData []byte) {
+	var messageInfo struct {
+		ID     int64 `json:"id"`
+		ChatID int64 `json:"chat_id"`
+	}
+	err := json.Unmarshal(messageData, &messageInfo)
+	if err != nil {
+		ntf.srv.LogSystem().Error(err.Error())
+		return
+	}
+
+	tx := database.NewAutoTx(ntf.srv.GetDB())
+	defer tx.Finish()
+
+	msg := ntf.loadMessage(tx, messageInfo.ID, messageInfo.ChatID)
+	if tx.Error() != nil {
+		return
+	}
+
+	partnerName := ntf.loadPartnerName(tx, msg.ChatID, msg.Author.ID)
+	if partnerName != "" {
+		ntf.Ntf.NotifyMessageUpdate(msg.ChatID, msg.ID, partnerName)
+	}
+}
+
+func (ntf *CompositeNotifier) notifyRemoveMessage(messageData []byte) {
+	var messageInfo struct {
+		ID     int64 `json:"id"`
+		ChatID int64 `json:"chat_id"`
+	}
+	err := json.Unmarshal(messageData, &messageInfo)
+	if err != nil {
+		ntf.srv.LogSystem().Error(err.Error())
+		return
+	}
+
+	tx := database.NewAutoTx(ntf.srv.GetDB())
+	defer tx.Finish()
+
+	userNames := ntf.loadChatUsers(tx, messageInfo.ChatID)
+	for _, userName := range userNames {
+		ntf.Tg.SendRemoveMessage(messageInfo.ID)
+		ntf.Ntf.NotifyMessageRemove(messageInfo.ChatID, messageInfo.ID, userName)
+	}
+}
+
+func (ntf *CompositeNotifier) notifyReadMessage(messageData []byte) {
+	var readInfo struct {
+		ChatID    int64  `json:"chat_id"`
+		MessageID int64  `json:"message_id"`
+		UserName  string `json:"user_name"`
+	}
+	err := json.Unmarshal(messageData, &readInfo)
+	if err != nil {
+		ntf.srv.LogSystem().Error(err.Error())
+		return
+	}
+
+	ntf.Ntf.NotifyMessageRead(readInfo.ChatID, readInfo.MessageID, readInfo.UserName)
 }
 
 func (ntf *CompositeNotifier) notifyMovedEntry(entryData []byte) {

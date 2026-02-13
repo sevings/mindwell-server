@@ -85,24 +85,3 @@ func setCachedMessage(userID, uid int64, partnerName string, msg *models.Message
 	messages.SetDefault(key, msg)
 }
 
-func findPartner(tx *database.AutoTx, chatID, userID int64) string {
-	key := fmt.Sprintf("%d_%d", chatID, userID)
-	name, found := partners.Get(key)
-	if found {
-		return name.(string)
-	}
-
-	const q = `
-		SELECT name 
-		FROM users
-		JOIN talkers ON user_id = users.id
-		WHERE chat_id = $1 and user_id <> $2
-	`
-
-	partner := tx.QueryString(q, chatID, userID)
-	if partner != "" {
-		partners.SetDefault(key, partner)
-	}
-
-	return partner
-}
